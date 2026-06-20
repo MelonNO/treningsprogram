@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?android:attr/colorBackground">
+
+    <!-- Header bar: counter + elapsed + progress -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:paddingTop="12dp" android:paddingBottom="8dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+            <TextView android:id="@+id/tv_exercise_counter"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorOnSurface" />
+            <TextView android:id="@+id/tv_elapsed"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress_session"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="100" app:trackCornerRadius="4dp" app:trackColor="#2A2A3A" />
+    </LinearLayout>
+
+    <!-- Scrollable main content -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+
+            <!-- Exercise info card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp" app:cardElevation="0dp"
+                app:cardCornerRadius="16dp" app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+                    <!-- name row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+                        <TextView android:id="@+id/tv_muscle_badge"
+                            android:layout_width="wrap_content" android:layout_height="44dp"
+                            android:minWidth="44dp"
+                            android:paddingStart="8dp" android:paddingEnd="8dp"
+                            android:gravity="center" android:textSize="9sp" android:textStyle="bold"
+                            android:background="@drawable/bg_achievement_icon"
+                            android:layout_marginEnd="12dp" />
+                        <TextView android:id="@+id/tv_exercise_name"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="?attr/colorOnSurface" />
+                    </LinearLayout>
+                    <!-- exercise image / muscle banner fallback -->
+                    <FrameLayout
+                        android:id="@+id/layout_muscle_banner"
+                        android:layout_width="match_parent"
+                        android:layout_height="140dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="#1C1C2A">
+                        <TextView
+                            android:id="@+id/tv_muscle_banner_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.1"
+                            android:textColor="?attr/colorOnSurface" />
+                        <ImageView
+                            android:id="@+id/iv_exercise_image"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="centerCrop"
+                            android:visibility="gone"
+                            android:contentDescription="Exercise image" />
+                    </FrameLayout>
+                    <!-- target chips row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginBottom="6dp">
+                        <TextView android:id="@+id/chip_target_sets"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:paddingStart="10dp" android:paddingEnd="10dp"
+                            android:paddingTop="4dp" android:paddingBottom="4dp"
+                            android:textSize="12sp" android:textStyle="bold"
+                            android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
+                        <TextView android:id="@+id/chip_target_reps"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:paddingStart="10dp" android:paddingEnd="10dp"
+                            android:paddingTop="4dp" android:paddingBottom="4dp"
+                            android:textSize="12sp" android:textStyle="bold"
+                            android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
+                        <TextView android:id="@+id/chip_target_weight"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:paddingStart="10dp" android:paddingEnd="10dp"
+                            android:paddingTop="4dp" android:paddingBottom="4dp"
+                            android:textSize="12sp" android:textStyle="bold"
+                            android:textColor="?attr/colorOnSurfaceVariant" android:background="@drawable/bg_spec_chip" />
+                    </LinearLayout>
+                    <!-- per-exercise elapsed timer -->
+                    <TextView android:id="@+id/tv_exercise_time"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginTop="6dp" />
+
+                    <!-- last session reference -->
+                    <TextView android:id="@+id/tv_last_session"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="#8888A8" android:visibility="gone" />
+                    <!-- Freestyle exercise name input (hidden in guided mode) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/til_freestyle_exercise"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:hint="Exercise name"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/et_freestyle_exercise"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:inputType="textCapWords" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Set logging card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp" app:cardElevation="0dp"
+                app:cardCornerRadius="16dp" app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+
+                    <!-- top row: warmup toggle + plate calc -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip_warmup"
+                            style="@style/Widget.Material3.Chip.Filter"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Warm-up" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    </LinearLayout>
+
+                    <!-- weight + reps inputs with +/- buttons -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+
+                        <!-- Weight -->
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:orientation="vertical"
+                            android:layout_marginEnd="12dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Weight (kg)" android:textSize="11sp"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:layout_marginBottom="4dp" />
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="horizontal" android:gravity="center_vertical">
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btn_weight_minus"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    android:layout_width="36dp" android:layout_height="36dp"
+                                    android:text="-" android:textSize="16sp"
+                                    android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" />
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/et_weight"
+                                    android:layout_width="0dp" android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:inputType="numberDecimal"
+                                    android:gravity="center"
+                                    android:textSize="20sp" android:textStyle="bold"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:background="@null"
+                                    android:padding="6dp" />
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btn_weight_plus"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    android:layout_width="36dp" android:layout_height="36dp"
+                                    android:text="+" android:textSize="16sp"
+                                    android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Reps -->
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Reps" android:textSize="11sp"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:layout_marginBottom="4dp" />
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="horizontal" android:gravity="center_vertical">
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btn_reps_minus"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    android:layout_width="36dp" android:layout_height="36dp"
+                                    android:text="-" android:textSize="16sp"
+                                    android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" />
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/et_reps"
+                                    android:layout_width="0dp" android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:inputType="number"
+                                    android:gravity="center"
+                                    android:textSize="20sp" android:textStyle="bold"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:background="@null"
+                                    android:padding="6dp" />
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btn_reps_plus"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    android:layout_width="36dp" android:layout_height="36dp"
+                                    android:text="+" android:textSize="16sp"
+                                    android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- RPE row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Effort: " android:textSize="12sp"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:layout_marginEnd="8dp" />
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/cg_rpe"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            app:singleSelection="true" app:selectionRequired="false">
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_rpe_easy"
+                                style="@style/Widget.Material3.Chip.Filter"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Easy" android:textSize="12sp" />
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_rpe_moderate"
+                                style="@style/Widget.Material3.Chip.Filter"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Moderate" android:textSize="12sp" />
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_rpe_hard"
+                                style="@style/Widget.Material3.Chip.Filter"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Hard" android:textSize="12sp" />
+                        </com.google.android.material.chip.ChipGroup>
+                    </LinearLayout>
+
+                    <!-- Set counter -->
+                    <TextView
+                        android:id="@+id/tv_set_counter"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:textAppearance="?attr/textAppearanceLabelLarge"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Log Set button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_log_set"
+                        android:layout_width="match_parent" android:layout_height="56dp"
+                        android:text="LOG SET"
+                        android:textSize="16sp" android:textStyle="bold"
+                        android:letterSpacing="0.05" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Logged sets card (for current exercise) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_logged_sets"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp" app:cardElevation="0dp"
+                app:cardCornerRadius="16dp" app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant"
+                android:visibility="gone">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+                    <TextView android:id="@+id/tv_sets_header"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="8dp" />
+                    <LinearLayout android:id="@+id/layout_logged_sets"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- challenge card removed from workout screen -->
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Bottom navigation bar -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="12dp" android:paddingEnd="12dp"
+        android:paddingTop="8dp" android:paddingBottom="12dp"
+        android:background="?attr/colorSurface">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_prev_exercise"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Back"
+            android:textSize="13sp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_skip_exercise"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Skip"
+            android:textSize="13sp" android:textColor="?attr/colorOnSurfaceVariant" />
+        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_next_exercise"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Next"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+</LinearLayout>

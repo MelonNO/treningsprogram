@@ -1,0 +1,4 @@
+-keep class com.migul.treningsprogram.data.api.model.** { *; }
+-keep class com.migul.treningsprogram.data.repository.AiRepository$** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*

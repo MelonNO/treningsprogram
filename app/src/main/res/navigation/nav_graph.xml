@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.migul.treningsprogram.ui.home.HomeFragment"
+        android:label="@string/home"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_home_to_log"
+            app:destination="@id/logWorkoutFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/logWorkoutFragment"
+        android:name="com.migul.treningsprogram.ui.log.LogWorkoutFragment"
+        android:label="@string/log_workout"
+        tools:layout="@layout/fragment_log_workout">
+        <argument
+            android:name="sessionId"
+            app:argType="long"
+            android:defaultValue="-1L" />
+        <argument
+            android:name="dayOfWeek"
+            app:argType="integer"
+            android:defaultValue="-1" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/historyFragment"
+        android:name="com.migul.treningsprogram.ui.history.HistoryFragment"
+        android:label="@string/history"
+        tools:layout="@layout/fragment_history" />
+
+    <fragment
+        android:id="@+id/programFragment"
+        android:name="com.migul.treningsprogram.ui.program.ProgramFragment"
+        android:label="@string/program"
+        tools:layout="@layout/fragment_program">
+        <action
+            android:id="@+id/action_program_to_log"
+            app:destination="@id/logWorkoutFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsFragment"
+        android:label="@string/settings"
+        tools:layout="@layout/fragment_settings">
+        <action
+            android:id="@+id/action_settings_to_gym_presets"
+            app:destination="@id/gymPresetsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/gymPresetsFragment"
+        android:name="com.migul.treningsprogram.ui.settings.GymPresetsFragment"
+        android:label="Gym Presets"
+        tools:layout="@layout/fragment_gym_presets" />
+
+    <fragment
+        android:id="@+id/profileFragment"
+        android:name="com.migul.treningsprogram.ui.profile.ProfileFragment"
+        android:label="@string/profile"
+        tools:layout="@layout/fragment_profile">
+        <action
+            android:id="@+id/action_profile_to_settings"
+            app:destination="@id/settingsFragment" />
+    </fragment>
+
+</navigation>

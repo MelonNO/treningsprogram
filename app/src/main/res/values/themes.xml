@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Treningsprogram" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorPrimaryContainer">#2D1B8F</item>
+        <item name="colorOnPrimaryContainer">#E8DFFF</item>
+        <item name="colorSecondary">@color/secondary</item>
+        <item name="colorOnSecondary">#1F0F00</item>
+        <item name="colorSecondaryContainer">#5C3800</item>
+        <item name="colorOnSecondaryContainer">#FFE0A0</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorOnBackground">@color/on_surface</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="colorOutlineVariant">@color/outline_variant</item>
+        <item name="colorError">#CF6679</item>
+        <item name="colorOnError">#370010</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

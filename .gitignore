@@ -1,0 +1,18 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Sensitive / local-only files
+claude k
+tkn
+*.key
+*.token
+.claude/

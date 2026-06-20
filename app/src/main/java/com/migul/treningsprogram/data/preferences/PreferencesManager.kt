@@ -1,0 +1,77 @@
+package com.migul.treningsprogram.data.preferences
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+
+class PreferencesManager(context: Context) {
+
+    private val prefs: SharedPreferences = runCatching {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "treningsprogram_secure_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }.getOrElse {
+        context.getSharedPreferences("treningsprogram_prefs_fallback", Context.MODE_PRIVATE)
+    }
+
+    var apiKey: String
+        get() = prefs.getString(KEY_API_KEY, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_API_KEY, value).apply() }
+
+    var daysPerWeek: Int
+        get() = prefs.getInt(KEY_DAYS_PER_WEEK, 4)
+        set(value) { prefs.edit().putInt(KEY_DAYS_PER_WEEK, value).apply() }
+
+    var fitnessGoal: String
+        get() = prefs.getString(KEY_GOAL, "Hypertrophy") ?: "Hypertrophy"
+        set(value) { prefs.edit().putString(KEY_GOAL, value).apply() }
+
+    var experienceLevel: String
+        get() = prefs.getString(KEY_EXPERIENCE, "Intermediate") ?: "Intermediate"
+        set(value) { prefs.edit().putString(KEY_EXPERIENCE, value).apply() }
+
+    var restTimerSeconds: Int
+        get() = prefs.getInt(KEY_REST_TIMER, 90)
+        set(value) { prefs.edit().putInt(KEY_REST_TIMER, value).apply() }
+
+    var dailyChallengesJson: String
+        get() = prefs.getString(KEY_DAILY_CHALLENGES, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_DAILY_CHALLENGES, value).apply() }
+
+    var sessionDurationMinutes: Int
+        get() = prefs.getInt(KEY_SESSION_DURATION, 60)
+        set(value) { prefs.edit().putInt(KEY_SESSION_DURATION, value).apply() }
+
+    var selectedGymPresetId: Long
+        get() = prefs.getLong(KEY_GYM_PRESET, -1L)
+        set(value) { prefs.edit().putLong(KEY_GYM_PRESET, value).apply() }
+
+    var lastAutoGenerateWeek: String
+        get() = prefs.getString(KEY_LAST_AUTO_GENERATE_WEEK, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_LAST_AUTO_GENERATE_WEEK, value).apply() }
+
+    var separateCardioDays: Boolean
+        get() = prefs.getBoolean(KEY_SEPARATE_CARDIO_DAYS, false)
+        set(value) { prefs.edit().putBoolean(KEY_SEPARATE_CARDIO_DAYS, value).apply() }
+
+    companion object {
+        private const val KEY_API_KEY = "claude_api_key"
+        private const val KEY_DAYS_PER_WEEK = "days_per_week"
+        private const val KEY_GOAL = "fitness_goal"
+        private const val KEY_EXPERIENCE = "experience_level"
+        private const val KEY_REST_TIMER = "rest_timer_seconds"
+        private const val KEY_DAILY_CHALLENGES = "daily_challenges_json"
+        private const val KEY_SESSION_DURATION = "session_duration_minutes"
+        private const val KEY_GYM_PRESET = "selected_gym_preset_id"
+        private const val KEY_LAST_AUTO_GENERATE_WEEK = "last_auto_generate_week"
+        private const val KEY_SEPARATE_CARDIO_DAYS = "separate_cardio_days"
+    }
+}
