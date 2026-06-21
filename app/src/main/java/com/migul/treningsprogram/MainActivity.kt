@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
                     val type = object : TypeToken<List<String>>() {}.type
                     gson.fromJson<List<String>>(it.equipmentJson, type)
                 }.getOrElse { emptyList() }
-            } ?: emptyList()
+            } ?: prefsManager.wizardEquipment.split(",").map { it.trim() }.filter { it.isNotBlank() }
             val result = aiRepository.generateAdaptedProgram(
                 daysPerWeek = prefsManager.daysPerWeek,
                 goal = prefsManager.fitnessGoal,
@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity() {
                 equipment = equipment,
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = prefsManager.separateCardioDays,
+                injuries = prefsManager.injuries,
+                priorityMuscles = prefsManager.priorityMuscles,
+                dislikedExercises = prefsManager.dislikedExercises,
                 onboardingContext = prefsManager.onboardingContext
             )
             result.onSuccess { generationResult ->

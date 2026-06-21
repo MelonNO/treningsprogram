@@ -28,8 +28,9 @@ object NetworkModule {
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor { chain ->
+                val key = preferencesManager.apiKey.filter { it.code in 0x20..0x7E }
                 val request = chain.request().newBuilder()
-                    .addHeader("x-api-key", preferencesManager.apiKey)
+                    .addHeader("x-api-key", key)
                     .addHeader("anthropic-version", "2023-06-01")
                     .addHeader("Content-Type", "application/json")
                     .build()

@@ -19,7 +19,7 @@ import com.migul.treningsprogram.data.db.entity.*
         GymPreset::class,
         BodyMeasurement::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -103,6 +103,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM gym_presets WHERE name = 'No Equipment'")
+            }
+        }
+
         suspend fun seedPresets(dao: GymPresetDao) {
             if (dao.count() > 0) return
             val gson = Gson()
@@ -117,9 +123,6 @@ abstract class AppDatabase : RoomDatabase() {
                 equipmentJson = gson.toJson(listOf("Dumbbells (limited range)", "Treadmill",
                     "Stationary bike", "Resistance bands")),
                 notes = "Limited equipment — avoid barbell-only exercises"))
-            dao.insert(GymPreset(name = "No Equipment",
-                equipmentJson = gson.toJson(emptyList<String>()),
-                notes = "Bodyweight exercises only: push-ups, squats, lunges, burpees, mountain climbers, planks, dips on chair"))
             dao.insert(GymPreset(name = "Home Gym",
                 equipmentJson = gson.toJson(listOf("Pull-up bar", "Bench press bench",
                     "Barbell", "Dumbbells", "Ab roller")),

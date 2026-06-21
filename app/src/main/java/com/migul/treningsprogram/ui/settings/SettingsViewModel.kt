@@ -41,13 +41,30 @@ class SettingsViewModel @Inject constructor(
     private val _lastAttemptCount = MutableStateFlow(prefs.lastGenerationAttemptCount)
     val lastAttemptCount = _lastAttemptCount.asStateFlow()
 
-    fun save(apiKey: String, daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int = 60, separateCardioDays: Boolean = false) {
+    data class RetryEntry(val attempt: Int, val reason: String, val failed: Boolean)
+    private val _retryLog = MutableStateFlow<List<RetryEntry>>(emptyList())
+    val retryLog = _retryLog.asStateFlow()
+
+    fun save(
+        apiKey: String,
+        daysPerWeek: Int,
+        goal: String,
+        experience: String,
+        sessionDurationMinutes: Int = 60,
+        separateCardioDays: Boolean = false,
+        injuries: String = "",
+        priorityMuscles: String = "",
+        dislikedExercises: String = ""
+    ) {
         prefs.apiKey = apiKey
         prefs.daysPerWeek = daysPerWeek
         prefs.fitnessGoal = goal
         prefs.experienceLevel = experience
         prefs.sessionDurationMinutes = sessionDurationMinutes
         prefs.separateCardioDays = separateCardioDays
+        prefs.injuries = injuries
+        prefs.priorityMuscles = priorityMuscles
+        prefs.dislikedExercises = dislikedExercises
         _saved.value = true
         _saved.value = false
     }
@@ -62,7 +79,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun generateProgram(daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
-        doGenerate(prefs.onboardingContext, daysPerWeek, goal, experience, sessionDurationMinutes)
+        doGenerate(daysPerWeek, goal, experience, sessionDurationMinutes)
     }
 
     fun generateProgramWithOnboarding(
@@ -74,13 +91,15 @@ class SettingsViewModel @Inject constructor(
     ) {
         prefs.hasCompletedOnboarding = true
         prefs.onboardingContext = onboardingContext
-        doGenerate(onboardingContext, daysPerWeek, goal, experience, sessionDurationMinutes)
+        doGenerate(daysPerWeek, goal, experience, sessionDurationMinutes)
     }
 
-    private fun doGenerate(onboardingContext: String, daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
+    private fun doGenerate(daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
         viewModelScope.launch {
             _isGenerating.value = true
             _generateStatus.value = null
+            _retryLog.value = emptyList()
+            val capturedReasons = mutableListOf<String>()
             val preset = gymPresetDao.getById(prefs.selectedGymPresetId)
             val equipment: List<String> = preset?.let {
                 runCatching {
@@ -96,19 +115,34 @@ class SettingsViewModel @Inject constructor(
                 equipment = equipment,
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = prefs.separateCardioDays,
-                onboardingContext = onboardingContext
+                injuries = prefs.injuries,
+                priorityMuscles = prefs.priorityMuscles,
+                dislikedExercises = prefs.dislikedExercises,
+                onboardingContext = prefs.onboardingContext,
+                onProgress = { msg ->
+                    _generateStatus.value = msg
+                    val prefix = "Attempt "
+                    val marker = " rejected: "
+                    if (msg.startsWith(prefix) && msg.contains(marker)) {
+                        capturedReasons.add(msg.substringAfter(marker))
+                    }
+                }
             )
             result.onSuccess { generationResult ->
                 workoutRepository.savePlan(thisMonday(), generationResult.exercises)
                 prefs.lastAutoGenerateWeek = java.text.SimpleDateFormat("yyyy-'W'ww", java.util.Locale.getDefault()).format(java.util.Date())
                 prefs.lastGenerationAttemptCount = generationResult.attemptCount
                 _lastAttemptCount.value = generationResult.attemptCount
-                _generateStatus.value = if (generationResult.attemptCount > 1)
-                    "Program generated after ${generationResult.attemptCount} attempts (${generationResult.attemptCount - 1} rejected)."
+                _retryLog.value = capturedReasons.mapIndexed { i, r -> RetryEntry(i + 1, r, false) }
+                _generateStatus.value = if (capturedReasons.isNotEmpty())
+                    "Program generated after ${generationResult.attemptCount} attempts (${capturedReasons.size} rejected)"
                 else
                     "New program generated!"
-            }.onFailure { e ->
-                _generateStatus.value = "Error: ${e.message}"
+            }.onFailure {
+                _retryLog.value = capturedReasons.mapIndexed { i, r ->
+                    RetryEntry(i + 1, r, i == capturedReasons.lastIndex)
+                }
+                _generateStatus.value = "Program rejected after all ${AiRepository.MAX_GENERATION_ATTEMPTS} attempts"
             }
             _isGenerating.value = false
         }

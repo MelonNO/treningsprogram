@@ -5,14 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
+import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.thisMonday
-import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -28,14 +30,8 @@ class SetupWizardViewModel @Inject constructor(
     private val gson: Gson
 ) : ViewModel() {
 
-    private val _questions = MutableStateFlow<List<OnboardingQuestion>>(emptyList())
-    val questions = _questions.asStateFlow()
-
-    private val _isLoadingQuestions = MutableStateFlow(false)
-    val isLoadingQuestions = _isLoadingQuestions.asStateFlow()
-
-    private val _questionsError = MutableStateFlow<String?>(null)
-    val questionsError = _questionsError.asStateFlow()
+    val presets = gymPresetDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating = _isGenerating.asStateFlow()
@@ -46,22 +42,32 @@ class SetupWizardViewModel @Inject constructor(
     private val _generationError = MutableStateFlow<String?>(null)
     val generationError = _generationError.asStateFlow()
 
+    private val _generationStatus = MutableStateFlow("")
+    val generationStatus = _generationStatus.asStateFlow()
+
     private val _attemptCount = MutableStateFlow(0)
     val attemptCount = _attemptCount.asStateFlow()
 
-    fun loadQuestions(goal: String, experience: String) {
+    private val _rejectionReasons = MutableStateFlow<List<String>>(emptyList())
+    val rejectionReasons = _rejectionReasons.asStateFlow()
+
+    fun selectPreset(id: Long) {
+        prefs.selectedGymPresetId = id
+    }
+
+    fun addPresetAndSelect(name: String, equipment: List<String>, notes: String) {
         viewModelScope.launch {
-            _isLoadingQuestions.value = true
-            _questionsError.value = null
-            aiRepository.getOnboardingQuestions(goal, experience)
-                .onSuccess { _questions.value = it }
-                .onFailure { _questionsError.value = it.message }
-            _isLoadingQuestions.value = false
+            val id = gymPresetDao.insert(GymPreset(name = name, equipmentJson = gson.toJson(equipment), notes = notes))
+            prefs.selectedGymPresetId = id
         }
     }
 
+    fun getEquipmentList(preset: GymPreset): List<String> = runCatching {
+        val type = object : TypeToken<List<String>>() {}.type
+        gson.fromJson<List<String>>(preset.equipmentJson, type) ?: emptyList()
+    }.getOrElse { emptyList() }
+
     fun generateProgram(
-        onboardingContext: String,
         goal: String,
         experience: String,
         daysPerWeek: Int,
@@ -79,15 +85,10 @@ class SetupWizardViewModel @Inject constructor(
             prefs.daysPerWeek = daysPerWeek
             prefs.sessionDurationMinutes = sessionDurationMinutes
             prefs.separateCardioDays = separateCardioDays
-            prefs.onboardingContext = onboardingContext
 
             val preset = gymPresetDao.getById(prefs.selectedGymPresetId)
-            val equipment: List<String> = preset?.let {
-                runCatching {
-                    val type = object : TypeToken<List<String>>() {}.type
-                    gson.fromJson<List<String>>(it.equipmentJson, type)
-                }.getOrElse { emptyList() }
-            } ?: emptyList()
+            val equipment = getEquipmentFromSelectedPreset()
+            prefs.wizardEquipment = equipment.joinToString(",")
 
             aiRepository.generateAdaptedProgram(
                 daysPerWeek = daysPerWeek,
@@ -97,13 +98,17 @@ class SetupWizardViewModel @Inject constructor(
                 equipment = equipment,
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = separateCardioDays,
-                onboardingContext = onboardingContext
+                injuries = prefs.injuries,
+                priorityMuscles = prefs.priorityMuscles,
+                dislikedExercises = prefs.dislikedExercises,
+                onProgress = { _generationStatus.value = it }
             ).onSuccess { result ->
                 workoutRepository.savePlan(thisMonday(), result.exercises)
                 prefs.lastAutoGenerateWeek = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(Date())
                 prefs.lastGenerationAttemptCount = result.attemptCount
                 prefs.hasCompletedOnboarding = true
                 _attemptCount.value = result.attemptCount
+                _rejectionReasons.value = result.rejectionReasons
                 _generationDone.value = true
             }.onFailure { e ->
                 _generationError.value = e.message
@@ -111,5 +116,10 @@ class SetupWizardViewModel @Inject constructor(
 
             _isGenerating.value = false
         }
+    }
+
+    private suspend fun getEquipmentFromSelectedPreset(): List<String> {
+        val preset = gymPresetDao.getById(prefs.selectedGymPresetId) ?: return emptyList()
+        return getEquipmentList(preset)
     }
 }

@@ -39,7 +39,7 @@ private data class DayJson(
 
 private data class ProgramJson(val days: List<DayJson> = emptyList())
 
-data class GenerationResult(val exercises: List<PlannedExercise>, val attemptCount: Int)
+data class GenerationResult(val exercises: List<PlannedExercise>, val attemptCount: Int, val rejectionReasons: List<String> = emptyList())
 
 private data class ValidationResult(val accepted: Boolean, val reason: String = "")
 
@@ -53,13 +53,30 @@ class AiRepository @Inject constructor(
         const val MAX_GENERATION_ATTEMPTS = 3
     }
 
-    suspend fun getOnboardingQuestions(goal: String, experience: String): Result<List<OnboardingQuestion>> = runCatching {
+    suspend fun getOnboardingQuestions(
+        goal: String,
+        experience: String,
+        daysPerWeek: Int,
+        sessionDurationMinutes: Int,
+        separateCardioDays: Boolean,
+        equipment: List<String>
+    ): Result<List<OnboardingQuestion>> = runCatching {
+        val equipStr = if (equipment.isEmpty()) "Bodyweight only" else equipment.joinToString(", ")
+        val cardioStr = if (separateCardioDays) "Yes — cardio on its own dedicated day" else "No — cardio can be combined"
         val prompt = """
 You are a personal trainer conducting a brief onboarding interview for a new client.
-Goal: $goal | Experience: $experience
 
-Generate exactly 5 short, focused questions to personalise their training program beyond what you already know.
-Cover: specific physical targets, injury/movement limitations, time/lifestyle constraints, equipment preferences, exercise likes/dislikes.
+ALREADY KNOWN — do NOT ask about any of these:
+- Goal: $goal
+- Experience: $experience
+- Training days per week: $daysPerWeek
+- Session duration: $sessionDurationMinutes minutes
+- Separate cardio days: $cardioStr
+- Available equipment: $equipStr
+
+Generate exactly 4 SHORT, FOCUSED questions that dig into information NOT covered above.
+Good topics: specific body-part focus, injury or movement restrictions, exercise dislikes, sleep/recovery habits, nutrition basics, sport or activity outside the gym.
+BAD topics (already answered): how many days, how long, goal, experience, cardio preference, equipment.
 
 Return ONLY valid JSON — no prose, no markdown fences:
 {
@@ -87,17 +104,27 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         equipment: List<String> = emptyList(),
         equipmentNotes: String = "",
         separateCardioDays: Boolean = false,
-        onboardingContext: String = ""
+        injuries: String = "",
+        priorityMuscles: String = "",
+        dislikedExercises: String = "",
+        onboardingContext: String = "",
+        onProgress: (String) -> Unit = {}
     ): Result<GenerationResult> = runCatching {
         val sessions = workoutRepository.getRecentSessions(12)
         val history = buildSessionHistory(sessions)
-        var lastRejectionReason = ""
+        val rejectionReasons = mutableListOf<String>()
 
         for (attempt in 1..MAX_GENERATION_ATTEMPTS) {
+            if (attempt == 1) {
+                onProgress("Generating your plan…")
+            } else {
+                onProgress("Attempt $attempt of $MAX_GENERATION_ATTEMPTS: refining plan…")
+            }
             val prompt = buildPrompt(
                 history, daysPerWeek, goal, experience,
                 sessionDurationMinutes, equipment, equipmentNotes,
-                separateCardioDays, lastRejectionReason, onboardingContext
+                separateCardioDays, rejectionReasons.lastOrNull() ?: "",
+                injuries, priorityMuscles, dislikedExercises, onboardingContext
             )
             val responseText = claudeApi.sendMessage(
                 ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
@@ -105,15 +132,16 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             val cleanJson = extractJson(responseText)
             val exercises = parseProgram(cleanJson)
 
+            onProgress("Reviewing plan for quality…")
             val validation = validateProgram(cleanJson, daysPerWeek, goal, experience)
             if (validation.accepted) {
-                return@runCatching GenerationResult(exercises, attempt)
+                return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList())
             }
-            lastRejectionReason = validation.reason
+            rejectionReasons.add(validation.reason)
+            onProgress("Attempt $attempt rejected: ${validation.reason}")
             if (attempt == MAX_GENERATION_ATTEMPTS) {
-                throw IllegalStateException(
-                    "Program rejected after $MAX_GENERATION_ATTEMPTS attempts. Last issue: $lastRejectionReason"
-                )
+                val reasons = rejectionReasons.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
+                throw IllegalStateException("Program rejected after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
             }
         }
         throw IllegalStateException("Unexpected state")
@@ -133,18 +161,27 @@ Goal: $goal | Experience: $experience | Training days: $daysPerWeek
 PROGRAM JSON:
 $planJson
 
+GOAL DEFINITIONS (use these — do not substitute your own interpretation):
+- Strength: Primary compound lifts use low reps (3-6) at high intensity. Accessory and isolation exercises may use 6-12 reps — this is normal and correct for a strength program. Do NOT reject because accessory work uses 8-10 or 10-12 reps.
+- Hypertrophy: moderate reps (6-12), moderate weight, 60-120s rest. Primarily resistance training; 1 optional cardio session per week is acceptable.
+- Endurance: HIGH reps (15-30), low weight, SHORT rest (45-60s). This is MUSCULAR endurance via resistance training — NOT cardiovascular/aerobic training. 2-3 cardio sessions per week alongside resistance sessions is appropriate. Do NOT reject for "insufficient aerobic stimulus" — that is not the intent of this goal.
+- Weight Loss: 10-20 reps, metabolic circuits, 2 cardio sessions. Resistance + cardio mix.
+- General Fitness: 8-15 reps, mixed compound/isolation.
+
 Assess ALL of the following:
 1. The plan contains exactly $daysPerWeek training days.
 2. No muscle group (chest, back, legs, shoulders) is trained on consecutive days without at least 48 h rest.
 3. Within each session, compound exercises appear before isolation exercises for the same muscle group.
-4. Rep and set ranges match the stated goal (e.g. strength = low reps/high weight, hypertrophy = moderate reps).
+4. Rep and set ranges match the stated goal using the GOAL DEFINITIONS above.
 5. Weekly volume per muscle group is within reasonable bounds (not zero for a primary muscle, not excessively high).
 6. There are no obvious structural errors (e.g. only upper body days all week, cardio placed after heavy legs).
+7. Session exercise count matches experience: Beginner ≤ 5 exercises/session, Intermediate ≤ 7, Advanced ≤ 8.
+8. For Hypertrophy: no recommendedRestSeconds value exceeds 120. Any value above 120 is a violation.
 
 Respond with ONLY valid JSON — no prose, no markdown fences:
 {"accepted": true}
 OR
-{"accepted": false, "reason": "one concise sentence describing the most critical issue"}
+{"accepted": false, "reason": "one or two sentences describing the most critical issue"}
         """.trimIndent()
 
         return runCatching {
@@ -217,6 +254,9 @@ OR
         equipmentNotes: String = "",
         separateCardioDays: Boolean = false,
         previousRejectionReason: String = "",
+        injuries: String = "",
+        priorityMuscles: String = "",
+        dislikedExercises: String = "",
         onboardingContext: String = ""
     ): String {
         val goalLower = goal.lowercase()
@@ -232,12 +272,14 @@ STRENGTH parameters (apply strictly):
 
             goalLower.contains("hypertrophy") -> """
 HYPERTROPHY parameters (apply strictly):
-  - Sets: 3-5 | Reps: 6-15 (sweet spot 8-12) | Intensity: ~65-80% 1RM | RIR: 1-3
-  - Rest (compounds): 120-180s | Rest (isolation): 60-90s
+  - Sets: 3-5 | Reps: 6-12 (sweet spot 8-12) | Intensity: ~65-80% 1RM | RIR: 1-3
+  - Rest (compounds): 60-120s MAX — do NOT exceed 120s for any hypertrophy exercise
+  - Rest (isolation): 45-60s
   - CRITICAL: Every muscle group MUST be trained at least 2× per week — protein synthesis peaks at 48h
   - Session: 1-2 heavy compounds first, then 2-4 isolation/machine exercises
   - Progressive overload: add weight when you reach the TOP of the rep range at RIR ≥2
-  - Weekly sets per muscle: mid-to-upper range (12-20 sets) distributed across 2 sessions""".trimIndent()
+  - Weekly sets per muscle: mid-to-upper range (12-20 sets) distributed across 2 sessions
+  - Optional: 1 light cardio session per week (e.g. 20-30 min easy jog or cycling) is acceptable""".trimIndent()
 
             goalLower.contains("endurance") -> """
 ENDURANCE parameters (apply strictly):
@@ -359,28 +401,33 @@ TRAINING SPLIT — UPPER A / LOWER A / UPPER B / LOWER B (4 days):
     Optional: Nordic Curl or Leg Curl, Core, Glute Bridge"""
 
             daysPerWeek == 5 -> """
-TRAINING SPLIT — PUSH A / PULL A / LEGS / UPPER B / CARDIO (5 days):
-  Schedule: Mon (Push A) / Tue (Pull A) / Wed (Legs) / Thu (Upper B) / Fri (Cardio)
+TRAINING SPLIT — EXACTLY 5 DAYS: Push A / Pull A / Legs / Upper B / Cardio
+  Schedule: Day 1 (Push A) / Day 2 (Pull A) / Day 3 (Legs) / Day 4 (Upper B) / Day 5 (Cardio)
+  OUTPUT MUST HAVE EXACTLY 5 DAYS — dayOfWeek values 1, 2, 3, 4, 5. NEVER output a 6th day.
+  Upper B is the second weekly hit for chest + back + shoulders — it is NOT a second Legs day.
 
-  PUSH A — chest + shoulders + triceps:
-    MUST contain: Bench Press or DB Floor Press, Overhead Press or DB Shoulder Press, Incline DB Press, Lateral Raise, Tricep exercise (Pushdown if cable available, else Overhead DB Extension or Dip)
-    MUST NOT contain: any back/bicep exercises
+  DAY 1 — PUSH A (chest + shoulders + triceps):
+    MUST contain: primary chest compound (Bench Press or DB Floor Press), primary shoulder compound (Overhead Press or DB Shoulder Press), secondary chest (Incline DB Press), Lateral Raise, Tricep exercise
+    MUST NOT contain: any rows, pull-ups, deadlifts, bicep curls, or leg exercises
 
-  PULL A — back + biceps:
-    MUST contain: Deadlift or Barbell/DB Row, Pull-up or Lat Pulldown (substitute DB Pull-over or Band Pull-down if neither available), Row variation, Bicep Curl
-    MUST NOT contain: any pushing or leg exercises
+  DAY 2 — PULL A (back + biceps):
+    MUST contain: primary back compound (Barbell Row or DB Row), vertical pull (Pull-up or Lat Pulldown — use Band Pull-down if neither available), secondary row, Bicep Curl
+    MUST NOT contain: any pressing, leg, or tricep exercises
 
-  LEGS — quads + hamstrings + glutes + calves + core:
-    MUST contain: Squat, Romanian Deadlift, Calf Raise, Core
-    Include Leg Press or Leg Curl only if machines are available; otherwise substitute Bulgarian Split Squat and Nordic Curl
-    MUST NOT contain: upper body exercises
+  DAY 3 — LEGS (quads + hamstrings + glutes + calves + core):
+    MUST contain: Squat (primary quad compound), Romanian Deadlift (hamstring/glute hinge), Calf Raise, Core exercise
+    Include Leg Press only if "Weight machines" in equipment; else substitute Bulgarian Split Squat
+    MUST NOT contain: any upper body exercises
+    MUST NOT contain: Jump Squats, Box Jumps, or other plyometrics as primary compound — these are NOT appropriate for hypertrophy/strength work
 
-  UPPER B — full upper body (second hit for chest + back + shoulders this week):
-    MUST contain at least ONE chest exercise (e.g. DB Fly or Incline Press) AND ONE back exercise (e.g. Face Pull or Seated Row) AND ONE shoulder exercise (e.g. DB Shoulder Press or Lateral Raise)
-    MUST NOT contain: Squat, Deadlift, Leg exercises
+  DAY 4 — UPPER B (second weekly stimulus for chest, back, and shoulders — NOT a push day only):
+    MUST contain: at least 2 chest exercises (e.g. DB Fly + Cable Fly or Incline DB Press), at least 2 back exercises (e.g. Seated Row + Face Pull), at least 1 shoulder exercise (Lateral Raise or Rear Delt Fly)
+    This day intentionally blends push and pull to provide balanced second-hit volume
+    MUST NOT contain: Squat, Deadlift, or heavy leg compounds
 
-  CARDIO — dedicated cardiovascular session:
-    Contains ONLY cardio: Outdoor Run, Interval Run, Tempo Run, or Easy Jog"""
+  DAY 5 — CARDIO ONLY:
+    Contains EXACTLY ONE cardio exercise: Easy Jog, Outdoor Run, Tempo Run, or Interval Run
+    MUST NOT contain: ANY strength training exercises whatsoever"""
 
             else -> """
 TRAINING SPLIT — PUSH / PULL / LEGS × 2 (6 days — PPL twice per week):
@@ -410,9 +457,10 @@ TRAINING SPLIT — PUSH / PULL / LEGS × 2 (6 days — PPL twice per week):
 
         val restByGoal = when {
             goalLower.contains("strength") -> "Primary compounds: 150-180s | Secondary compounds: 120-150s | Isolation: 60-90s | Core: 45-60s | Cardio: 60s"
+            goalLower.contains("hypertrophy") -> "Compounds: 90-120s (NEVER exceed 120s) | Isolation: 45-60s | Core: 45s | Cardio: 60s"
             goalLower.contains("endurance") -> "All exercises: 30-45s | Cardio: 60s"
             goalLower.contains("weight") -> "Compounds: 60-90s | Isolation: 45-60s | Cardio: 60s"
-            else -> "Primary compounds: 120-150s | Secondary/machines: 90-120s | Isolation: 60-90s | Core: 45-60s | Cardio: 60s"
+            else -> "Primary compounds: 90-120s | Secondary/machines: 75-90s | Isolation: 45-60s | Core: 45-60s | Cardio: 60s"
         }
         // Hard cap: no recommendedRestSeconds value should exceed 180 (3 min) — enforced in parsing
 
@@ -487,12 +535,31 @@ $history
 USER PROFILE
 ══════════════════════════════════════════
 Goal: $goal | Experience: $experience | Days/week: $daysPerWeek | Session target: $sessionDurationMinutes min
-${if (onboardingContext.isNotBlank()) """
+${if (injuries.isNotBlank()) """
 ══════════════════════════════════════════
-ADDITIONAL CLIENT CONTEXT (onboarding interview)
+INJURIES AND LIMITATIONS (HARD CONSTRAINTS)
+══════════════════════════════════════════
+$injuries
+RULES:
+1. NO exercises that load, compress, or aggravate the injured area under fatigue. Substitute with pain-free alternatives targeting the same muscle group.
+2. WHERE POSSIBLE, include 1-2 low-load rehabilitation or strengthening exercises per session that target the injured area (e.g. rotator cuff work for a shoulder injury, hip abductor work for a knee issue, dead bugs / bird-dogs for lower back). Label these as accessory work and keep them light (high rep, low load). Only include rehab work if it is safe and commonly recommended for that type of injury.
+""" else ""}${if (priorityMuscles.isNotBlank()) """
+══════════════════════════════════════════
+PRIORITY MUSCLE GROUPS
+══════════════════════════════════════════
+The user wants extra emphasis on: $priorityMuscles
+RULE: Allocate more weekly sets to these groups (at least 2 extra sets vs non-priority groups). Ensure these muscles are trained at least twice per week.
+""" else ""}${if (dislikedExercises.isNotBlank()) """
+══════════════════════════════════════════
+EXERCISES TO EXCLUDE
+══════════════════════════════════════════
+$dislikedExercises
+RULE: NEVER include these exercises in any session. Replace with alternative exercises for the same muscle group.
+""" else ""}${if (onboardingContext.isNotBlank()) """
+══════════════════════════════════════════
+ADDITIONAL CONTEXT
 ══════════════════════════════════════════
 $onboardingContext
-Apply all of the above to further personalise the program — factor in stated limitations, preferences, and targets.
 """ else ""}
 ══════════════════════════════════════════
 AVAILABLE EQUIPMENT
@@ -510,6 +577,25 @@ $goalParams
 TRAINING SPLIT
 ══════════════════════════════════════════
 $splitGuidance
+
+══════════════════════════════════════════
+EXPERIENCE-LEVEL CONSTRAINTS (apply strictly)
+══════════════════════════════════════════
+${when {
+    experience.lowercase().contains("beginner") -> """Beginner rules:
+  - MAX 5 exercises per session (including cardio). Never exceed this.
+  - Sets per exercise: 2-3 only. Do not assign 4-5 sets to a beginner.
+  - Weekly volume per muscle: lower end (8-12 sets total). Fewer is better.
+  - No supersets, no advanced techniques."""
+    experience.lowercase().contains("intermediate") -> """Intermediate rules:
+  - MAX 7 exercises per session.
+  - Sets per exercise: 3-4.
+  - Weekly volume per muscle: mid range (12-16 sets)."""
+    else -> """Advanced rules:
+  - MAX 8 exercises per session.
+  - Sets per exercise: 3-5.
+  - Weekly volume per muscle: upper range (14-20 sets)."""
+}}
 
 ══════════════════════════════════════════
 WEEKLY VOLUME TARGETS (sets per muscle group across ALL sessions)
@@ -573,8 +659,8 @@ OUTPUT — valid JSON only, no prose, no markdown fences
           "sets": 4,
           "targetReps": "8-10",
           "targetWeightKg": 80.0,
-          "notes": "Primary compound — 1-2 RIR, full rest",
-          "recommendedRestSeconds": 150
+          "notes": "Primary compound — 1-2 RIR",
+          "recommendedRestSeconds": 120
         },
         {
           "name": "Barbell Row",
@@ -582,12 +668,12 @@ OUTPUT — valid JSON only, no prose, no markdown fences
           "targetReps": "8-10",
           "targetWeightKg": 75.0,
           "notes": "Antagonist pair with bench",
-          "recommendedRestSeconds": 150
+          "recommendedRestSeconds": 120
         },
         {
           "name": "Lateral Raise",
-          "sets": 4,
-          "targetReps": "12-15",
+          "sets": 3,
+          "targetReps": "10-12",
           "targetWeightKg": 10.0,
           "notes": "Isolation — strict form, 1 RIR",
           "recommendedRestSeconds": 60

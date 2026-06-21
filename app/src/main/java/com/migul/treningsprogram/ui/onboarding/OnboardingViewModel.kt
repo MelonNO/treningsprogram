@@ -24,11 +24,18 @@ class OnboardingViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
-    fun loadQuestions(goal: String, experience: String) {
+    fun loadQuestions(
+        goal: String,
+        experience: String,
+        daysPerWeek: Int = 4,
+        sessionDurationMinutes: Int = 60,
+        separateCardioDays: Boolean = false,
+        equipment: List<String> = emptyList()
+    ) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            aiRepository.getOnboardingQuestions(goal, experience)
+            aiRepository.getOnboardingQuestions(goal, experience, daysPerWeek, sessionDurationMinutes, separateCardioDays, equipment)
                 .onSuccess { _questions.value = it }
                 .onFailure { _error.value = it.message }
             _isLoading.value = false

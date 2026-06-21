@@ -74,6 +74,24 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_ONBOARDING_CONTEXT, "") ?: ""
         set(value) { prefs.edit().putString(KEY_ONBOARDING_CONTEXT, value).apply() }
 
+    // Comma-separated equipment list saved during wizard (used for auto-generation)
+    var wizardEquipment: String
+        get() = prefs.getString(KEY_WIZARD_EQUIPMENT, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_WIZARD_EQUIPMENT, value).apply() }
+
+    var injuries: String
+        get() = prefs.getString(KEY_INJURIES, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_INJURIES, value).apply() }
+
+    // Comma-separated muscle group names, e.g. "Chest,Back,Shoulders"
+    var priorityMuscles: String
+        get() = prefs.getString(KEY_PRIORITY_MUSCLES, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_PRIORITY_MUSCLES, value).apply() }
+
+    var dislikedExercises: String
+        get() = prefs.getString(KEY_DISLIKED_EXERCISES, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_DISLIKED_EXERCISES, value).apply() }
+
     companion object {
         private const val KEY_API_KEY = "claude_api_key"
         private const val KEY_DAYS_PER_WEEK = "days_per_week"
@@ -88,5 +106,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_GEN_ATTEMPTS = "last_generation_attempt_count"
         private const val KEY_ONBOARDING_DONE = "onboarding_completed"
         private const val KEY_ONBOARDING_CONTEXT = "onboarding_context"
+        private const val KEY_WIZARD_EQUIPMENT = "wizard_equipment"
+        private const val KEY_INJURIES = "injuries"
+        private const val KEY_PRIORITY_MUSCLES = "priority_muscles"
+        private const val KEY_DISLIKED_EXERCISES = "disliked_exercises"
     }
 }
