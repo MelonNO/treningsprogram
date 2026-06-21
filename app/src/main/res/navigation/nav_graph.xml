@@ -13,7 +13,20 @@
         <action
             android:id="@+id/action_home_to_log"
             app:destination="@id/logWorkoutFragment" />
+        <action
+            android:id="@+id/action_home_to_setup_wizard"
+            app:destination="@id/setupWizardFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
+
+    <fragment
+        android:id="@+id/setupWizardFragment"
+        android:name="com.migul.treningsprogram.ui.setup.SetupWizardFragment"
+        android:label="Setup"
+        tools:layout="@layout/fragment_setup_wizard" />
 
     <fragment
         android:id="@+id/logWorkoutFragment"

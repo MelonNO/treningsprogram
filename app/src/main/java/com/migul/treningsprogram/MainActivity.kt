@@ -51,6 +51,12 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, AppBarConfiguration(topLevelDests))
         binding.bottomNav.setupWithNavController(navController)
 
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            val fullScreen = destination.id == R.id.setupWizardFragment
+            binding.bottomNav.visibility = if (fullScreen) android.view.View.GONE else android.view.View.VISIBLE
+            supportActionBar?.let { if (fullScreen) it.hide() else it.show() }
+        }
+
         lifecycleScope.launch { checkAndAutoGenerateWeeklyPlan() }
     }
 

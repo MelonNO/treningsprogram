@@ -8,6 +8,7 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.preferences.DailyChallengeManager
+import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
@@ -24,8 +25,11 @@ class HomeViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
     private val gamificationRepository: GamificationRepository,
     private val dailyChallengeManager: DailyChallengeManager,
-    private val gymPresetDao: GymPresetDao
+    private val gymPresetDao: GymPresetDao,
+    val prefs: PreferencesManager
 ) : ViewModel() {
+
+    val isFirstLaunch: Boolean get() = !prefs.hasCompletedOnboarding
 
     val userStats: StateFlow<UserStats?> = gamificationRepository.userStats
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)

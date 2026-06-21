@@ -38,6 +38,15 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Show first-launch card if setup not done; hide all normal content
+        if (viewModel.isFirstLaunch) {
+            binding.cardFirstLaunch.visibility = View.VISIBLE
+            binding.btnStartSetup.setOnClickListener {
+                findNavController().navigate(R.id.action_home_to_setup_wizard)
+            }
+            return  // skip wiring up the rest of the home screen until setup is complete
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
