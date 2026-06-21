@@ -93,12 +93,16 @@ class SetupWizardFragment : Fragment() {
 
         // Duration chips
         binding.chipGroupDuration.setOnCheckedStateChangeListener { _, checkedIds ->
-            selectedDuration = when (checkedIds.firstOrNull()) {
-                R.id.chip_dur_30 -> 30
-                R.id.chip_dur_45 -> 45
-                R.id.chip_dur_75 -> 75
-                R.id.chip_dur_90 -> 90
-                else             -> 60
+            val isCustom = checkedIds.firstOrNull() == R.id.chip_dur_custom
+            binding.tilCustomDuration.visibility = if (isCustom) View.VISIBLE else View.GONE
+            if (!isCustom) {
+                selectedDuration = when (checkedIds.firstOrNull()) {
+                    R.id.chip_dur_30 -> 30
+                    R.id.chip_dur_45 -> 45
+                    R.id.chip_dur_75 -> 75
+                    R.id.chip_dur_90 -> 90
+                    else             -> 60
+                }
             }
         }
 
@@ -184,7 +188,17 @@ class SetupWizardFragment : Fragment() {
     private fun advance() {
         when (currentStep) {
             0 -> nextStep()
-            1 -> nextStep()
+            1 -> {
+                if (binding.chipDurCustom.isChecked) {
+                    val custom = binding.etCustomDuration.text?.toString()?.trim()?.toIntOrNull()
+                    if (custom == null || custom < 10 || custom > 300) {
+                        Snackbar.make(binding.root, "Enter a duration between 10 and 300 minutes.", Snackbar.LENGTH_SHORT).show()
+                        return
+                    }
+                    selectedDuration = custom
+                }
+                nextStep()
+            }
             2 -> nextStep()
             3 -> {
                 val apiKey = binding.etWizardApiKey.text?.toString()?.trim() ?: ""

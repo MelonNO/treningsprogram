@@ -226,13 +226,35 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:singleSelection="true"
-                    app:selectionRequired="true">
+                    app:selectionRequired="true"
+                    android:layout_marginBottom="12dp">
                     <com.google.android.material.chip.Chip android:id="@+id/chip_dur_30" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="30 min" />
                     <com.google.android.material.chip.Chip android:id="@+id/chip_dur_45" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="45 min" />
                     <com.google.android.material.chip.Chip android:id="@+id/chip_dur_60" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="60 min" android:checked="true" />
                     <com.google.android.material.chip.Chip android:id="@+id/chip_dur_75" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="75 min" />
                     <com.google.android.material.chip.Chip android:id="@+id/chip_dur_90" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="90 min" />
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_dur_custom"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Custom" />
                 </com.google.android.material.chip.ChipGroup>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/til_custom_duration"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Minutes per session"
+                    android:visibility="gone"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_custom_duration"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:imeOptions="actionDone" />
+                </com.google.android.material.textfield.TextInputLayout>
 
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
