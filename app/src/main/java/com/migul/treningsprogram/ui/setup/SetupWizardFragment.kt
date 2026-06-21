@@ -104,7 +104,7 @@ class SetupWizardFragment : Fragment() {
         binding.tvWizardSkip.setOnClickListener { skipToGenerate() }
 
         binding.btnGoHome.setOnClickListener {
-            findNavController().navigate(R.id.homeFragment)
+            findNavController().popBackStack(R.id.homeFragment, false)
         }
 
         binding.btnRetryGenerate.setOnClickListener {
