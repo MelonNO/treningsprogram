@@ -134,7 +134,7 @@ class GamificationRepository @Inject constructor(
         }
     }
 
-    private suspend fun ensureAchievementsSeeded() {
+    suspend fun ensureAchievementsSeeded() {
         if (achievementDao.count() == 0) {
             achievementDao.insertAll(AppDatabase.PREDEFINED_ACHIEVEMENTS)
         }

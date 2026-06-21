@@ -62,6 +62,11 @@ class HistoryStatsFragment : Fragment() {
             val sessions = viewModel.allSessions.value
             val totalWorkouts = sessions.size
             val bestStreak = computeBestStreak(sessions.map { it.dateMs })
+            val muscleVolume = viewModel.getMuscleVolume()
+            val trainingDays = viewModel.getTrainingDays()
+            val repRanges = viewModel.getRepRanges()
+
+            if (_binding == null) return@launch
 
             binding.tvTotalWorkouts.text = totalWorkouts.toString()
             binding.tvTotalSets.text = totalSets.toString()
@@ -72,13 +77,8 @@ class HistoryStatsFragment : Fragment() {
             }
             binding.tvBestStreak.text = bestStreak.toString()
 
-            val muscleVolume = viewModel.getMuscleVolume()
             renderMuscleBars(muscleVolume.map { it.muscleGroup to it.totalSets })
-
-            val trainingDays = viewModel.getTrainingDays()
             renderCalendar(trainingDays.toSet())
-
-            val repRanges = viewModel.getRepRanges()
             renderRepRanges(repRanges.map { it.label to it.setCount })
         }
     }

@@ -38,6 +38,8 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getPRsWithDate(): List<ExercisePrWithDate> = setDao.getPRsWithDate()
 
+    fun observePRsWithDate(): Flow<List<ExercisePrWithDate>> = setDao.observePRsWithDate()
+
     suspend fun getTotalSets(): Int = setDao.getTotalSets()
 
     suspend fun getTotalVolumeKg(): Float = setDao.getTotalVolumeKg()

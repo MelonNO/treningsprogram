@@ -122,6 +122,14 @@ interface WorkoutSetDao {
     """)
     suspend fun getPRsWithDate(): List<ExercisePrWithDate>
 
+    @Query("""
+        SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight, s.dateMs AS dateMs
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.weightKg > 0 AND s.isCompleted = 1
+        GROUP BY ws.exerciseName ORDER BY maxWeight DESC
+    """)
+    fun observePRsWithDate(): Flow<List<ExercisePrWithDate>>
+
     @Query("DELETE FROM workout_sets")
     suspend fun deleteAll()
 }

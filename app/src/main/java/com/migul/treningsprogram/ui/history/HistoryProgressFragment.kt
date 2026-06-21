@@ -13,6 +13,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.migul.treningsprogram.data.db.dao.ExercisePrWithDate
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -89,38 +90,10 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
-        // Load PRs
+        // Observe PRs reactively so deletions in the Log tab reflect immediately
         viewLifecycleOwner.lifecycleScope.launch {
-            val prs = viewModel.getPRs().take(10)
-            if (_binding == null) return@launch
-            binding.layoutPrs.removeAllViews()
-            if (prs.isEmpty()) {
-                val tv = TextView(requireContext()).apply {
-                    text = "No records yet. Complete workouts to see PRs!"
-                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
-                }
-                binding.layoutPrs.addView(tv)
-            } else {
-                prs.forEach { pr ->
-                    val row = LinearLayout(requireContext()).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        val p = (4 * resources.displayMetrics.density).toInt()
-                        setPadding(0, p, 0, p)
-                    }
-                    val tvName = TextView(requireContext()).apply {
-                        text = pr.exerciseName
-                        textSize = 13f
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    }
-                    val tvWeight = TextView(requireContext()).apply {
-                        text = "${formatWeight(pr.maxWeight)} kg"
-                        textSize = 13f
-                        setTextColor(android.graphics.Color.parseColor("#7C67F5"))
-                    }
-                    row.addView(tvName)
-                    row.addView(tvWeight)
-                    binding.layoutPrs.addView(row)
-                }
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.prs.collect { prs -> renderPRs(prs.take(10)) }
             }
         }
 
@@ -137,6 +110,38 @@ class HistoryProgressFragment : Fragment() {
                 viewModel.bodyMeasurements.collect { measurements ->
                     renderBodyWeightEntries(measurements.take(5))
                 }
+            }
+        }
+    }
+
+    private fun renderPRs(prs: List<ExercisePrWithDate>) {
+        binding.layoutPrs.removeAllViews()
+        if (prs.isEmpty()) {
+            val tv = TextView(requireContext()).apply {
+                text = "No records yet. Complete workouts to see PRs!"
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+            }
+            binding.layoutPrs.addView(tv)
+        } else {
+            prs.forEach { pr ->
+                val row = LinearLayout(requireContext()).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    val p = (4 * resources.displayMetrics.density).toInt()
+                    setPadding(0, p, 0, p)
+                }
+                val tvName = TextView(requireContext()).apply {
+                    text = pr.exerciseName
+                    textSize = 13f
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val tvWeight = TextView(requireContext()).apply {
+                    text = "${formatWeight(pr.maxWeight)} kg"
+                    textSize = 13f
+                    setTextColor(android.graphics.Color.parseColor("#7C67F5"))
+                }
+                row.addView(tvName)
+                row.addView(tvWeight)
+                binding.layoutPrs.addView(row)
             }
         }
     }

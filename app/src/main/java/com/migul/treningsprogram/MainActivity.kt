@@ -14,6 +14,7 @@ import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.thisMonday
 import com.migul.treningsprogram.databinding.ActivityMainBinding
@@ -31,6 +32,7 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var prefsManager: PreferencesManager
     @Inject lateinit var workoutRepository: WorkoutRepository
     @Inject lateinit var aiRepository: AiRepository
+    @Inject lateinit var gamificationRepository: GamificationRepository
     @Inject lateinit var gymPresetDao: GymPresetDao
     @Inject lateinit var gson: Gson
 
@@ -57,7 +59,10 @@ class MainActivity : AppCompatActivity() {
             supportActionBar?.let { if (fullScreen) it.hide() else it.show() }
         }
 
-        lifecycleScope.launch { checkAndAutoGenerateWeeklyPlan() }
+        lifecycleScope.launch {
+            gamificationRepository.ensureAchievementsSeeded()
+            checkAndAutoGenerateWeeklyPlan()
+        }
     }
 
     private suspend fun checkAndAutoGenerateWeeklyPlan() {

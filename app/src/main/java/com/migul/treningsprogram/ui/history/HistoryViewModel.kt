@@ -82,7 +82,9 @@ class HistoryViewModel @Inject constructor(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    suspend fun getPRs(): List<ExercisePrWithDate> = workoutRepository.getPRsWithDate()
+    val prs: StateFlow<List<ExercisePrWithDate>> =
+        workoutRepository.observePRsWithDate()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val bodyMeasurements: StateFlow<List<BodyMeasurement>> =
         bodyMeasurementDao.getAll()
@@ -104,8 +106,6 @@ class HistoryViewModel @Inject constructor(
     suspend fun getTrainingDays(): List<Long> = workoutRepository.getTrainingDayEpochs()
     suspend fun getTotalSets(): Int = workoutRepository.getTotalSets()
     suspend fun getTotalVolume(): Float = workoutRepository.getTotalVolumeKg()
-    suspend fun getPRsForStats(): List<ExercisePrWithDate> = workoutRepository.getPRsWithDate()
-
     fun exportCsv(sessions: List<WorkoutSession>, callback: (String) -> Unit) {
         viewModelScope.launch {
             val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())

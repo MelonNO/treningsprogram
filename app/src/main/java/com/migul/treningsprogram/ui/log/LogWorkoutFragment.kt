@@ -167,9 +167,12 @@ class LogWorkoutFragment : Fragment() {
                     combine(viewModel.guidedPlan, viewModel.currentIndex) { plan, idx -> plan to idx }
                         .collect { (plan, idx) ->
                             if (plan.isNotEmpty()) {
+                                val isLast = idx >= plan.size - 1
                                 binding.tvExerciseCounter.text = "Exercise ${idx + 1} / ${plan.size}"
                                 binding.progressSession.progress = idx * 100 / plan.size
-                                binding.btnNextExercise.text = if (idx >= plan.size - 1) "Finish" else "Next"
+                                binding.btnNextExercise.text = if (isLast) "Finish" else "Next"
+                                binding.btnPrevExercise.visibility = if (idx == 0) View.INVISIBLE else View.VISIBLE
+                                binding.btnSkipExercise.visibility = if (isLast) View.INVISIBLE else View.VISIBLE
                             }
                         }
                 }
@@ -193,7 +196,7 @@ class LogWorkoutFragment : Fragment() {
                         if (exercise != null && !freestyleMode) {
                             val nextSet = sets.count { !it.isWarmup } + 1
                             val target = exercise.sets
-                            binding.tvSetCounter.text = "Set $nextSet of $target"
+                            binding.tvSetCounter.text = if (nextSet > target) "Set $nextSet" else "Set $nextSet of $target"
                         } else {
                             binding.tvSetCounter.text = ""
                         }
