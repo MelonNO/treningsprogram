@@ -125,6 +125,7 @@ class SetupWizardFragment : Fragment() {
 
                 launch {
                     viewModel.isLoadingQuestions.collect { loading ->
+                        if (currentStep != 4) return@collect
                         binding.layoutQuestionsLoading.visibility = if (loading) View.VISIBLE else View.GONE
                         if (!loading) binding.btnWizardNext.isEnabled = viewModel.questions.value.isNotEmpty()
                     }
@@ -132,7 +133,7 @@ class SetupWizardFragment : Fragment() {
 
                 launch {
                     viewModel.questions.collect { questions ->
-                        if (questions.isNotEmpty()) {
+                        if (questions.isNotEmpty() && currentStep == 4) {
                             binding.layoutQuestionsLoading.visibility = View.GONE
                             buildQuestionViews(questions)
                             binding.btnWizardNext.isEnabled = true
@@ -143,7 +144,7 @@ class SetupWizardFragment : Fragment() {
 
                 launch {
                     viewModel.questionsError.collect { err ->
-                        if (err != null) {
+                        if (err != null && currentStep == 4) {
                             binding.layoutQuestionsLoading.visibility = View.GONE
                             binding.containerWizardQuestions.visibility = View.GONE
                             binding.btnWizardNext.isEnabled = true
