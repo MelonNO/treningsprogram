@@ -123,6 +123,24 @@ class SettingsFragment : Fragment() {
                     }
                 }
                 launch {
+                    viewModel.lastAttemptCount.collect { count ->
+                        if (count > 0) {
+                            binding.layoutAttemptCounter.visibility = View.VISIBLE
+                            binding.tvAttemptCounter.text = "$count / ${com.migul.treningsprogram.data.repository.AiRepository.MAX_GENERATION_ATTEMPTS}"
+                            binding.tvAttemptCounter.setTextColor(
+                                requireContext().getColor(
+                                    if (count >= com.migul.treningsprogram.data.repository.AiRepository.MAX_GENERATION_ATTEMPTS)
+                                        com.google.android.material.R.color.design_default_color_error
+                                    else
+                                        android.R.color.holo_green_dark
+                                )
+                            )
+                        } else {
+                            binding.layoutAttemptCounter.visibility = View.GONE
+                        }
+                    }
+                }
+                launch {
                     viewModel.resetDone.collect { done ->
                         if (done) Snackbar.make(binding.root, "All workout history deleted.", Snackbar.LENGTH_SHORT).show()
                     }

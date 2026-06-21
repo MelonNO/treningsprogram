@@ -77,8 +77,9 @@ class MainActivity : AppCompatActivity() {
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = prefsManager.separateCardioDays
             )
-            result.onSuccess { exercises ->
-                workoutRepository.savePlan(monday, exercises)
+            result.onSuccess { generationResult ->
+                workoutRepository.savePlan(monday, generationResult.exercises)
+                prefsManager.lastGenerationAttemptCount = generationResult.attemptCount
             }
         }
         prefsManager.lastAutoGenerateWeek = thisWeek

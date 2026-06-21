@@ -38,6 +38,9 @@ class SettingsViewModel @Inject constructor(
     private val _resetDone = MutableStateFlow(false)
     val resetDone = _resetDone.asStateFlow()
 
+    private val _lastAttemptCount = MutableStateFlow(prefs.lastGenerationAttemptCount)
+    val lastAttemptCount = _lastAttemptCount.asStateFlow()
+
     fun save(apiKey: String, daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int = 60, separateCardioDays: Boolean = false) {
         prefs.apiKey = apiKey
         prefs.daysPerWeek = daysPerWeek
@@ -78,10 +81,15 @@ class SettingsViewModel @Inject constructor(
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = prefs.separateCardioDays
             )
-            result.onSuccess { exercises ->
-                workoutRepository.savePlan(thisMonday(), exercises)
+            result.onSuccess { generationResult ->
+                workoutRepository.savePlan(thisMonday(), generationResult.exercises)
                 prefs.lastAutoGenerateWeek = java.text.SimpleDateFormat("yyyy-'W'ww", java.util.Locale.getDefault()).format(java.util.Date())
-                _generateStatus.value = "New program generated for this week!"
+                prefs.lastGenerationAttemptCount = generationResult.attemptCount
+                _lastAttemptCount.value = generationResult.attemptCount
+                _generateStatus.value = if (generationResult.attemptCount > 1)
+                    "Program generated after ${generationResult.attemptCount} attempts (${generationResult.attemptCount - 1} rejected)."
+                else
+                    "New program generated!"
             }.onFailure { e ->
                 _generateStatus.value = "Error: ${e.message}"
             }

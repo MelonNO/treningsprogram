@@ -62,6 +62,10 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_SEPARATE_CARDIO_DAYS, false)
         set(value) { prefs.edit().putBoolean(KEY_SEPARATE_CARDIO_DAYS, value).apply() }
 
+    var lastGenerationAttemptCount: Int
+        get() = prefs.getInt(KEY_LAST_GEN_ATTEMPTS, 0)
+        set(value) { prefs.edit().putInt(KEY_LAST_GEN_ATTEMPTS, value).apply() }
+
     companion object {
         private const val KEY_API_KEY = "claude_api_key"
         private const val KEY_DAYS_PER_WEEK = "days_per_week"
@@ -73,5 +77,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_GYM_PRESET = "selected_gym_preset_id"
         private const val KEY_LAST_AUTO_GENERATE_WEEK = "last_auto_generate_week"
         private const val KEY_SEPARATE_CARDIO_DAYS = "separate_cardio_days"
+        private const val KEY_LAST_GEN_ATTEMPTS = "last_generation_attempt_count"
     }
 }

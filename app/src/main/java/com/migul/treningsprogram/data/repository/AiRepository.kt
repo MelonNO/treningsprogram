@@ -29,12 +29,20 @@ private data class DayJson(
 
 private data class ProgramJson(val days: List<DayJson> = emptyList())
 
+data class GenerationResult(val exercises: List<PlannedExercise>, val attemptCount: Int)
+
+private data class ValidationResult(val accepted: Boolean, val reason: String = "")
+
 @Singleton
 class AiRepository @Inject constructor(
     private val claudeApi: ClaudeApiService,
     private val workoutRepository: WorkoutRepository,
     private val gson: Gson
 ) {
+    companion object {
+        const val MAX_GENERATION_ATTEMPTS = 3
+    }
+
     suspend fun generateAdaptedProgram(
         daysPerWeek: Int,
         goal: String,
@@ -43,14 +51,77 @@ class AiRepository @Inject constructor(
         equipment: List<String> = emptyList(),
         equipmentNotes: String = "",
         separateCardioDays: Boolean = false
-    ): Result<List<PlannedExercise>> = runCatching {
+    ): Result<GenerationResult> = runCatching {
         val sessions = workoutRepository.getRecentSessions(12)
         val history = buildSessionHistory(sessions)
-        val prompt = buildPrompt(history, daysPerWeek, goal, experience, sessionDurationMinutes, equipment, equipmentNotes, separateCardioDays)
-        val response = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        )
-        parseProgram(response.text())
+        var lastRejectionReason = ""
+
+        for (attempt in 1..MAX_GENERATION_ATTEMPTS) {
+            val prompt = buildPrompt(
+                history, daysPerWeek, goal, experience,
+                sessionDurationMinutes, equipment, equipmentNotes,
+                separateCardioDays, lastRejectionReason
+            )
+            val responseText = claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+            val cleanJson = extractJson(responseText)
+            val exercises = parseProgram(cleanJson)
+
+            val validation = validateProgram(cleanJson, daysPerWeek, goal, experience)
+            if (validation.accepted) {
+                return@runCatching GenerationResult(exercises, attempt)
+            }
+            lastRejectionReason = validation.reason
+            if (attempt == MAX_GENERATION_ATTEMPTS) {
+                throw IllegalStateException(
+                    "Program rejected after $MAX_GENERATION_ATTEMPTS attempts. Last issue: $lastRejectionReason"
+                )
+            }
+        }
+        throw IllegalStateException("Unexpected state")
+    }
+
+    private suspend fun validateProgram(
+        planJson: String,
+        daysPerWeek: Int,
+        goal: String,
+        experience: String
+    ): ValidationResult {
+        val prompt = """
+You are a sports science peer reviewer. Evaluate the following AI-generated weekly workout program for scientific validity.
+
+Goal: $goal | Experience: $experience | Training days: $daysPerWeek
+
+PROGRAM JSON:
+$planJson
+
+Assess ALL of the following:
+1. The plan contains exactly $daysPerWeek training days.
+2. No muscle group (chest, back, legs, shoulders) is trained on consecutive days without at least 48 h rest.
+3. Within each session, compound exercises appear before isolation exercises for the same muscle group.
+4. Rep and set ranges match the stated goal (e.g. strength = low reps/high weight, hypertrophy = moderate reps).
+5. Weekly volume per muscle group is within reasonable bounds (not zero for a primary muscle, not excessively high).
+6. There are no obvious structural errors (e.g. only upper body days all week, cardio placed after heavy legs).
+
+Respond with ONLY valid JSON — no prose, no markdown fences:
+{"accepted": true}
+OR
+{"accepted": false, "reason": "one concise sentence describing the most critical issue"}
+        """.trimIndent()
+
+        return runCatching {
+            val responseText = claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+            val json = extractJson(responseText)
+            val obj = gson.fromJson(json, com.google.gson.JsonObject::class.java)
+            val accepted = obj.get("accepted")?.asBoolean ?: false
+            val reason = obj.get("reason")?.asString ?: ""
+            ValidationResult(accepted, reason)
+        }.getOrElse {
+            ValidationResult(accepted = true)
+        }
     }
 
     private suspend fun buildSessionHistory(sessions: List<WorkoutSession>): String {
@@ -107,7 +178,8 @@ class AiRepository @Inject constructor(
         sessionDurationMinutes: Int = 60,
         equipment: List<String> = emptyList(),
         equipmentNotes: String = "",
-        separateCardioDays: Boolean = false
+        separateCardioDays: Boolean = false,
+        previousRejectionReason: String = ""
     ): String {
         val goalLower = goal.lowercase()
 
@@ -354,8 +426,19 @@ When a split guideline names a forbidden exercise, substitute the closest availa
   • Bench Press (if no bench) → DB Floor Press, Push-up
   • Pull-up (if no pull-up bar) → Resistance Band Pull-down, Inverted Row under a table""" else ""
 
+        val rejectionBlock = if (previousRejectionReason.isNotBlank()) """
+══════════════════════════════════════════
+PREVIOUS PLAN WAS REJECTED — YOU MUST FIX THIS
+══════════════════════════════════════════
+A scientific reviewer rejected the last plan for this reason:
+"$previousRejectionReason"
+Your new plan MUST address and correct this specific issue. Failure to do so will result in rejection again.
+
+""" else ""
+
         return """
 You are an expert sports scientist and S&C coach. Build a science-based $daysPerWeek-day weekly program from the history and principles below.
+$rejectionBlock
 
 ══════════════════════════════════════════
 WORKOUT HISTORY (with trend analysis)
@@ -488,10 +571,9 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
         """.trimIndent()
     }
 
-    private fun parseProgram(responseText: String): List<PlannedExercise> {
-        val json = extractJson(responseText)
+    private fun parseProgram(cleanJson: String): List<PlannedExercise> {
         val weekStart = thisMonday()
-        val program = gson.fromJson(json, ProgramJson::class.java)
+        val program = gson.fromJson(cleanJson, ProgramJson::class.java)
         return program.days.flatMap { day ->
             day.exercises.mapIndexed { index, ex ->
                 PlannedExercise(
