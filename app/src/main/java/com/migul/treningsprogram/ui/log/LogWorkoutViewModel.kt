@@ -131,10 +131,11 @@ class LogWorkoutViewModel @Inject constructor(
 
     fun loadSession(sessionId: Long, dayOfWeek: Int) {
         _sessionId.value = sessionId
-        _sessionStartMs.value = System.currentTimeMillis()
         val day = if (dayOfWeek > 0) dayOfWeek else currentDayOfWeek()
         _dayOfWeek.value = day
         viewModelScope.launch {
+            val session = workoutRepository.getActiveSession()
+            _sessionStartMs.value = session?.dateMs ?: System.currentTimeMillis()
             _todayChallenges.value = dailyChallengeManager.getTodayChallenges()
             loadGuidedPlan(day)
         }

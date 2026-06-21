@@ -704,8 +704,8 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
     private fun parseProgram(cleanJson: String): List<PlannedExercise> {
         val weekStart = thisMonday()
         val program = gson.fromJson(cleanJson, ProgramJson::class.java)
-        return program.days.flatMap { day ->
-            day.exercises.mapIndexed { index, ex ->
+        return (program.days ?: emptyList()).flatMap { day ->
+            (day.exercises ?: emptyList()).mapIndexed { index, ex ->
                 PlannedExercise(
                     weekStart = weekStart,
                     dayOfWeek = day.dayOfWeek,

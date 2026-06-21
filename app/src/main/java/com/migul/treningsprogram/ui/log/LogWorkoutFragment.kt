@@ -250,6 +250,7 @@ class LogWorkoutFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             val lastSets = viewModel.getLastSets(exercise.exerciseName)
+            if (_binding == null) return@launch
             if (lastSets.isNotEmpty()) {
                 val summary = lastSets.joinToString("  •  ") { "S${it.setNumber}: ${it.reps} reps @ ${formatWeight(it.weightKg)}kg" }
                 binding.tvLastSession.text = "Last: $summary"
@@ -275,12 +276,13 @@ class LogWorkoutFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             val url = wgerRepository.getExerciseImageUrl(exercise.exerciseName)
-            if (url != null && isAdded) {
+            if (_binding == null) return@launch
+            if (url != null) {
                 binding.ivExerciseImage.visibility = View.VISIBLE
                 binding.ivExerciseImage.load(url) {
                     crossfade(true)
                     listener(onError = { _, _ ->
-                        binding.ivExerciseImage.visibility = View.GONE
+                        if (_binding != null) binding.ivExerciseImage.visibility = View.GONE
                     })
                 }
                 binding.tvMuscleBannerLabel.visibility = View.GONE

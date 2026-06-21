@@ -41,6 +41,7 @@ class HistoryProgressFragment : Fragment() {
         // Load exercise names into autocomplete
         viewLifecycleOwner.lifecycleScope.launch {
             val names = viewModel.getExerciseNames()
+            if (_binding == null) return@launch
             val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, names)
             binding.acExercise.setAdapter(adapter)
             binding.acExercise.threshold = 1
@@ -91,6 +92,7 @@ class HistoryProgressFragment : Fragment() {
         // Load PRs
         viewLifecycleOwner.lifecycleScope.launch {
             val prs = viewModel.getPRs().take(10)
+            if (_binding == null) return@launch
             binding.layoutPrs.removeAllViews()
             if (prs.isEmpty()) {
                 val tv = TextView(requireContext()).apply {

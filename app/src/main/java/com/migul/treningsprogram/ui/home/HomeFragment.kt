@@ -63,6 +63,7 @@ class HomeFragment : Fragment() {
                                     binding.tvTodayPlan.text = "Session in progress — tap to continue"
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
+                                            if (!isAdded) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to currentDayOfWeek())
@@ -84,6 +85,7 @@ class HomeFragment : Fragment() {
                                     binding.tvTodayPlan.text = "Rest day — recovery is part of the plan."
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
+                                            if (!isAdded) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to -1)
@@ -100,6 +102,7 @@ class HomeFragment : Fragment() {
                                     }
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
+                                            if (!isAdded) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to currentDayOfWeek())
