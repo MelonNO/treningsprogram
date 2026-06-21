@@ -10,6 +10,10 @@ app/build
 .cxx
 local.properties
 
+# Keystore — never commit these
+keystore.jks
+keystore.properties
+
 # Sensitive / local-only files
 claude k
 tkn
