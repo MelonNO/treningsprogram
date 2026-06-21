@@ -6,10 +6,20 @@ import com.migul.treningsprogram.data.api.ClaudeApiService
 import com.migul.treningsprogram.data.api.model.ClaudeRequest
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
+import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
+
+// Onboarding question JSON model
+private data class OQJson(
+    val id: String = "",
+    val question: String = "",
+    val type: String = "text",
+    val options: List<String> = emptyList()
+)
+private data class OQsJson(val questions: List<OQJson> = emptyList())
 
 // Top-level private classes so Gson can instantiate them without issues
 private data class ExJson(
@@ -43,6 +53,32 @@ class AiRepository @Inject constructor(
         const val MAX_GENERATION_ATTEMPTS = 3
     }
 
+    suspend fun getOnboardingQuestions(goal: String, experience: String): Result<List<OnboardingQuestion>> = runCatching {
+        val prompt = """
+You are a personal trainer conducting a brief onboarding interview for a new client.
+Goal: $goal | Experience: $experience
+
+Generate exactly 5 short, focused questions to personalise their training program beyond what you already know.
+Cover: specific physical targets, injury/movement limitations, time/lifestyle constraints, equipment preferences, exercise likes/dislikes.
+
+Return ONLY valid JSON — no prose, no markdown fences:
+{
+  "questions": [
+    {"id": "q1", "question": "...", "type": "text"},
+    {"id": "q2", "question": "...", "type": "choice", "options": ["Option A", "Option B", "Option C"]}
+  ]
+}
+type must be "text" for a free-form answer or "choice" for a single-select list.
+        """.trimIndent()
+
+        val responseText = claudeApi.sendMessage(
+            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+        ).text()
+        val json = extractJson(responseText)
+        val parsed = gson.fromJson(json, OQsJson::class.java)
+        parsed.questions.map { OnboardingQuestion(it.id, it.question, it.type, it.options) }
+    }
+
     suspend fun generateAdaptedProgram(
         daysPerWeek: Int,
         goal: String,
@@ -50,7 +86,8 @@ class AiRepository @Inject constructor(
         sessionDurationMinutes: Int = 60,
         equipment: List<String> = emptyList(),
         equipmentNotes: String = "",
-        separateCardioDays: Boolean = false
+        separateCardioDays: Boolean = false,
+        onboardingContext: String = ""
     ): Result<GenerationResult> = runCatching {
         val sessions = workoutRepository.getRecentSessions(12)
         val history = buildSessionHistory(sessions)
@@ -60,7 +97,7 @@ class AiRepository @Inject constructor(
             val prompt = buildPrompt(
                 history, daysPerWeek, goal, experience,
                 sessionDurationMinutes, equipment, equipmentNotes,
-                separateCardioDays, lastRejectionReason
+                separateCardioDays, lastRejectionReason, onboardingContext
             )
             val responseText = claudeApi.sendMessage(
                 ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
@@ -179,7 +216,8 @@ OR
         equipment: List<String> = emptyList(),
         equipmentNotes: String = "",
         separateCardioDays: Boolean = false,
-        previousRejectionReason: String = ""
+        previousRejectionReason: String = "",
+        onboardingContext: String = ""
     ): String {
         val goalLower = goal.lowercase()
 
@@ -449,7 +487,13 @@ $history
 USER PROFILE
 ══════════════════════════════════════════
 Goal: $goal | Experience: $experience | Days/week: $daysPerWeek | Session target: $sessionDurationMinutes min
-
+${if (onboardingContext.isNotBlank()) """
+══════════════════════════════════════════
+ADDITIONAL CLIENT CONTEXT (onboarding interview)
+══════════════════════════════════════════
+$onboardingContext
+Apply all of the above to further personalise the program — factor in stated limitations, preferences, and targets.
+""" else ""}
 ══════════════════════════════════════════
 AVAILABLE EQUIPMENT
 ══════════════════════════════════════════

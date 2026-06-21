@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         val thisWeek = java.text.SimpleDateFormat("yyyy-'W'ww", java.util.Locale.getDefault()).format(java.util.Date())
         if (prefsManager.lastAutoGenerateWeek == thisWeek) return
         if (prefsManager.apiKey.isBlank()) return
+        if (!prefsManager.hasCompletedOnboarding) return  // wait until user completes onboarding
         val monday = thisMonday()
         val existing = workoutRepository.getPlannedForWeek(monday).first()
         if (existing.isEmpty()) {
@@ -75,7 +76,8 @@ class MainActivity : AppCompatActivity() {
                 sessionDurationMinutes = prefsManager.sessionDurationMinutes,
                 equipment = equipment,
                 equipmentNotes = preset?.notes ?: "",
-                separateCardioDays = prefsManager.separateCardioDays
+                separateCardioDays = prefsManager.separateCardioDays,
+                onboardingContext = prefsManager.onboardingContext
             )
             result.onSuccess { generationResult ->
                 workoutRepository.savePlan(monday, generationResult.exercises)

@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.setFragmentResultListener
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -15,6 +16,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentSettingsBinding
+import com.migul.treningsprogram.ui.onboarding.OnboardingBottomSheet
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -66,6 +68,20 @@ class SettingsFragment : Fragment() {
                 .show()
         }
 
+        // Listen for onboarding result before any click can fire
+        setFragmentResultListener(OnboardingBottomSheet.RESULT_KEY) { _, bundle ->
+            val context = bundle.getString(OnboardingBottomSheet.RESULT_CONTEXT, "")
+            val days = binding.etDaysPerWeek.text.toString().toIntOrNull()?.coerceIn(1, 7) ?: prefs.daysPerWeek
+            val duration = binding.etSessionDuration.text.toString().toIntOrNull()?.coerceIn(15, 180) ?: prefs.sessionDurationMinutes
+            viewModel.generateProgramWithOnboarding(
+                onboardingContext = context,
+                daysPerWeek = days,
+                goal = goals[binding.spinnerGoal.selectedItemPosition],
+                experience = experiences[binding.spinnerExperience.selectedItemPosition],
+                sessionDurationMinutes = duration
+            )
+        }
+
         binding.btnGenerateNow.setOnClickListener {
             val days = binding.etDaysPerWeek.text.toString().toIntOrNull()?.coerceIn(1, 7) ?: prefs.daysPerWeek
             val duration = binding.etSessionDuration.text.toString().toIntOrNull()?.coerceIn(15, 180) ?: prefs.sessionDurationMinutes
@@ -75,12 +91,20 @@ class SettingsFragment : Fragment() {
                 return@setOnClickListener
             }
             prefs.apiKey = apiKey
-            viewModel.generateProgram(
-                daysPerWeek = days,
-                goal = goals[binding.spinnerGoal.selectedItemPosition],
-                experience = experiences[binding.spinnerExperience.selectedItemPosition],
-                sessionDurationMinutes = duration
-            )
+
+            if (!prefs.hasCompletedOnboarding) {
+                OnboardingBottomSheet.newInstance(
+                    goal = goals[binding.spinnerGoal.selectedItemPosition],
+                    experience = experiences[binding.spinnerExperience.selectedItemPosition]
+                ).show(childFragmentManager, OnboardingBottomSheet.RESULT_KEY)
+            } else {
+                viewModel.generateProgram(
+                    daysPerWeek = days,
+                    goal = goals[binding.spinnerGoal.selectedItemPosition],
+                    experience = experiences[binding.spinnerExperience.selectedItemPosition],
+                    sessionDurationMinutes = duration
+                )
+            }
         }
 
         binding.btnSave.setOnClickListener {

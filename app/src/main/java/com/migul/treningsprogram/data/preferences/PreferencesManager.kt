@@ -66,6 +66,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getInt(KEY_LAST_GEN_ATTEMPTS, 0)
         set(value) { prefs.edit().putInt(KEY_LAST_GEN_ATTEMPTS, value).apply() }
 
+    var hasCompletedOnboarding: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_DONE, false)
+        set(value) { prefs.edit().putBoolean(KEY_ONBOARDING_DONE, value).apply() }
+
+    var onboardingContext: String
+        get() = prefs.getString(KEY_ONBOARDING_CONTEXT, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_ONBOARDING_CONTEXT, value).apply() }
+
     companion object {
         private const val KEY_API_KEY = "claude_api_key"
         private const val KEY_DAYS_PER_WEEK = "days_per_week"
@@ -78,5 +86,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_AUTO_GENERATE_WEEK = "last_auto_generate_week"
         private const val KEY_SEPARATE_CARDIO_DAYS = "separate_cardio_days"
         private const val KEY_LAST_GEN_ATTEMPTS = "last_generation_attempt_count"
+        private const val KEY_ONBOARDING_DONE = "onboarding_completed"
+        private const val KEY_ONBOARDING_CONTEXT = "onboarding_context"
     }
 }

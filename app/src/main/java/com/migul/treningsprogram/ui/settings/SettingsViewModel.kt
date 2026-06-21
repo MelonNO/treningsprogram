@@ -62,6 +62,22 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun generateProgram(daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
+        doGenerate(prefs.onboardingContext, daysPerWeek, goal, experience, sessionDurationMinutes)
+    }
+
+    fun generateProgramWithOnboarding(
+        onboardingContext: String,
+        daysPerWeek: Int,
+        goal: String,
+        experience: String,
+        sessionDurationMinutes: Int
+    ) {
+        prefs.hasCompletedOnboarding = true
+        prefs.onboardingContext = onboardingContext
+        doGenerate(onboardingContext, daysPerWeek, goal, experience, sessionDurationMinutes)
+    }
+
+    private fun doGenerate(onboardingContext: String, daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
         viewModelScope.launch {
             _isGenerating.value = true
             _generateStatus.value = null
@@ -79,7 +95,8 @@ class SettingsViewModel @Inject constructor(
                 sessionDurationMinutes = sessionDurationMinutes,
                 equipment = equipment,
                 equipmentNotes = preset?.notes ?: "",
-                separateCardioDays = prefs.separateCardioDays
+                separateCardioDays = prefs.separateCardioDays,
+                onboardingContext = onboardingContext
             )
             result.onSuccess { generationResult ->
                 workoutRepository.savePlan(thisMonday(), generationResult.exercises)
