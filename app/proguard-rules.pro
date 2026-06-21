@@ -1,5 +1,7 @@
 -keep class com.migul.treningsprogram.data.api.model.** { *; }
 -keep class com.migul.treningsprogram.data.repository.** { *; }
+-keep class com.migul.treningsprogram.data.preferences.** { *; }
+-keep class com.migul.treningsprogram.domain.model.** { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
 
