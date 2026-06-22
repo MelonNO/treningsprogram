@@ -1,5 +1,6 @@
 package com.migul.treningsprogram.data.repository
 
+import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.api.WgerApi
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -12,6 +13,9 @@ class WgerRepository @Inject constructor(private val wgerApi: WgerApi) {
     private val imageCache = ConcurrentHashMap<String, String>()
 
     suspend fun getExerciseImageUrl(name: String): String? {
+        // Fast path: bundled catalog (no network needed)
+        ExerciseCatalog.getImageUrl(name)?.let { return it }
+        // Fall back to live wger.de search for exercises not in catalog
         imageCache[name]?.let { return it.ifEmpty { null } }
         return searchAndFetch(name)
     }

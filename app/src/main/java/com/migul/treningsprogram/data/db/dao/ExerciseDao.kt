@@ -14,4 +14,10 @@ interface ExerciseDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(exercises: List<Exercise>)
+
+    @Query("SELECT * FROM exercises WHERE resolvedAt = 0")
+    suspend fun getUnresolved(): List<Exercise>
+
+    @Query("UPDATE exercises SET exerciseDbId = :dbId, matchConfidence = :confidence, matchSource = :source, resolvedAt = :resolvedAt WHERE name = :name")
+    suspend fun bindByName(name: String, dbId: String?, confidence: Float, source: String, resolvedAt: Long)
 }

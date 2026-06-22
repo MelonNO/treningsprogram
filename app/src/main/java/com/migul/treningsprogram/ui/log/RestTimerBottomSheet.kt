@@ -1,26 +1,25 @@
 package com.migul.treningsprogram.ui.log
 
-import android.content.Context
-import android.os.Build
 import android.os.Bundle
-import android.os.CountDownTimer
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.migul.treningsprogram.databinding.BottomSheetRestTimerBinding
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class RestTimerBottomSheet : BottomSheetDialogFragment() {
+
+    @Inject lateinit var timerManager: RestTimerManager
 
     private var _binding: BottomSheetRestTimerBinding? = null
     private val binding get() = _binding!!
-
-    private var totalSeconds = 90
-    private var millisRemaining = 0L
-    private var timer: CountDownTimer? = null
 
     companion object {
         fun newInstance(seconds: Int, exerciseName: String = "") = RestTimerBottomSheet().apply {
@@ -29,12 +28,6 @@ class RestTimerBottomSheet : BottomSheetDialogFragment() {
                 it.putString("exerciseName", exerciseName)
             }
         }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        totalSeconds = arguments?.getInt("seconds", 90) ?: 90
-        millisRemaining = totalSeconds * 1000L
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -46,69 +39,54 @@ class RestTimerBottomSheet : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         val exerciseName = arguments?.getString("exerciseName", "") ?: ""
         val suggestedSecs = arguments?.getInt("seconds", 90) ?: 90
+
         binding.tvExerciseLabel.text = if (exerciseName.isNotBlank()) "Rest — $exerciseName" else "Rest"
         binding.tvAiSuggested.text = "AI suggested: %d:%02d".format(suggestedSecs / 60, suggestedSecs % 60)
 
-        updateDisplay()
-        startTimer()
-        binding.btnSkip.setOnClickListener { cancelAndDismiss() }
+        // Start if not already running (idempotent — does nothing if timer already ticking)
+        if (!timerManager.isRunning.value) {
+            timerManager.start(suggestedSecs * 1000L)
+        }
+
+        // "Skip" = cancel timer AND dismiss (explicit stop)
+        binding.btnSkip.setOnClickListener {
+            timerManager.stop()
+            dismiss()
+        }
+        // Adjust buttons restart timer with adjusted duration
         binding.btnMinus30.setOnClickListener {
-            millisRemaining = (millisRemaining - 30_000L).coerceAtLeast(5_000L)
-            totalSeconds = (totalSeconds - 30).coerceAtLeast(5)
-            startTimer()
+            val newMs = (timerManager.remainingMs.value - 30_000L).coerceAtLeast(5_000L)
+            timerManager.start(newMs)
         }
         binding.btnPlus30.setOnClickListener {
-            millisRemaining += 30_000L
-            totalSeconds += 30
-            startTimer()
+            timerManager.start(timerManager.remainingMs.value + 30_000L)
         }
-    }
 
-    private fun startTimer() {
-        timer?.cancel()
-        timer = object : CountDownTimer(millisRemaining, 100L) {
-            override fun onTick(ms: Long) {
-                millisRemaining = ms
-                updateDisplay()
-            }
-            override fun onFinish() {
-                _binding?.tvTimerDisplay?.text = "GO!"
-                _binding?.progressTimer?.progress = 0
-                vibrate()
-                view?.postDelayed({ if (isAdded) dismiss() }, 1500L)
-            }
-        }.start()
-    }
-
-    private fun cancelAndDismiss() {
-        timer?.cancel()
-        dismiss()
-    }
-
-    private fun updateDisplay() {
-        val secs = (millisRemaining / 1000).toInt()
-        _binding?.tvTimerDisplay?.text = "%d:%02d".format(secs / 60, secs % 60)
-        val progress = ((millisRemaining.toFloat() / (totalSeconds * 1000f)) * 100).toInt()
-        _binding?.progressTimer?.progress = progress.coerceIn(0, 100)
-    }
-
-    @Suppress("DEPRECATION")
-    private fun vibrate() {
-        val ctx = context ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
-                .defaultVibrator
-                .vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            val v = ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                v.vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE))
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                timerManager.remainingMs.collect { ms ->
+                    if (_binding == null) return@collect
+                    val total = timerManager.totalMs.value.coerceAtLeast(1L)
+                    if (ms <= 0L && !timerManager.isRunning.value) {
+                        binding.tvTimerDisplay.text = "GO!"
+                        binding.progressTimer.progress = 0
+                        view.postDelayed({
+                            if (isAdded && _binding != null) dismiss()
+                        }, 1500L)
+                    } else if (ms > 0L) {
+                        val secs = (ms / 1000).toInt()
+                        binding.tvTimerDisplay.text = "%d:%02d".format(secs / 60, secs % 60)
+                        val progress = ((ms.toFloat() / total) * 100).toInt().coerceIn(0, 100)
+                        binding.progressTimer.progress = progress
+                    }
+                }
             }
         }
     }
 
+    // Swipe-down (native BottomSheet dismiss) intentionally does NOT call timerManager.stop()
+    // so the timer keeps running in the background service (Issue 05 fix).
     override fun onDestroyView() {
-        timer?.cancel()
         _binding = null
         super.onDestroyView()
     }

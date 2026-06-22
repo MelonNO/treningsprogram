@@ -23,4 +23,7 @@ interface GymPresetDao {
 
     @Delete
     suspend fun delete(preset: GymPreset)
+
+    @Query("DELETE FROM gym_presets")
+    suspend fun deleteAll()
 }

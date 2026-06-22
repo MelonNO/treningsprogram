@@ -9,3 +9,11 @@
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
+
+# Keep Gson-serialized log data model classes (field names must survive R8)
+-keep class com.migul.treningsprogram.data.RejectionLog { *; }
+-keep class com.migul.treningsprogram.data.RejectionLog$** { *; }
+-keep class com.migul.treningsprogram.data.CrashLog { *; }
+-keep class com.migul.treningsprogram.data.CrashLog$** { *; }
+-keep class com.migul.treningsprogram.data.PromptLog { *; }
+-keep class com.migul.treningsprogram.data.PromptLog$** { *; }

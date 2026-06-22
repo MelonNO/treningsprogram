@@ -37,4 +37,10 @@ interface WorkoutSessionDao {
 
     @Query("DELETE FROM workout_sessions")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM workout_sessions ORDER BY dateMs ASC")
+    suspend fun getAllOnce(): List<WorkoutSession>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(sessions: List<WorkoutSession>)
 }

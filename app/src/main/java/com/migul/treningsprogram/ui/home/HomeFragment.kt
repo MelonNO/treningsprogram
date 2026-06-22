@@ -12,6 +12,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
@@ -22,6 +23,20 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+
+private fun dayOfWeekFromMs(ms: Long): Int {
+    val cal = Calendar.getInstance().apply { timeInMillis = ms }
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.MONDAY    -> 1
+        Calendar.TUESDAY   -> 2
+        Calendar.WEDNESDAY -> 3
+        Calendar.THURSDAY  -> 4
+        Calendar.FRIDAY    -> 5
+        Calendar.SATURDAY  -> 6
+        Calendar.SUNDAY    -> 7
+        else               -> -1
+    }
+}
 
 @AndroidEntryPoint
 class HomeFragment : Fragment() {
@@ -41,6 +56,7 @@ class HomeFragment : Fragment() {
         // Show first-launch card if setup not done; hide all normal content
         if (viewModel.isFirstLaunch) {
             binding.cardFirstLaunch.visibility = View.VISIBLE
+            binding.btnStartWorkout.visibility = View.GONE
             binding.btnStartSetup.setOnClickListener {
                 findNavController().navigate(R.id.action_home_to_setup_wizard)
             }
@@ -62,13 +78,11 @@ class HomeFragment : Fragment() {
                                     binding.btnStartWorkout.text = "Resume Workout"
                                     binding.tvTodayPlan.text = "Session in progress — tap to continue"
                                     binding.btnStartWorkout.setOnClickListener {
-                                        viewModel.startWorkout { sessionId ->
-                                            if (!isAdded) return@startWorkout
-                                            findNavController().navigate(
-                                                R.id.action_home_to_log,
-                                                bundleOf("sessionId" to sessionId, "dayOfWeek" to currentDayOfWeek())
-                                            )
-                                        }
+                                        if (!isAdded) return@setOnClickListener
+                                        findNavController().navigate(
+                                            R.id.action_home_to_log,
+                                            bundleOf("sessionId" to active.id, "dayOfWeek" to dayOfWeekFromMs(active.dateMs))
+                                        )
                                     }
                                 }
                                 completed -> {
@@ -76,7 +90,11 @@ class HomeFragment : Fragment() {
                                     binding.btnStartWorkout.text = "View Today's Session"
                                     binding.tvTodayPlan.text = "Today's session is logged. Great work!"
                                     binding.btnStartWorkout.setOnClickListener {
-                                        findNavController().navigate(R.id.historyFragment)
+                                        // Navigate by selecting the tab — avoids pushing historyFragment
+                                        // onto homeFragment's back stack which desyncs NavigationUI.
+                                        requireActivity()
+                                            .findViewById<BottomNavigationView>(R.id.bottom_nav)
+                                            ?.selectedItemId = R.id.historyFragment
                                     }
                                 }
                                 plan.isEmpty() -> {

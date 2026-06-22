@@ -14,4 +14,13 @@ interface BodyMeasurementDao {
 
     @Delete
     suspend fun delete(m: BodyMeasurement)
+
+    @Query("SELECT * FROM body_measurements ORDER BY dateMs ASC")
+    suspend fun getAllOnce(): List<BodyMeasurement>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(measurements: List<BodyMeasurement>)
+
+    @Query("DELETE FROM body_measurements")
+    suspend fun deleteAll()
 }

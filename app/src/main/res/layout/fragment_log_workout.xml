@@ -61,9 +61,12 @@
                     <FrameLayout
                         android:id="@+id/layout_muscle_banner"
                         android:layout_width="match_parent"
-                        android:layout_height="140dp"
+                        android:layout_height="210dp"
                         android:layout_marginBottom="12dp"
-                        android:background="#1C1C2A">
+                        android:background="#1C1C2A"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground">
                         <TextView
                             android:id="@+id/tv_muscle_banner_label"
                             android:layout_width="wrap_content"
@@ -80,6 +83,18 @@
                             android:scaleType="centerCrop"
                             android:visibility="gone"
                             android:contentDescription="Exercise image" />
+                        <TextView
+                            android:id="@+id/tv_image_expand_hint"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom|end"
+                            android:layout_margin="8dp"
+                            android:padding="4dp"
+                            android:text="⛶"
+                            android:textSize="18sp"
+                            android:textColor="#AAFFFFFF"
+                            android:background="#44000000"
+                            android:visibility="gone" />
                     </FrameLayout>
                     <!-- target chips row -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -129,7 +144,9 @@
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/et_freestyle_exercise"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:inputType="textCapWords" />
+                            android:inputType="textCapWords|textNoSuggestions"
+                            android:imeOptions="actionDone"
+                            android:privateImeOptions="nm" />
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -181,6 +198,7 @@
                                     android:layout_width="0dp" android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:inputType="numberDecimal"
+                                    android:imeOptions="actionDone"
                                     android:gravity="center"
                                     android:textSize="20sp" android:textStyle="bold"
                                     android:textColor="?attr/colorOnSurface"
@@ -215,6 +233,7 @@
                                     android:layout_width="0dp" android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:inputType="number"
+                                    android:imeOptions="actionDone"
                                     android:gravity="center"
                                     android:textSize="20sp" android:textStyle="bold"
                                     android:textColor="?attr/colorOnSurface"
@@ -306,6 +325,42 @@
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <!-- Persistent rest timer recall bar -->
+    <LinearLayout
+        android:id="@+id/view_timer_recall_bar"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#1A1030"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground">
+        <View
+            android:layout_width="3dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="12dp"
+            android:background="#7C67F5" />
+        <TextView
+            android:id="@+id/tv_timer_bar_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Rest Timer"
+            android:textSize="14sp"
+            android:textColor="#A498D8" />
+        <TextView
+            android:id="@+id/tv_timer_bar_countdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#9D8EFF"
+            android:paddingEnd="16dp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <!-- Bottom navigation bar -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"

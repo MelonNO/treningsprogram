@@ -14,4 +14,7 @@ interface UserStatsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(stats: UserStats)
+
+    @Query("DELETE FROM user_stats")
+    suspend fun deleteAll()
 }

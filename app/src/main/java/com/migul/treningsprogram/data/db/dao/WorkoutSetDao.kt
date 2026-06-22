@@ -132,4 +132,10 @@ interface WorkoutSetDao {
 
     @Query("DELETE FROM workout_sets")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM workout_sets ORDER BY sessionId, exerciseName, setNumber")
+    suspend fun getAllOnce(): List<WorkoutSet>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(sets: List<WorkoutSet>)
 }

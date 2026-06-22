@@ -1,5 +1,8 @@
 package com.migul.treningsprogram.data.repository
 
+import androidx.room.withTransaction
+import com.migul.treningsprogram.data.ExerciseDbResolver
+import com.migul.treningsprogram.data.ResolveHints
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
@@ -10,10 +13,12 @@ import javax.inject.Singleton
 
 @Singleton
 class WorkoutRepository @Inject constructor(
+    private val db: AppDatabase,
     private val sessionDao: WorkoutSessionDao,
     private val setDao: WorkoutSetDao,
     private val exerciseDao: ExerciseDao,
-    private val plannedDao: PlannedExerciseDao
+    private val plannedDao: PlannedExerciseDao,
+    private val resolver: ExerciseDbResolver
 ) {
     val allSessions: Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
@@ -46,7 +51,33 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun ensureExercisesPopulated() {
         if (exerciseDao.count() == 0) {
-            exerciseDao.insertAll(AppDatabase.DEFAULT_EXERCISES)
+            val now = System.currentTimeMillis()
+            val resolved = AppDatabase.DEFAULT_EXERCISES.map { ex ->
+                val result = resolver.resolve(ex.name, ResolveHints(muscle = ex.muscleGroup, equipment = ex.equipment))
+                ex.copy(
+                    exerciseDbId = result?.dbId,
+                    matchConfidence = result?.confidence ?: -1f,
+                    matchSource = result?.source?.name?.lowercase() ?: "none",
+                    resolvedAt = now
+                )
+            }
+            exerciseDao.insertAll(resolved)
+        }
+    }
+
+    suspend fun backfillPlannedExercises() {
+        val unresolved = plannedDao.getUnresolved()
+        if (unresolved.isEmpty()) return
+        val now = System.currentTimeMillis()
+        unresolved.map { it.exerciseName }.toSet().forEach { name ->
+            val result = resolver.resolve(name, ResolveHints())
+            plannedDao.bindByName(
+                name = name,
+                dbId = result?.dbId,
+                confidence = result?.confidence ?: -1f,
+                source = result?.source?.name?.lowercase() ?: "none",
+                resolvedAt = now
+            )
         }
     }
 
@@ -99,7 +130,16 @@ class WorkoutRepository @Inject constructor(
         plannedDao.insertAll(exercises)
     }
 
+    suspend fun saveDayPlan(weekStart: Long, dayOfWeek: Int, exercises: List<PlannedExercise>) {
+        db.withTransaction {
+            plannedDao.deleteForDay(weekStart, dayOfWeek)
+            plannedDao.insertAll(exercises)
+        }
+    }
+
     suspend fun getLatestPlanWeekStart(): Long? = plannedDao.getLatestWeekStart()
+
+    suspend fun getAllPlannedOnce(): List<PlannedExercise> = plannedDao.getAllOnce()
 
     suspend fun updatePlannedExercise(exercise: PlannedExercise) = plannedDao.update(exercise)
 

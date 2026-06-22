@@ -52,11 +52,35 @@ class GymPresetsFragment : Fragment() {
 
     private fun renderPresets(presets: List<GymPreset>) {
         binding.layoutPresetsList.removeAllViews()
+
+        // Built-in "No gym equipment" option — maps to selectedPresetId == -1L (bodyweight only)
+        val builtInCard = layoutInflater.inflate(R.layout.item_gym_preset, binding.layoutPresetsList, false)
+        val isBuiltInActive = viewModel.selectedPresetId == -1L
+        builtInCard.findViewById<TextView>(R.id.tv_preset_name).text = "No gym equipment"
+        builtInCard.findViewById<TextView>(R.id.tv_preset_active_badge).visibility =
+            if (isBuiltInActive) View.VISIBLE else View.GONE
+        builtInCard.findViewById<TextView>(R.id.tv_preset_equipment).text = "Bodyweight only — no gym required"
+        builtInCard.findViewById<TextView>(R.id.tv_preset_notes).visibility = View.GONE
+        if (isBuiltInActive) {
+            (builtInCard as? com.google.android.material.card.MaterialCardView)?.apply {
+                strokeColor = Color.parseColor("#7C67F5"); strokeWidth = 6
+            }
+        }
+        builtInCard.findViewById<View>(R.id.btn_select_preset).setOnClickListener {
+            val previousId = viewModel.selectedPresetId
+            viewModel.selectPreset(-1L)
+            renderPresets(viewModel.presets.value)
+            if (previousId != -1L) showEquipmentChangedDialog()
+        }
+        builtInCard.findViewById<View>(R.id.btn_edit_preset).visibility = View.GONE
+        builtInCard.findViewById<View>(R.id.btn_delete_preset).visibility = View.GONE
+        binding.layoutPresetsList.addView(builtInCard)
+
         if (presets.isEmpty()) {
             val tv = TextView(requireContext()).apply {
-                text = "No presets yet. Tap + to add one."
+                text = "No custom presets yet. Tap + to add one."
                 setTextColor(Color.parseColor("#8888A8"))
-                setPadding(0, 32, 0, 0)
+                setPadding(0, 16, 0, 0)
                 gravity = Gravity.CENTER
             }
             binding.layoutPresetsList.addView(tv)
@@ -90,8 +114,10 @@ class GymPresetsFragment : Fragment() {
             }
 
             card.findViewById<View>(R.id.btn_select_preset).setOnClickListener {
+                val previousId = viewModel.selectedPresetId
                 viewModel.selectPreset(preset.id)
                 renderPresets(viewModel.presets.value)
+                if (preset.id != previousId) showEquipmentChangedDialog()
             }
             card.findViewById<View>(R.id.btn_edit_preset).setOnClickListener {
                 showEditDialog(preset, equipment, preset.notes)
@@ -107,6 +133,14 @@ class GymPresetsFragment : Fragment() {
 
             binding.layoutPresetsList.addView(card)
         }
+    }
+
+    private fun showEquipmentChangedDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Equipment changed")
+            .setMessage("Generate a new workout plan for this equipment change to take effect. Your current plan is unchanged until then.")
+            .setPositiveButton("Got it", null)
+            .show()
     }
 
     private fun showEditDialog(existing: GymPreset?, initialEquipment: List<String>, initialNotes: String) {

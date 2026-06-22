@@ -3,6 +3,8 @@ package com.migul.treningsprogram.ui.program
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
+import com.migul.treningsprogram.data.preferences.PreferencesManager
+import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.data.repository.thisMonday
@@ -13,8 +15,14 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProgramViewModel @Inject constructor(
-    private val workoutRepository: WorkoutRepository
+    private val workoutRepository: WorkoutRepository,
+    private val aiRepository: AiRepository,
+    private val prefsManager: PreferencesManager
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch { workoutRepository.backfillPlannedExercises() }
+    }
 
     val weekPlan: StateFlow<List<PlannedExercise>> =
         workoutRepository.getPlannedForWeek(thisMonday())
@@ -55,6 +63,51 @@ class ProgramViewModel @Inject constructor(
             workoutRepository.updatePlannedExercise(
                 exercise.copy(exerciseName = newName, isLogged = false, actualWeightKg = 0f, actualReps = "", actualSets = 0)
             )
+        }
+    }
+
+    private val _isDayGenerating = MutableStateFlow(false)
+    val isDayGenerating: StateFlow<Boolean> = _isDayGenerating.asStateFlow()
+
+    private val _dayGenerationError = MutableStateFlow<String?>(null)
+    val dayGenerationError: StateFlow<String?> = _dayGenerationError.asStateFlow()
+
+    private val _dayGenerationStatus = MutableStateFlow("")
+    val dayGenerationStatus: StateFlow<String> = _dayGenerationStatus.asStateFlow()
+
+    fun clearDayGenerationError() { _dayGenerationError.value = null }
+
+    fun regenerateDay(dayOfWeek: Int, equipment: List<String>, equipmentNotes: String) {
+        if (prefsManager.apiKey.isBlank()) {
+            _dayGenerationError.value = "Set your API key in Profile → Settings first."
+            return
+        }
+        viewModelScope.launch {
+            _isDayGenerating.value = true
+            _dayGenerationError.value = null
+            val weekStart = thisMonday()
+            val currentPlan = weekPlan.value
+
+            aiRepository.generateSingleDayProgram(
+                dayOfWeek = dayOfWeek,
+                equipment = equipment,
+                equipmentNotes = equipmentNotes,
+                goal = prefsManager.fitnessGoal,
+                experience = prefsManager.experienceLevel,
+                sessionDurationMinutes = prefsManager.sessionDurationMinutes,
+                existingWeekPlan = currentPlan,
+                injuries = prefsManager.injuries,
+                priorityMuscles = prefsManager.priorityMuscles,
+                dislikedExercises = prefsManager.dislikedExercises,
+                onProgress = { _dayGenerationStatus.value = it }
+            ).onSuccess { exercises ->
+                workoutRepository.saveDayPlan(weekStart, dayOfWeek, exercises)
+                _dayGenerationStatus.value = ""
+            }.onFailure { e ->
+                _dayGenerationError.value = e.message ?: "Generation failed"
+                _dayGenerationStatus.value = ""
+            }
+            _isDayGenerating.value = false
         }
     }
 }

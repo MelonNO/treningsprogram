@@ -23,4 +23,13 @@ interface AchievementDao {
 
     @Query("UPDATE achievements SET isUnlocked = 0, unlockedAtMs = 0")
     suspend fun resetAll()
+
+    @Query("SELECT * FROM achievements ORDER BY name")
+    suspend fun getAllOnce(): List<Achievement>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllReplace(achievements: List<Achievement>)
+
+    @Query("DELETE FROM achievements")
+    suspend fun deleteAll()
 }

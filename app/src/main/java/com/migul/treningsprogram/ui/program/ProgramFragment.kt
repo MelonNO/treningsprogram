@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -12,6 +13,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.repository.WgerRepository
@@ -20,6 +26,8 @@ import com.migul.treningsprogram.databinding.FragmentProgramBinding
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val ADMIN_TIME_PER_EXERCISE_SECONDS = 60
 
 @AndroidEntryPoint
 class ProgramFragment : Fragment() {
@@ -51,11 +59,17 @@ class ProgramFragment : Fragment() {
             dayChipViews.add(chip)
         }
 
+        binding.btnGoToSettings.setOnClickListener {
+            requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
+                ?.selectedItemId = R.id.profileFragment
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     viewModel.weekPlan.collect { plan ->
                         val hasPlan = plan.isNotEmpty()
+                        binding.cardEmptyState.visibility = if (hasPlan) View.GONE else View.VISIBLE
                         binding.cardWeek.visibility = if (hasPlan) View.VISIBLE else View.GONE
                         binding.layoutDaySection.visibility = if (hasPlan) View.VISIBLE else View.GONE
                         if (hasPlan) updateDayChips(plan, viewModel.selectedDay.value)
@@ -76,6 +90,26 @@ class ProgramFragment : Fragment() {
                     viewModel.weekProgress.collect { (logged, total) ->
                         binding.tvWeekProgress.text = if (total > 0) "$logged / $total done" else ""
                         binding.progressWeek.progress = if (total > 0) (logged * 100 / total) else 0
+                    }
+                }
+                launch {
+                    viewModel.isDayGenerating.collect { generating ->
+                        binding.layoutRegenProgress.visibility = if (generating) View.VISIBLE else View.GONE
+                        binding.btnRegenerateDay.isEnabled = !generating
+                        binding.btnStartDayWorkout.isEnabled = !generating
+                    }
+                }
+                launch {
+                    viewModel.dayGenerationStatus.collect { status ->
+                        binding.tvRegenStatus.text = status
+                    }
+                }
+                launch {
+                    viewModel.dayGenerationError.collect { error ->
+                        if (error != null) {
+                            Snackbar.make(binding.root, error, Snackbar.LENGTH_LONG).show()
+                            viewModel.clearDayGenerationError()
+                        }
                     }
                 }
             }
@@ -198,15 +232,8 @@ class ProgramFragment : Fragment() {
             }
             binding.tvWorkoutType.text = "${exercises.size} exercises  •  $typeLabel"
 
-            val totalSec = exercises.sumOf { ex ->
-                if (getMuscleGroup(ex.exerciseName) == "Cardio") {
-                    parseCardioSeconds(ex.targetReps)
-                } else {
-                    val maxReps = Regex("\\d+").findAll(ex.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
-                    ex.sets * (maxReps * 3) + (ex.sets - 1) * ex.recommendedRestSeconds
-                }
-            }
-            val totalMins = totalSec / 60
+            val totalSec = exercises.sumOf { ex -> exerciseEstimateSeconds(ex) }
+            val totalMins = (totalSec + 30) / 60
             binding.tvTotalTime.text = "~${totalMins}m"
 
             binding.btnStartDayWorkout.setOnClickListener {
@@ -221,6 +248,9 @@ class ProgramFragment : Fragment() {
             binding.tvWorkoutType.text = "Take it easy today"
             binding.tvTotalTime.text = ""
         }
+
+        binding.btnRegenerateDay.visibility = View.VISIBLE
+        binding.btnRegenerateDay.setOnClickListener { showRegenerateDayDialog(day) }
 
         binding.layoutExercises.removeAllViews()
         exercises.forEach { ex ->
@@ -259,10 +289,8 @@ class ProgramFragment : Fragment() {
         if (isCardio) {
             tvExerciseTime.text = exercise.targetReps
         } else {
-            val maxReps = Regex("\\d+").findAll(exercise.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
-            val setDurationSec = maxReps * 3
-            val totalSec = exercise.sets * setDurationSec + (exercise.sets - 1) * exercise.recommendedRestSeconds
-            val mins = (totalSec + 30) / 60  // round to nearest minute
+            val totalSec = exerciseEstimateSeconds(exercise)
+            val mins = (totalSec + 30) / 60
             tvExerciseTime.text = "~${mins}m"
         }
 
@@ -272,6 +300,15 @@ class ProgramFragment : Fragment() {
         }
 
         return card
+    }
+
+    private fun exerciseEstimateSeconds(ex: PlannedExercise): Int {
+        return if (getMuscleGroup(ex.exerciseName) == "Cardio") {
+            parseCardioSeconds(ex.targetReps) + ADMIN_TIME_PER_EXERCISE_SECONDS
+        } else {
+            val maxReps = Regex("\\d+").findAll(ex.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
+            ex.sets * (maxReps * 3) + (ex.sets - 1) * ex.recommendedRestSeconds + ADMIN_TIME_PER_EXERCISE_SECONDS
+        }
     }
 
     private fun getMuscleGroup(name: String): String {
@@ -311,6 +348,52 @@ class ProgramFragment : Fragment() {
         val kmMatch = Regex("(\\d+(?:\\.\\d+)?)\\s*km", RegexOption.IGNORE_CASE).find(targetReps)
         if (kmMatch != null) return (kmMatch.groupValues[1].toDouble() * 5 * 60).toInt()
         return 1800
+    }
+
+    private fun showRegenerateDayDialog(dayOfWeek: Int) {
+        val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        val dayName = dayNames.getOrElse(dayOfWeek - 1) { "Day $dayOfWeek" }
+
+        val dp16 = (16 * resources.displayMetrics.density).toInt()
+        val dp8 = dp16 / 2
+
+        val container = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp16, dp8, dp16, 0)
+        }
+
+        val fullWidthParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etEquipment = TextInputEditText(requireContext())
+        val tilEquipment = TextInputLayout(requireContext()).apply {
+            hint = "Equipment (e.g. Dumbbells, Barbell)"
+            addView(etEquipment)
+        }
+
+        val etNotes = TextInputEditText(requireContext()).apply { maxLines = 2 }
+        val tilNotes = TextInputLayout(requireContext()).apply {
+            hint = "Notes (optional, e.g. Hotel gym — limited space)"
+            addView(etNotes)
+        }
+
+        container.addView(tilEquipment, fullWidthParams)
+        container.addView(tilNotes, fullWidthParams)
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Regenerate $dayName")
+            .setMessage("Enter the equipment available. Only this day will change — the rest of the week stays intact.")
+            .setView(container)
+            .setPositiveButton("Generate") { _, _ ->
+                val equipText = etEquipment.text?.toString()?.trim() ?: ""
+                val equipment = if (equipText.isBlank()) emptyList()
+                    else equipText.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                val notes = etNotes.text?.toString()?.trim() ?: ""
+                viewModel.regenerateDay(dayOfWeek, equipment, notes)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onDestroyView() {

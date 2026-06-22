@@ -27,9 +27,9 @@ class HistoryFragment : Fragment() {
         binding.viewPager.adapter = HistoryPagerAdapter(this)
         TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
             tab.text = when (position) {
-                0 -> "History"
+                0 -> "Stats"
                 1 -> "Progress"
-                else -> "Stats"
+                else -> "History"
             }
         }.attach()
     }

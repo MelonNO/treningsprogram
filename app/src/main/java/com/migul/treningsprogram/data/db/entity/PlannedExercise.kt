@@ -18,5 +18,9 @@ data class PlannedExercise(
     val actualWeightKg: Float = 0f,
     val actualReps: String = "",
     val actualSets: Int = 0,
-    val recommendedRestSeconds: Int = 90
+    val recommendedRestSeconds: Int = 90,
+    val exerciseDbId: String? = null,
+    val matchConfidence: Float = -1f,
+    val matchSource: String = "",
+    val resolvedAt: Long = 0L
 )

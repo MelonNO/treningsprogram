@@ -4,14 +4,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
+import com.migul.treningsprogram.data.db.dao.PlannedExerciseDao
 import com.migul.treningsprogram.data.preferences.PreferencesManager
+import com.migul.treningsprogram.data.ExerciseResolutionLog
+import com.migul.treningsprogram.data.CrashLog
+import com.migul.treningsprogram.data.PromptLog
+import com.migul.treningsprogram.data.RejectionLog
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.ExportRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
+import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.repository.thisMonday
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,8 +33,33 @@ class SettingsViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
     private val gamificationRepository: GamificationRepository,
     private val gymPresetDao: GymPresetDao,
-    private val gson: Gson
+    private val plannedExerciseDao: PlannedExerciseDao,
+    private val bodyMeasurementDao: BodyMeasurementDao,
+    private val gson: Gson,
+    private val exportRepository: ExportRepository,
+    private val resolutionLog: ExerciseResolutionLog,
+    val promptLog: PromptLog,
+    val rejectionLog: RejectionLog,
+    val crashLog: CrashLog
 ) : ViewModel() {
+
+    private val _promptLogEntries = MutableStateFlow<List<PromptLog.Entry>>(emptyList())
+    val promptLogEntries = _promptLogEntries.asStateFlow()
+
+    fun refreshPromptLog() { _promptLogEntries.value = promptLog.getAll() }
+    fun clearPromptLog() { promptLog.clear(); _promptLogEntries.value = emptyList() }
+
+    private val _rejectionLogSessions = MutableStateFlow<List<RejectionLog.Session>>(emptyList())
+    val rejectionLogSessions = _rejectionLogSessions.asStateFlow()
+
+    fun refreshRejectionLog() { _rejectionLogSessions.value = rejectionLog.getAll() }
+    fun clearRejectionLog() { rejectionLog.clear(); _rejectionLogSessions.value = emptyList() }
+
+    private val _crashLogEntries = MutableStateFlow<List<CrashLog.Entry>>(emptyList())
+    val crashLogEntries = _crashLogEntries.asStateFlow()
+
+    fun refreshCrashLog() { _crashLogEntries.value = crashLog.getAll() }
+    fun clearCrashLog() { crashLog.clear(); _crashLogEntries.value = emptyList() }
 
     private val _saved = MutableStateFlow(false)
     val saved = _saved.asStateFlow()
@@ -38,12 +73,38 @@ class SettingsViewModel @Inject constructor(
     private val _resetDone = MutableStateFlow(false)
     val resetDone = _resetDone.asStateFlow()
 
+    private val _factoryResetDone = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val factoryResetDone = _factoryResetDone.asSharedFlow()
+
+    private val _exportJson = MutableStateFlow<String?>(null)
+    val exportJson = _exportJson.asStateFlow()
+
+    private val _importResult = MutableStateFlow<String?>(null)
+    val importResult = _importResult.asStateFlow()
+
     private val _lastAttemptCount = MutableStateFlow(prefs.lastGenerationAttemptCount)
     val lastAttemptCount = _lastAttemptCount.asStateFlow()
 
     data class RetryEntry(val attempt: Int, val reason: String, val failed: Boolean)
     private val _retryLog = MutableStateFlow<List<RetryEntry>>(emptyList())
     val retryLog = _retryLog.asStateFlow()
+
+    // Exercises the image resolver couldn't match — shown in Settings for easy copy/report
+    private val _unrecognizedExercises = MutableStateFlow<List<String>>(emptyList())
+    val unrecognizedExercises = _unrecognizedExercises.asStateFlow()
+
+    init {
+        refreshUnrecognized()
+    }
+
+    fun refreshUnrecognized() {
+        _unrecognizedExercises.value = resolutionLog.getMissReport().map { it.first }
+    }
+
+    fun clearUnrecognized() {
+        resolutionLog.clearMisses()
+        refreshUnrecognized()
+    }
 
     fun save(
         apiKey: String,
@@ -69,12 +130,54 @@ class SettingsViewModel @Inject constructor(
         _saved.value = false
     }
 
+    fun exportBackup() {
+        viewModelScope.launch {
+            runCatching { exportRepository.exportToJson() }
+                .onSuccess { _exportJson.value = it; _exportJson.value = null }
+                .onFailure { _importResult.value = "Export failed: ${it.message}"; _importResult.value = null }
+        }
+    }
+
+    fun importBackup(json: String) {
+        viewModelScope.launch {
+            runCatching { exportRepository.importFromJson(json) }
+                .onSuccess { _importResult.value = "Backup restored successfully!"; _importResult.value = null }
+                .onFailure { _importResult.value = "Import failed: ${it.message}"; _importResult.value = null }
+        }
+    }
+
+    fun consumeExportJson(block: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { exportRepository.exportToJson() }
+                .onSuccess { block(it) }
+                .onFailure { _importResult.value = "Export failed: ${it.message}"; _importResult.value = null }
+        }
+    }
+
     fun resetAllWorkouts() {
         viewModelScope.launch {
             workoutRepository.resetAllWorkouts()
             gamificationRepository.resetAll()
+            resolutionLog.clearMisses()
+            refreshUnrecognized()
             _resetDone.value = true
             _resetDone.value = false
+        }
+    }
+
+    fun factoryReset() {
+        viewModelScope.launch {
+            // Clear all DB tables
+            workoutRepository.resetAllWorkouts()   // sessions + sets
+            gamificationRepository.resetAll()       // user_stats + achievements
+            plannedExerciseDao.deleteAll()
+            gymPresetDao.deleteAll()
+            AppDatabase.seedPresets(gymPresetDao)
+            bodyMeasurementDao.deleteAll()
+            resolutionLog.clearMisses()
+            // Clear all preferences (API key, onboarding status, profile, everything)
+            prefs.clearAll()
+            _factoryResetDone.tryEmit(Unit)
         }
     }
 

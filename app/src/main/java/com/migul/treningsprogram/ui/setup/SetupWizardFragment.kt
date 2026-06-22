@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -29,8 +30,8 @@ class SetupWizardFragment : Fragment() {
     private val viewModel: SetupWizardViewModel by viewModels()
 
     private var currentStep = 0
-    private val LAST_INPUT_STEP = 5
-    private val TOTAL_STEPS = 6
+    private val LAST_INPUT_STEP = 4
+    private val TOTAL_STEPS = 5
 
     private var selectedGoal = "Hypertrophy"
     private var selectedExperience = "Intermediate"
@@ -40,10 +41,9 @@ class SetupWizardFragment : Fragment() {
     private val stepTitles = listOf(
         "Fitness Goal",
         "Training Schedule",
-        "Preferences",
         "Equipment",
-        "Connect Claude",
-        "Training Profile"
+        "Training Profile",
+        "Connect Claude"
     )
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -99,8 +99,8 @@ class SetupWizardFragment : Fragment() {
 
         binding.btnAddPreset.setOnClickListener { showCreatePresetDialog() }
 
-        binding.btnWizardBack.setOnClickListener { goBack() }
-        binding.btnWizardNext.setOnClickListener { advance() }
+        binding.btnWizardBack.setOnClickListener { pulseButton(binding.btnWizardBack); goBack() }
+        binding.btnWizardNext.setOnClickListener { pulseButton(binding.btnWizardNext); advance() }
         binding.tvWizardSkip.setOnClickListener { skipToGenerate() }
 
         binding.btnGoHome.setOnClickListener {
@@ -132,8 +132,18 @@ class SetupWizardFragment : Fragment() {
                     viewModel.generationDone.collect { done ->
                         if (done) {
                             binding.layoutGenerating.visibility = View.GONE
-                            binding.layoutSuccess.visibility = View.VISIBLE
                             binding.layoutWizardActions.visibility = View.GONE
+                            binding.layoutSuccess.apply {
+                                alpha = 0f
+                                translationY = resources.displayMetrics.density * 28
+                                visibility = View.VISIBLE
+                                animate()
+                                    .alpha(1f)
+                                    .translationY(0f)
+                                    .setDuration(400)
+                                    .setInterpolator(DecelerateInterpolator())
+                                    .start()
+                            }
                             val attempts = viewModel.attemptCount.value
                             val reasons = viewModel.rejectionReasons.value
                             binding.tvSuccessDetail.text = if (reasons.isNotEmpty()) {
@@ -236,8 +246,15 @@ class SetupWizardFragment : Fragment() {
         card.addView(row)
 
         card.setOnClickListener {
-            viewModel.selectPreset(id)
-            renderEquipmentStep(viewModel.presets.value)
+            card.animate()
+                .scaleX(0.96f).scaleY(0.96f)
+                .setDuration(80)
+                .withEndAction {
+                    card.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                    viewModel.selectPreset(id)
+                    renderEquipmentStep(viewModel.presets.value)
+                }
+                .start()
         }
 
         container.addView(card)
@@ -308,19 +325,9 @@ class SetupWizardFragment : Fragment() {
                 }
                 nextStep()
             }
-            2 -> nextStep()
-            3 -> nextStep()
-            4 -> {
-                val apiKey = binding.etWizardApiKey.text?.toString()?.trim() ?: ""
-                if (apiKey.isBlank()) {
-                    Snackbar.make(binding.root, "Please enter your Claude API key.", Snackbar.LENGTH_SHORT).show()
-                    return
-                }
-                viewModel.prefs.apiKey = apiKey
-                nextStep()
-            }
-            5 -> {
-                // Save training profile answers to prefs
+            2 -> nextStep() // Equipment — just proceed
+            3 -> {
+                // Training Profile — save and proceed
                 val injuries = binding.etWizardInjuries.text?.toString()?.trim() ?: ""
                 val dislikes = binding.etWizardDislikes.text?.toString()?.trim() ?: ""
                 val priorityList = mutableListOf<String>()
@@ -331,11 +338,19 @@ class SetupWizardFragment : Fragment() {
                 if (binding.chipMuscleLegs.isChecked)      priorityList.add("Legs")
                 if (binding.chipMuscleGlutes.isChecked)    priorityList.add("Glutes")
                 if (binding.chipMuscleCore.isChecked)      priorityList.add("Core")
-
                 viewModel.prefs.injuries = injuries
                 viewModel.prefs.priorityMuscles = priorityList.joinToString(",")
                 viewModel.prefs.dislikedExercises = dislikes
-
+                nextStep()
+            }
+            4 -> {
+                // Connect Claude — validate key then generate
+                val apiKey = binding.etWizardApiKey.text?.toString()?.trim() ?: ""
+                if (apiKey.isBlank()) {
+                    Snackbar.make(binding.root, "Please enter your Claude API key.", Snackbar.LENGTH_SHORT).show()
+                    return
+                }
+                viewModel.prefs.apiKey = apiKey
                 nextStep()
                 triggerGeneration()
             }
@@ -344,6 +359,8 @@ class SetupWizardFragment : Fragment() {
 
     private fun nextStep() {
         currentStep++
+        binding.stepFlipper.setInAnimation(requireContext(), R.anim.slide_in_right)
+        binding.stepFlipper.setOutAnimation(requireContext(), R.anim.slide_out_left)
         binding.stepFlipper.displayedChild = currentStep
         updateStepUI()
     }
@@ -354,15 +371,29 @@ class SetupWizardFragment : Fragment() {
             return
         }
         currentStep--
+        binding.stepFlipper.setInAnimation(requireContext(), R.anim.slide_in_left)
+        binding.stepFlipper.setOutAnimation(requireContext(), R.anim.slide_out_right)
         binding.stepFlipper.displayedChild = currentStep
         updateStepUI()
     }
 
     private fun skipToGenerate() {
         currentStep = TOTAL_STEPS
+        binding.stepFlipper.setInAnimation(requireContext(), R.anim.slide_in_right)
+        binding.stepFlipper.setOutAnimation(requireContext(), R.anim.slide_out_left)
         binding.stepFlipper.displayedChild = TOTAL_STEPS
         updateStepUI()
         triggerGeneration()
+    }
+
+    private fun pulseButton(btn: View) {
+        btn.animate()
+            .scaleX(0.93f).scaleY(0.93f)
+            .setDuration(80)
+            .withEndAction {
+                btn.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+            }
+            .start()
     }
 
     private fun triggerGeneration() {

@@ -12,7 +12,11 @@
         tools:layout="@layout/fragment_home">
         <action
             android:id="@+id/action_home_to_log"
-            app:destination="@id/logWorkoutFragment" />
+            app:destination="@id/logWorkoutFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
         <action
             android:id="@+id/action_home_to_setup_wizard"
             app:destination="@id/setupWizardFragment"
@@ -56,7 +60,11 @@
         tools:layout="@layout/fragment_program">
         <action
             android:id="@+id/action_program_to_log"
-            app:destination="@id/logWorkoutFragment" />
+            app:destination="@id/logWorkoutFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
     <fragment
@@ -64,10 +72,111 @@
         android:name="com.migul.treningsprogram.ui.settings.SettingsFragment"
         android:label="@string/settings"
         tools:layout="@layout/fragment_settings">
-        <action
-            android:id="@+id/action_settings_to_gym_presets"
-            app:destination="@id/gymPresetsFragment" />
+        <action android:id="@+id/action_settings_to_training"
+            app:destination="@id/settingsTrainingFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_to_ai"
+            app:destination="@id/settingsAiFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_to_debug"
+            app:destination="@id/settingsDebugFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_to_backup"
+            app:destination="@id/settingsBackupFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
+
+    <fragment
+        android:id="@+id/settingsTrainingFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsTrainingFragment"
+        android:label="Training Profile"
+        tools:layout="@layout/fragment_settings_training">
+        <action android:id="@+id/action_settings_training_to_gym_presets"
+            app:destination="@id/gymPresetsFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingsAiFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsAiFragment"
+        android:label="AI &amp; Program"
+        tools:layout="@layout/fragment_settings_ai" />
+
+    <fragment
+        android:id="@+id/settingsPromptLogFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsPromptLogFragment"
+        android:label="Prompt Log"
+        tools:layout="@layout/fragment_settings_prompt_log" />
+
+    <fragment
+        android:id="@+id/settingsRejectionLogFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsRejectionLogFragment"
+        android:label="Rejection Log"
+        tools:layout="@layout/fragment_settings_rejection_log" />
+
+    <fragment
+        android:id="@+id/settingsDebugFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsDebugFragment"
+        android:label="Debug"
+        tools:layout="@layout/fragment_settings_debug">
+        <action android:id="@+id/action_settings_debug_to_prompt_log"
+            app:destination="@id/settingsPromptLogFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_debug_to_rejection_log"
+            app:destination="@id/settingsRejectionLogFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_debug_to_unrecognized"
+            app:destination="@id/settingsUnrecognizedFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_debug_to_crash_log"
+            app:destination="@id/settingsCrashLogFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingsCrashLogFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsCrashLogFragment"
+        android:label="Crash Log"
+        tools:layout="@layout/fragment_settings_crash_log" />
+
+    <fragment
+        android:id="@+id/settingsUnrecognizedFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsUnrecognizedFragment"
+        android:label="Unrecognized Exercises"
+        tools:layout="@layout/fragment_settings_unrecognized" />
+
+    <fragment
+        android:id="@+id/settingsBackupFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsBackupFragment"
+        android:label="Backup &amp; Data"
+        tools:layout="@layout/fragment_settings_backup" />
 
     <fragment
         android:id="@+id/gymPresetsFragment"
@@ -82,7 +191,11 @@
         tools:layout="@layout/fragment_profile">
         <action
             android:id="@+id/action_profile_to_settings"
-            app:destination="@id/settingsFragment" />
+            app:destination="@id/settingsFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
 </navigation>

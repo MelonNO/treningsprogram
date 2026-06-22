@@ -129,7 +129,19 @@ class LogWorkoutViewModel @Inject constructor(
     private val _sessionAbandoned = MutableStateFlow(false)
     val sessionAbandoned: StateFlow<Boolean> = _sessionAbandoned.asStateFlow()
 
+    private val _savedWeights = mutableMapOf<String, Float>()
+    private val _savedReps = mutableMapOf<String, Int>()
+
+    fun saveCurrentExerciseValues(exerciseName: String, weight: Float, reps: Int) {
+        _savedWeights[exerciseName] = weight
+        _savedReps[exerciseName] = reps
+    }
+
+    fun getSavedWeight(exerciseName: String): Float? = _savedWeights[exerciseName]
+    fun getSavedReps(exerciseName: String): Int? = _savedReps[exerciseName]
+
     fun loadSession(sessionId: Long, dayOfWeek: Int) {
+        if (_sessionId.value == sessionId) return
         _sessionId.value = sessionId
         val day = if (dayOfWeek > 0) dayOfWeek else currentDayOfWeek()
         _dayOfWeek.value = day
@@ -142,6 +154,7 @@ class LogWorkoutViewModel @Inject constructor(
     }
 
     fun resumeSession(dayOfWeek: Int = -1) {
+        if (_sessionId.value != null) return
         viewModelScope.launch {
             val id = workoutRepository.startSession()
             _sessionId.value = id
@@ -261,6 +274,22 @@ class LogWorkoutViewModel @Inject constructor(
 
     fun getRestSecondsForCurrentExercise(): Int =
         currentExercise.value?.recommendedRestSeconds ?: restTimerFallbackSeconds
+
+    /**
+     * Replaces the exercise at the current position with [newName] for this session only.
+     * The DB plan is not modified — the swap is in-memory only.
+     */
+    fun swapCurrentExercise(exercise: PlannedExercise, newName: String) {
+        val idx  = _currentIndex.value
+        val plan = _guidedPlan.value.toMutableList()
+        if (idx < plan.size) {
+            plan[idx] = plan[idx].copy(exerciseName = newName)
+            _guidedPlan.value = plan
+        }
+        // Clear saved values for the old exercise so the new one gets fresh defaults
+        _savedWeights.remove(exercise.exerciseName)
+        _savedReps.remove(exercise.exerciseName)
+    }
 
     fun calculatePlates(targetKg: Float, barKg: Float = 20f): String {
         var remaining = (targetKg - barKg) / 2f

@@ -1,10 +1,18 @@
 package com.migul.treningsprogram.ui.log
 
 import android.graphics.Color
+import android.net.Uri
+import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.content.res.ColorStateList
@@ -14,9 +22,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import android.app.Dialog
+import android.widget.ImageView
+import android.widget.FrameLayout
 import coil.load
+import coil.size.Scale
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.migul.treningsprogram.R
+import com.migul.treningsprogram.data.CalisthenicsProgressionMap
+import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.repository.WgerRepository
@@ -27,7 +42,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 @AndroidEntryPoint
 class LogWorkoutFragment : Fragment() {
 
@@ -35,8 +49,15 @@ class LogWorkoutFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: LogWorkoutViewModel by viewModels()
     @Inject lateinit var wgerRepository: WgerRepository
+    @Inject lateinit var restTimerManager: RestTimerManager
 
     private var freestyleMode = false
+    private var swapButton: MaterialButton? = null
+
+    private val imageHandler = Handler(Looper.getMainLooper())
+    private var imageAlternateRunnable: Runnable? = null
+    private var imageFrame = 0
+    private var currentImageDbId: String? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLogWorkoutBinding.inflate(inflater, container, false)
@@ -75,6 +96,23 @@ class LogWorkoutFragment : Fragment() {
             binding.etReps.setText((cur + 1).toString())
         }
 
+        // Dismiss keyboard on Done for all text inputs in the set-entry area
+        val doneAction: (android.widget.TextView) -> Boolean = { v ->
+            v.clearFocus()
+            val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(v.windowToken, 0)
+            true
+        }
+        binding.etFreestyleExercise.setOnEditorActionListener { v, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) doneAction(v) else false
+        }
+        binding.etWeight.setOnEditorActionListener { v, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) doneAction(v) else false
+        }
+        binding.etReps.setOnEditorActionListener { v, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) doneAction(v) else false
+        }
+
         // Log Set
         binding.btnLogSet.setOnClickListener {
             val weight = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
@@ -110,9 +148,30 @@ class LogWorkoutFragment : Fragment() {
             showRestTimer(restSecs, exerciseName)
         }
 
+        // Persistent recall bar — tap or swipe-up to start or re-open rest timer (Bug 02)
+        val timerBarDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent) = true
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                openTimerRecall(); return true
+            }
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                if (e1 != null && (e1.y - e2.y) > 80 && velocityY < -300) {
+                    openTimerRecall(); return true
+                }
+                return false
+            }
+        })
+        binding.viewTimerRecallBar.setOnTouchListener { _, event -> timerBarDetector.onTouchEvent(event) }
+
         // Navigation
-        binding.btnPrevExercise.setOnClickListener { viewModel.previousExercise() }
-        binding.btnSkipExercise.setOnClickListener { viewModel.skipExercise() }
+        binding.btnPrevExercise.setOnClickListener {
+            saveCurrentValues()
+            viewModel.previousExercise()
+        }
+        binding.btnSkipExercise.setOnClickListener {
+            saveCurrentValues()
+            viewModel.skipExercise()
+        }
         binding.btnNextExercise.setOnClickListener {
             if (freestyleMode || viewModel.isLastExercise) {
                 MaterialAlertDialogBuilder(requireContext())
@@ -122,6 +181,7 @@ class LogWorkoutFragment : Fragment() {
                     .setNegativeButton("Keep going", null)
                     .show()
             } else {
+                saveCurrentValues()
                 viewModel.nextExercise()
             }
         }
@@ -223,12 +283,70 @@ class LogWorkoutFragment : Fragment() {
                         result?.let { showResultDialog(it) }
                     }
                 }
+
+                // Update persistent recall bar (Bug 02)
+                launch {
+                    combine(restTimerManager.isRunning, restTimerManager.remainingMs) { running, ms -> running to ms }
+                        .collect { (running, ms) ->
+                            if (running) {
+                                val secs = (ms / 1000).toInt()
+                                binding.tvTimerBarLabel.text = "Resting — tap to view"
+                                binding.tvTimerBarCountdown.text = "%d:%02d".format(secs / 60, secs % 60)
+                                binding.tvTimerBarCountdown.visibility = View.VISIBLE
+                            } else {
+                                binding.tvTimerBarLabel.text = "Rest Timer"
+                                binding.tvTimerBarCountdown.visibility = View.GONE
+                            }
+                        }
+                }
             }
         }
     }
 
     private fun updateExerciseDisplay(exercise: PlannedExercise) {
         binding.tvExerciseName.text = exercise.exerciseName
+
+        // Issue 11 — tap name to see instructions
+        binding.tvExerciseName.setOnClickListener {
+            if (isAdded) {
+                ExerciseInfoBottomSheet.newInstance(exercise.exerciseName, exercise.exerciseDbId)
+                    .show(childFragmentManager, "exercise_info")
+            }
+        }
+
+        // Issue 12 — swap button for calisthenics exercises
+        // Remove previous swap button if it exists
+        swapButton?.let { btn ->
+            (btn.parent as? ViewGroup)?.removeView(btn)
+        }
+        swapButton = null
+
+        if (CalisthenicsProgressionMap.looksLikeCalisthenics(exercise.exerciseName)) {
+            val btn = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Swap"
+                textSize = 12f
+                val hPad = dpToPx(12)
+                val vPad = dpToPx(4)
+                setPadding(hPad, vPad, hPad, vPad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also {
+                    it.topMargin = dpToPx(4)
+                    it.bottomMargin = dpToPx(4)
+                }
+                setOnClickListener { showSwapDialog(exercise) }
+            }
+            // Insert after tvExerciseName's parent row — find the parent LinearLayout of tvExerciseName
+            val nameParent = binding.tvExerciseName.parent as? LinearLayout
+            val cardContent = nameParent?.parent as? LinearLayout
+            val nameRowIndex = cardContent?.indexOfChild(nameParent) ?: -1
+            if (cardContent != null && nameRowIndex >= 0) {
+                cardContent.addView(btn, nameRowIndex + 1)
+            }
+            swapButton = btn
+        }
+
         binding.chipTargetSets.visibility = View.VISIBLE
         binding.chipTargetReps.visibility = View.VISIBLE
         binding.chipTargetWeight.visibility = View.VISIBLE
@@ -245,11 +363,22 @@ class LogWorkoutFragment : Fragment() {
                 ColorStateList.valueOf(Color.parseColor(color))
         } catch (_: Exception) {}
 
-        if (exercise.targetWeightKg > 0f) {
+        // Set weight: saved value > AI suggestion (last actual checked async below)
+        val savedWeight = viewModel.getSavedWeight(exercise.exerciseName)
+        if (savedWeight != null) {
+            binding.etWeight.setText(formatWeight(savedWeight))
+        } else if (exercise.targetWeightKg > 0f) {
             binding.etWeight.setText(formatWeight(exercise.targetWeightKg))
         }
-        val firstRep = Regex("\\d+").find(exercise.targetReps)?.value
-        if (firstRep != null) binding.etReps.setText(firstRep)
+
+        // Set reps: saved value > AI suggestion
+        val savedReps = viewModel.getSavedReps(exercise.exerciseName)
+        if (savedReps != null) {
+            binding.etReps.setText(savedReps.toString())
+        } else {
+            val firstRep = Regex("\\d+").find(exercise.targetReps)?.value
+            if (firstRep != null) binding.etReps.setText(firstRep)
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             val lastSets = viewModel.getLastSets(exercise.exerciseName)
@@ -258,7 +387,8 @@ class LogWorkoutFragment : Fragment() {
                 val summary = lastSets.joinToString("  •  ") { "S${it.setNumber}: ${it.reps} reps @ ${formatWeight(it.weightKg)}kg" }
                 binding.tvLastSession.text = "Last: $summary"
                 binding.tvLastSession.visibility = View.VISIBLE
-                if (exercise.targetWeightKg == 0f) {
+                // Prefill from last session only if user hasn't entered their own value yet
+                if (viewModel.getSavedWeight(exercise.exerciseName) == null) {
                     binding.etWeight.setText(formatWeight(lastSets.last().weightKg))
                 }
             } else {
@@ -277,20 +407,107 @@ class LogWorkoutFragment : Fragment() {
         binding.tvMuscleBannerLabel.setTextColor(Color.parseColor(bannerColor))
         binding.ivExerciseImage.visibility = View.GONE
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            val url = wgerRepository.getExerciseImageUrl(exercise.exerciseName)
-            if (_binding == null) return@launch
-            if (url != null) {
-                binding.ivExerciseImage.visibility = View.VISIBLE
-                binding.ivExerciseImage.load(url) {
-                    crossfade(true)
-                    listener(onError = { _, _ ->
-                        if (_binding != null) binding.ivExerciseImage.visibility = View.GONE
-                    })
+        val dbId = exercise.exerciseDbId
+        if (dbId != null) {
+            binding.ivExerciseImage.visibility = View.VISIBLE
+            binding.tvMuscleBannerLabel.visibility = View.GONE
+            binding.tvImageExpandHint.visibility = View.VISIBLE
+            startImageAlternation(dbId)
+            binding.layoutMuscleBanner.setOnClickListener { showFullScreenImage(dbId) }
+        } else {
+            stopImageAlternation()
+            binding.tvImageExpandHint.visibility = View.GONE
+            binding.layoutMuscleBanner.setOnClickListener(null)
+            binding.layoutMuscleBanner.isClickable = false
+            viewLifecycleOwner.lifecycleScope.launch {
+                val url = wgerRepository.getExerciseImageUrl(exercise.exerciseName)
+                if (_binding == null) return@launch
+                if (url != null) {
+                    binding.ivExerciseImage.visibility = View.VISIBLE
+                    binding.ivExerciseImage.load(url) {
+                        crossfade(true)
+                        listener(onError = { _, _ ->
+                            if (_binding != null) binding.ivExerciseImage.visibility = View.GONE
+                        })
+                    }
+                    binding.tvMuscleBannerLabel.visibility = View.GONE
                 }
-                binding.tvMuscleBannerLabel.visibility = View.GONE
             }
         }
+    }
+
+    private fun startImageAlternation(dbId: String) {
+        stopImageAlternation()
+        currentImageDbId = dbId
+        imageFrame = 0
+        imageAlternateRunnable = object : Runnable {
+            override fun run() {
+                if (_binding == null) return
+                binding.ivExerciseImage.load(Uri.parse(ExerciseCatalog.getImageSource(dbId, imageFrame))) {
+                    crossfade(200)
+                    scale(Scale.FILL)
+                    listener(onError = { _, _ -> /* keep showing last good frame */ })
+                }
+                imageFrame = 1 - imageFrame
+                imageHandler.postDelayed(this, 1000L)
+            }
+        }
+        imageHandler.post(imageAlternateRunnable!!)
+    }
+
+    private fun stopImageAlternation() {
+        imageAlternateRunnable?.let { imageHandler.removeCallbacks(it) }
+        imageAlternateRunnable = null
+        currentImageDbId = null
+    }
+
+    private fun showFullScreenImage(dbId: String) {
+        val dialog = Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+
+        val imageView = ImageView(requireContext()).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setBackgroundColor(Color.BLACK)
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        val container = FrameLayout(requireContext()).apply {
+            setBackgroundColor(Color.BLACK)
+            addView(imageView)
+        }
+
+        dialog.setContentView(container)
+        dialog.window?.setLayout(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        )
+
+        var fsFrame = 0
+        val fsHandler = Handler(Looper.getMainLooper())
+        val fsRunnable = object : Runnable {
+            override fun run() {
+                if (!dialog.isShowing) return
+                imageView.load(Uri.parse(ExerciseCatalog.getImageSource(dbId, fsFrame))) {
+                    crossfade(200)
+                    scale(Scale.FIT)
+                }
+                fsFrame = 1 - fsFrame
+                fsHandler.postDelayed(this, 1000L)
+            }
+        }
+
+        container.setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { fsHandler.removeCallbacks(fsRunnable) }
+        dialog.show()
+        fsHandler.post(fsRunnable)
+    }
+
+    private fun saveCurrentValues() {
+        val exerciseName = viewModel.currentExercise.value?.exerciseName ?: return
+        val weight = binding.etWeight.text.toString().toFloatOrNull() ?: return
+        val reps = binding.etReps.text.toString().toIntOrNull() ?: return
+        viewModel.saveCurrentExerciseValues(exerciseName, weight, reps)
     }
 
     private fun updateLoggedSets(sets: List<WorkoutSet>) {
@@ -384,10 +601,17 @@ class LogWorkoutFragment : Fragment() {
     }
 
     private fun showRestTimer(seconds: Int, exerciseName: String = "") {
-        RestTimerBottomSheet.newInstance(seconds, exerciseName).show(childFragmentManager, "rest_timer")
+        if (!restTimerManager.isRunning.value) {
+            restTimerManager.start(seconds * 1000L)
+        }
+        val existing = childFragmentManager.findFragmentByTag("rest_timer")
+        if (existing == null || !existing.isAdded) {
+            RestTimerBottomSheet.newInstance(seconds, exerciseName).show(childFragmentManager, "rest_timer")
+        }
     }
 
     private fun showResultDialog(result: WorkoutResult) {
+        if (!isAdded || _binding == null) return
         val dialogBinding = DialogWorkoutResultBinding.inflate(layoutInflater)
         dialogBinding.tvLevel.text = "L${result.level}"
         dialogBinding.tvXpEarned.text = "+${result.xpEarned} XP"
@@ -420,10 +644,48 @@ class LogWorkoutFragment : Fragment() {
             .setView(dialogBinding.root)
             .setPositiveButton("Awesome!") { _, _ ->
                 viewModel.clearResult()
-                findNavController().popBackStack(R.id.homeFragment, false)
+                if (isAdded) {
+                    findNavController().popBackStack(R.id.homeFragment, false)
+                }
             }
             .setCancelable(false)
             .show()
+    }
+
+    private fun showSwapDialog(exercise: PlannedExercise) {
+        val easier = CalisthenicsProgressionMap.getEasierOptions(exercise.exerciseName)
+        val harder = CalisthenicsProgressionMap.getHarderOptions(exercise.exerciseName)
+
+        if (easier.isEmpty() && harder.isEmpty()) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Swap Exercise")
+                .setMessage("No progression alternatives found for ${exercise.exerciseName}.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val options = mutableListOf<String>()
+        if (harder.isNotEmpty()) options.addAll(harder.map { "↑ $it" })
+        if (easier.isNotEmpty()) options.addAll(easier.map { "↓ $it" })
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Swap: ${exercise.exerciseName}")
+            .setItems(options.toTypedArray()) { _, which ->
+                val chosen = options[which]
+                    .removePrefix("↑ ")
+                    .removePrefix("↓ ")
+                viewModel.swapCurrentExercise(exercise, chosen)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun openTimerRecall() {
+        val restSecs = viewModel.getRestSecondsForCurrentExercise()
+        val exerciseName = if (freestyleMode) binding.etFreestyleExercise.text?.toString()?.trim() ?: ""
+                           else viewModel.currentExercise.value?.exerciseName ?: ""
+        showRestTimer(restSecs, exerciseName)
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
@@ -432,6 +694,7 @@ class LogWorkoutFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        stopImageAlternation()
         _binding = null
     }
 }

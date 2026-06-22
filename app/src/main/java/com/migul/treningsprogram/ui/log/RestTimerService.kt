@@ -19,7 +19,8 @@ class RestTimerService : Service() {
     @Inject lateinit var timerManager: RestTimerManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val CHANNEL_ID = "rest_timer"
+    // "rest_timer_v2": channel renamed so users upgrading from IMPORTANCE_LOW get a fresh channel
+    private val CHANNEL_ID = "rest_timer_v2"
     private val CHANNEL_DONE_ID = "rest_timer_done"
     private val NOTIF_ID = 4242
     private val NOTIF_DONE_ID = 4243

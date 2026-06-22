@@ -2,10 +2,13 @@ package com.migul.treningsprogram.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 class PreferencesManager(context: Context) {
+
+    private val appContext = context.applicationContext
 
     private val prefs: SharedPreferences = runCatching {
         val masterKey = MasterKey.Builder(context)
@@ -67,7 +70,9 @@ class PreferencesManager(context: Context) {
         set(value) { prefs.edit().putInt(KEY_LAST_GEN_ATTEMPTS, value).apply() }
 
     var hasCompletedOnboarding: Boolean
-        get() = prefs.getBoolean(KEY_ONBOARDING_DONE, false)
+        get() = prefs.getBoolean(KEY_ONBOARDING_DONE, false) ||
+                ((appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                 java.io.File(appContext.filesDir, ".skip_onboarding").exists())
         set(value) { prefs.edit().putBoolean(KEY_ONBOARDING_DONE, value).apply() }
 
     var onboardingContext: String
@@ -91,6 +96,10 @@ class PreferencesManager(context: Context) {
     var dislikedExercises: String
         get() = prefs.getString(KEY_DISLIKED_EXERCISES, "") ?: ""
         set(value) { prefs.edit().putString(KEY_DISLIKED_EXERCISES, value).apply() }
+
+    fun clearAll() {
+        prefs.edit().clear().apply()
+    }
 
     companion object {
         private const val KEY_API_KEY = "claude_api_key"

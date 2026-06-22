@@ -19,7 +19,7 @@ import com.migul.treningsprogram.data.db.entity.*
         GymPreset::class,
         BodyMeasurement::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -106,6 +106,19 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DELETE FROM gym_presets WHERE name = 'No Equipment'")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE planned_exercises ADD COLUMN exerciseDbId TEXT")
+                db.execSQL("ALTER TABLE planned_exercises ADD COLUMN matchConfidence REAL NOT NULL DEFAULT -1")
+                db.execSQL("ALTER TABLE planned_exercises ADD COLUMN matchSource TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE planned_exercises ADD COLUMN resolvedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN exerciseDbId TEXT")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN matchConfidence REAL NOT NULL DEFAULT -1")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN matchSource TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN resolvedAt INTEGER NOT NULL DEFAULT 0")
             }
         }
 
