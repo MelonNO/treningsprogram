@@ -1,7 +1,12 @@
 package com.migul.treningsprogram
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
@@ -29,6 +34,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
 
+    private val requestNotificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* granted or denied — system handles display */ }
+
     @Inject lateinit var prefsManager: PreferencesManager
     @Inject lateinit var workoutRepository: WorkoutRepository
     @Inject lateinit var aiRepository: AiRepository
@@ -46,17 +55,51 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
 
+        // Only the four bottom-nav tabs are top-level destinations.
+        // logWorkoutFragment is NOT included — it's entered via a nav action from Home,
+        // so it should show an Up/Back arrow and navigate correctly.
         val topLevelDests = setOf(
-            R.id.homeFragment, R.id.logWorkoutFragment,
-            R.id.historyFragment, R.id.programFragment, R.id.profileFragment
+            R.id.homeFragment, R.id.historyFragment,
+            R.id.programFragment, R.id.profileFragment
         )
         setupActionBarWithNavController(navController, AppBarConfiguration(topLevelDests))
         binding.bottomNav.setupWithNavController(navController)
+
+        // Map every non-tab destination to the tab that owns it,
+        // so the correct bottom nav item stays highlighted when navigating deeper.
+        val destToTab = mapOf(
+            R.id.logWorkoutFragment          to R.id.homeFragment,
+            R.id.setupWizardFragment         to R.id.homeFragment,
+            R.id.settingsFragment            to R.id.profileFragment,
+            R.id.settingsTrainingFragment    to R.id.profileFragment,
+            R.id.settingsAiFragment          to R.id.profileFragment,
+            R.id.settingsDebugFragment       to R.id.profileFragment,
+            R.id.settingsBackupFragment      to R.id.profileFragment,
+            R.id.settingsPromptLogFragment   to R.id.profileFragment,
+            R.id.settingsRejectionLogFragment to R.id.profileFragment,
+            R.id.settingsCrashLogFragment    to R.id.profileFragment,
+            R.id.settingsUnrecognizedFragment to R.id.profileFragment,
+            R.id.gymPresetsFragment          to R.id.profileFragment,
+        )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
             val fullScreen = destination.id == R.id.setupWizardFragment
             binding.bottomNav.visibility = if (fullScreen) android.view.View.GONE else android.view.View.VISIBLE
             supportActionBar?.let { if (fullScreen) it.hide() else it.show() }
+            // Update visual selection without triggering navigation.
+            // selectedItemId fires the item-selected listener → causes a nav loop; isChecked does not.
+            destToTab[destination.id]?.let { tabId ->
+                binding.bottomNav.menu.findItem(tabId)?.isChecked = true
+            }
+        }
+
+        // Android 13+ requires POST_NOTIFICATIONS to be requested at runtime.
+        // Without it, foreground service notifications are silently suppressed.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         lifecycleScope.launch {
@@ -103,7 +146,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSupportNavigateUp(): Boolean {
         return navController.navigateUp(
-            AppBarConfiguration(setOf(R.id.homeFragment, R.id.logWorkoutFragment, R.id.historyFragment, R.id.programFragment, R.id.profileFragment))
+            AppBarConfiguration(setOf(R.id.homeFragment, R.id.historyFragment, R.id.programFragment, R.id.profileFragment))
         ) || super.onSupportNavigateUp()
     }
 }
