@@ -566,6 +566,7 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
         injuries: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
+        muscleFocus: String = "",
         onProgress: (String) -> Unit = {}
     ): Result<List<PlannedExercise>> = runCatching {
         val weekStart = thisMonday()
@@ -619,6 +620,14 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             appendLine("REST OF THE WEEK (already scheduled — avoid training the SAME primary muscle group on immediately adjacent days):")
             appendLine(weekContext)
             appendLine()
+            if (muscleFocus.isNotBlank() && muscleFocus != "Full body") {
+                appendLine("MUSCLE FOCUS FOR THIS DAY: $muscleFocus")
+                appendLine("All exercises must primarily target $muscleFocus (complementary muscles are fine as secondary). Do not spread across unrelated muscle groups.")
+                appendLine()
+            } else if (muscleFocus == "Full body") {
+                appendLine("MUSCLE FOCUS FOR THIS DAY: Full body — include at least one exercise for each of: push, pull, legs, core.")
+                appendLine()
+            }
             appendLine("INSTRUCTIONS:")
             appendLine("- Generate 4–7 exercises only using the listed equipment")
             appendLine("- Start with compound movements, finish with isolation")

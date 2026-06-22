@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
 
         val topLevelIds = setOf(R.id.homeFragment, R.id.historyFragment, R.id.programFragment, R.id.profileFragment)
         // Fragments that manage their own header/toolbar internally
-        val selfHeaderIds = setOf(R.id.gymPresetsFragment)
+        val selfHeaderIds = setOf(R.id.gymPresetsFragment, R.id.logWorkoutFragment)
 
         // Map every non-tab destination to the tab that owns it,
         // so the correct bottom nav item stays highlighted when navigating deeper.
@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
             R.id.gymPresetsFragment          to R.id.profileFragment,
         )
 
-        navController.addOnDestinationChangedListener { _, destination, _ ->
+        navController.addOnDestinationChangedListener { controller, destination, _ ->
             val isFullScreen = destination.id == R.id.setupWizardFragment
             val isTopLevel = destination.id in topLevelIds
             val hasSelfHeader = destination.id in selfHeaderIds
@@ -89,8 +89,15 @@ class MainActivity : AppCompatActivity() {
             }
             // Update visual selection without triggering navigation.
             // selectedItemId fires the item-selected listener → causes a nav loop; isChecked does not.
-            destToTab[destination.id]?.let { tabId ->
+            if (destination.id == R.id.logWorkoutFragment) {
+                // Highlight the tab that launched the workout (Home or Program)
+                val prevId = controller.previousBackStackEntry?.destination?.id
+                val tabId = if (prevId == R.id.programFragment) R.id.programFragment else R.id.homeFragment
                 binding.bottomNav.menu.findItem(tabId)?.isChecked = true
+            } else {
+                destToTab[destination.id]?.let { tabId ->
+                    binding.bottomNav.menu.findItem(tabId)?.isChecked = true
+                }
             }
         }
 

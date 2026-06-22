@@ -193,14 +193,14 @@
                 android:text="Start Workout"
                 android:visibility="gone" />
 
-            <!-- Regenerate this day with custom equipment -->
+            <!-- Swap this day's workout -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_regenerate_day"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="14dp"
-                android:text="Regenerate This Day"
+                android:text="Swap this day's workout"
                 android:visibility="gone" />
 
             <!-- Progress shown while regenerating -->

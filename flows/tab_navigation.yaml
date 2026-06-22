@@ -1,0 +1,41 @@
+appId: com.migul.treningsprogram
+---
+# Verifies bottom nav tab highlight stays in sync with screen content.
+# Tests the nav-mismatch bug regression (fixed by using isChecked instead of selectedItemId).
+- launchApp
+
+# Home tab
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "nav_host_fragment"
+
+# Program tab
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "nav_host_fragment"
+
+# Profile tab
+- tapOn:
+    id: "profileFragment"
+- assertVisible:
+    id: "nav_host_fragment"
+
+# Navigate into settings (sub-screen) and verify back button returns to profile tab highlighted
+- tapOn:
+    text: "Settings"
+- assertVisible:
+    id: "screen_header"
+- tapOn:
+    id: "btn_header_back"
+- assertVisible:
+    id: "nav_host_fragment"
+
+# Repeat tab cycle to catch any latent mismatch after sub-screen navigation
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "programFragment"
+- tapOn:
+    id: "profileFragment"

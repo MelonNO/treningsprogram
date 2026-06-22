@@ -1,0 +1,38 @@
+appId: com.migul.treningsprogram
+---
+# Full e2e flow: generate plan → start workout → log sets → complete
+# Precondition: API key set in Settings, user has completed onboarding
+- launchApp
+
+# Generate a plan if one doesn't exist
+- tapOn:
+    id: "programFragment"
+- runFlow:
+    when:
+      visible:
+        id: "btn_generate_plan"
+    commands:
+      - tapOn:
+          id: "btn_generate_plan"
+      - waitForAnimationToEnd:
+          timeout: 30000
+
+# Select today's day and start workout
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "btn_start_workout"
+- assertVisible:
+    id: "layout_exercise_list"
+
+# Log one set of the first exercise
+- tapOn:
+    id: "btn_log_set"
+- assertVisible:
+    id: "view_timer_recall_bar"
+
+# Complete the workout
+- tapOn:
+    id: "btn_complete_workout"
+- assertVisible:
+    id: "homeFragment"

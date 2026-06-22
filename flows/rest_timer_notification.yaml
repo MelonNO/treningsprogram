@@ -1,0 +1,43 @@
+appId: com.migul.treningsprogram
+---
+# Verifies the rest timer foreground notification appears outside the app.
+# Requires: a workout session in progress and a set logged.
+- launchApp
+
+# Navigate to home and start a workout
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "btn_start_workout"
+
+# Log a set to trigger the rest timer
+- tapOn:
+    id: "btn_log_set"
+
+# Timer should appear in-app
+- assertVisible:
+    id: "view_timer_recall_bar"
+
+# Background the app — notification must persist
+- pressKey: Home
+
+# Give the service a moment to post the notification
+- runFlow:
+    when:
+      true: true
+    commands:
+      - waitForAnimationToEnd
+
+# Verify notification exists in the system shade
+# (Maestro can assert notification presence via adb dumpsys in a script step)
+- runScript: |
+    var result = http.get("shell://adb shell dumpsys notification --noredact");
+    var hasNotif = result.body.includes("com.migul.treningsprogram");
+    output.hasNotification = hasNotif;
+- assertCondition: "${output.hasNotification}"
+
+# Return to app via notification tap
+- tapOn:
+    text: "Rest timer"
+- assertVisible:
+    id: "view_timer_recall_bar"

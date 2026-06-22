@@ -1,0 +1,400 @@
+{
+  "bodyPart": "chest",
+  "equipment": "barbell",
+  "id": "0025",
+  "name": "barbell bench press",
+  "target": "pectorals",
+  "secondaryMuscles": [
+    "triceps",
+    "shoulders"
+  ],
+  "instructions": [
+    "Lie flat on a bench with your feet flat on the ground and your back pressed against the bench.",
+    "Grasp the barbell with an overhand grip slightly wider than shoulder-width apart.",
+    "Lift the barbell off the rack and hold it directly above your chest with your arms fully extended.",
+    "Lower the barbell slowly towards your chest, keeping your elbows tucked in.",
+    "Pause for a moment when the barbell touches your chest.",
+    "Push the barbell back up to the starting position by extending your arms.",
+    "Repeat for the desired number of repetitions."
+  ],
+  "description": "The barbell bench press is a classic compound exercise that primarily targets the pectoral muscles, while also engaging the triceps and shoulders. It is performed by lying on a bench and pressing a barbell up and down in a controlled manner.",
+  "difficulty": "intermediate",
+  "category": "strength",
+  "taxonomy": {
+    "movementFamily": "bench press",
+    "movementPattern": "horizontal push",
+    "mechanic": "compound",
+    "forceType": "push",
+    "planeOfMotion": "sagittal",
+    "laterality": "bilateral",
+    "bodyPosition": "lying",
+    "benchAngle": "flat",
+    "equipmentCategory": "free_weight",
+    "loadType": "free_weight",
+    "primaryRegion": "upper_body",
+    "isCompound": true,
+    "isUnilateral": false,
+    "isAssisted": false,
+    "isWeighted": true,
+    "signals": [
+      "external_load",
+      "free_weight"
+    ],
+    "confidence": "high"
+  },
+  "similarExercises": [
+    {
+      "id": "0033",
+      "name": "barbell decline bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "0047",
+      "name": "barbell incline bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "0122",
+      "name": "barbell wide bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "0045",
+      "name": "barbell guillotine bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "1256",
+      "name": "barbell reverse grip decline bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "1257",
+      "name": "barbell reverse grip incline bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "1258",
+      "name": "barbell wide reverse grip bench press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell"
+      ]
+    },
+    {
+      "id": "0989",
+      "name": "band one arm twisting chest press",
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps"
+      ]
+    }
+  ],
+  "substitutions": [
+    {
+      "id": "0289",
+      "name": "dumbbell bench press",
+      "types": [
+        "equipment_alternative",
+        "easier_alternative"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "different equipment option",
+        "secondary muscle overlap: delts, triceps"
+      ]
+    },
+    {
+      "id": "0301",
+      "name": "dumbbell decline bench press",
+      "types": [
+        "equipment_alternative"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "different equipment option",
+        "secondary muscle overlap: delts, triceps"
+      ]
+    },
+    {
+      "id": "0314",
+      "name": "dumbbell incline bench press",
+      "types": [
+        "equipment_alternative"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "different equipment option",
+        "secondary muscle overlap: delts, triceps"
+      ]
+    },
+    {
+      "id": "1624",
+      "name": "dumbbell reverse bench press",
+      "types": [
+        "equipment_alternative"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "different equipment option",
+        "secondary muscle overlap: delts, triceps"
+      ]
+    },
+    {
+      "id": "0033",
+      "name": "barbell decline bench press",
+      "types": [
+        "same_equipment_alternative"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "shared equipment: barbell",
+        "secondary muscle overlap: delts, triceps"
+      ]
+    },
+    {
+      "id": "0279",
+      "name": "decline push-up",
+      "types": [
+        "bodyweight_alternative"
+      ],
+      "score": 89.0,
+      "confidence": "medium",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement group: horizontal push",
+        "different equipment option",
+        "bodyweight option"
+      ]
+    }
+  ],
+  "progressions": [
+    {
+      "id": "0045",
+      "name": "barbell guillotine bench press",
+      "types": [
+        "higher_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "shared equipment: barbell",
+        "progression difficulty change: intermediate to advanced"
+      ]
+    },
+    {
+      "id": "1256",
+      "name": "barbell reverse grip decline bench press",
+      "types": [
+        "higher_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "shared equipment: barbell",
+        "progression difficulty change: intermediate to advanced"
+      ]
+    },
+    {
+      "id": "1257",
+      "name": "barbell reverse grip incline bench press",
+      "types": [
+        "higher_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "shared equipment: barbell",
+        "progression difficulty change: intermediate to advanced"
+      ]
+    },
+    {
+      "id": "1258",
+      "name": "barbell wide reverse grip bench press",
+      "types": [
+        "higher_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "shared equipment: barbell",
+        "progression difficulty change: intermediate to advanced"
+      ]
+    }
+  ],
+  "regressions": [
+    {
+      "id": "0748",
+      "name": "smith bench press",
+      "types": [
+        "lower_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "regression difficulty change: intermediate to beginner"
+      ]
+    },
+    {
+      "id": "0757",
+      "name": "smith incline bench press",
+      "types": [
+        "lower_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "regression difficulty change: intermediate to beginner"
+      ]
+    },
+    {
+      "id": "1308",
+      "name": "smith wide grip bench press",
+      "types": [
+        "lower_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "regression difficulty change: intermediate to beginner"
+      ]
+    },
+    {
+      "id": "1254",
+      "name": "band bench press",
+      "types": [
+        "lower_difficulty"
+      ],
+      "score": 100.0,
+      "confidence": "high",
+      "reasons": [
+        "same target muscle: pectorals",
+        "same body part: chest",
+        "same category: strength",
+        "same movement family: bench press",
+        "secondary muscle overlap: delts, triceps",
+        "regression difficulty change: intermediate to beginner"
+      ]
+    }
+  ]
+}

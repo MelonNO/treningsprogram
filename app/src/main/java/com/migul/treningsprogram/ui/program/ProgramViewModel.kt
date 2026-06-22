@@ -2,6 +2,10 @@ package com.migul.treningsprogram.ui.program
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.migul.treningsprogram.data.db.dao.GymPresetDao
+import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
@@ -17,7 +21,9 @@ import javax.inject.Inject
 class ProgramViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
     private val aiRepository: AiRepository,
-    private val prefsManager: PreferencesManager
+    private val prefsManager: PreferencesManager,
+    private val gymPresetDao: GymPresetDao,
+    private val gson: Gson
 ) : ViewModel() {
 
     init {
@@ -39,6 +45,24 @@ class ProgramViewModel @Inject constructor(
         weekPlan.map { plan ->
             plan.count { it.isLogged } to plan.size
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to 0)
+
+    val presets: StateFlow<List<GymPreset>> = gymPresetDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val currentPresetId: Long get() = prefsManager.selectedGymPresetId
+
+    fun getEquipmentForPreset(presetId: Long): List<String> {
+        if (presetId == -1L) return emptyList()
+        val preset = presets.value.find { it.id == presetId } ?: return emptyList()
+        return runCatching {
+            gson.fromJson<List<String>>(preset.equipmentJson, object : TypeToken<List<String>>() {}.type)
+        }.getOrElse { emptyList() }
+    }
+
+    fun getNotesForPreset(presetId: Long): String {
+        if (presetId == -1L) return ""
+        return presets.value.find { it.id == presetId }?.notes ?: ""
+    }
 
     fun selectDay(day: Int) { _selectedDay.value = day }
 
@@ -77,7 +101,7 @@ class ProgramViewModel @Inject constructor(
 
     fun clearDayGenerationError() { _dayGenerationError.value = null }
 
-    fun regenerateDay(dayOfWeek: Int, equipment: List<String>, equipmentNotes: String) {
+    fun regenerateDay(dayOfWeek: Int, equipment: List<String>, equipmentNotes: String, muscleFocus: String = "") {
         if (prefsManager.apiKey.isBlank()) {
             _dayGenerationError.value = "Set your API key in Profile → Settings first."
             return
@@ -99,6 +123,7 @@ class ProgramViewModel @Inject constructor(
                 injuries = prefsManager.injuries,
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
+                muscleFocus = muscleFocus,
                 onProgress = { _dayGenerationStatus.value = it }
             ).onSuccess { exercises ->
                 workoutRepository.saveDayPlan(weekStart, dayOfWeek, exercises)

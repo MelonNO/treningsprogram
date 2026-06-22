@@ -1,13 +1,18 @@
 package com.migul.treningsprogram.ui.program
 
+import android.animation.ObjectAnimator
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.OvershootInterpolator
+import android.widget.ArrayAdapter
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -16,13 +21,13 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.repository.WgerRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.databinding.FragmentProgramBinding
+import com.migul.treningsprogram.ui.log.ExerciseInfoBottomSheet
+import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,6 +40,7 @@ class ProgramFragment : Fragment() {
     private var _binding: FragmentProgramBinding? = null
     private val binding get() = _binding!!
     private val viewModel: ProgramViewModel by viewModels()
+    private val sharedResultVm: SharedWorkoutResultViewModel by activityViewModels()
 
     @Inject lateinit var wgerRepository: WgerRepository
 
@@ -114,6 +120,47 @@ class ProgramFragment : Fragment() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val result = sharedResultVm.consumeForProgram() ?: return
+        binding.root.post { playCompletionAnimation() }
+    }
+
+    private fun playCompletionAnimation() {
+        val today = currentDayOfWeek()
+        viewModel.selectDay(today)
+
+        // Bounce the completed day's chip
+        val chip = dayChipViews.getOrNull(today - 1) ?: return
+        chip.animate()
+            .scaleX(1.45f).scaleY(1.45f)
+            .setDuration(180)
+            .withEndAction {
+                chip.animate()
+                    .scaleX(1f).scaleY(1f)
+                    .setDuration(350)
+                    .setInterpolator(OvershootInterpolator(4f))
+                    .start()
+            }.start()
+
+        // Pulse the week progress bar to draw attention after a short delay
+        binding.progressWeek.postDelayed({
+            if (_binding == null) return@postDelayed
+            binding.progressWeek.animate()
+                .scaleY(1.6f).setDuration(120)
+                .withEndAction {
+                    binding.progressWeek.animate().scaleY(1f).setDuration(200).start()
+                }.start()
+        }, 250)
+
+        // Navigate to Home after animations settle
+        binding.root.postDelayed({
+            if (!isAdded || _binding == null) return@postDelayed
+            requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
+                ?.selectedItemId = R.id.homeFragment
+        }, 1600)
     }
 
     private fun getDayWorkoutType(exercises: List<PlannedExercise>): String? {
@@ -299,6 +346,13 @@ class ProgramFragment : Fragment() {
             tvNotes.visibility = View.VISIBLE
         }
 
+        card.setOnClickListener {
+            if (isAdded) {
+                ExerciseInfoBottomSheet.newInstance(exercise.exerciseName, exercise.exerciseDbId)
+                    .show(childFragmentManager, "exercise_info")
+            }
+        }
+
         return card
     }
 
@@ -353,47 +407,82 @@ class ProgramFragment : Fragment() {
     private fun showRegenerateDayDialog(dayOfWeek: Int) {
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
         val dayName = dayNames.getOrElse(dayOfWeek - 1) { "Day $dayOfWeek" }
+        val ctx = requireContext()
+        val dp = resources.displayMetrics.density
+        fun dpI(n: Int) = (n * dp).toInt()
 
-        val dp16 = (16 * resources.displayMetrics.density).toInt()
-        val dp8 = dp16 / 2
+        // Build equipment list: "No equipment" + all presets
+        val presets = viewModel.presets.value
+        val presetLabels = mutableListOf("No equipment (bodyweight only)")
+        val presetIds = mutableListOf(-1L)
+        presets.forEach { p -> presetLabels.add(p.name); presetIds.add(p.id) }
+        val currentPresetIdx = presetIds.indexOf(viewModel.currentPresetId).coerceAtLeast(0)
 
-        val container = LinearLayout(requireContext()).apply {
+        // Muscle focus options
+        val muscleOptions = listOf("AI decides", "Chest", "Back", "Legs", "Shoulders", "Arms", "Core", "Full body", "Cardio")
+        val currentMuscle = dominantMuscleGroup(viewModel.selectedDayExercises.value)
+        val currentMuscleIdx = muscleOptions.indexOf(currentMuscle).coerceAtLeast(0)
+
+        val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp16, dp8, dp16, 0)
+            setPadding(dpI(20), dpI(4), dpI(20), dpI(4))
         }
+        val wrapParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 
-        val fullWidthParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etEquipment = TextInputEditText(requireContext())
-        val tilEquipment = TextInputLayout(requireContext()).apply {
-            hint = "Equipment (e.g. Dumbbells, Barbell)"
-            addView(etEquipment)
+        // Equipment label + spinner
+        container.addView(TextView(ctx).apply {
+            text = "Equipment"
+            textSize = 12f
+            setTextColor(Color.parseColor("#8888A8"))
+            layoutParams = wrapParams.also { it.topMargin = dpI(8); it.bottomMargin = dpI(2) }
+        })
+        val equipSpinner = Spinner(ctx).apply {
+            adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item, presetLabels).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            setSelection(currentPresetIdx)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dpI(16) }
         }
+        container.addView(equipSpinner)
 
-        val etNotes = TextInputEditText(requireContext()).apply { maxLines = 2 }
-        val tilNotes = TextInputLayout(requireContext()).apply {
-            hint = "Notes (optional, e.g. Hotel gym — limited space)"
-            addView(etNotes)
+        // Muscle focus label + spinner
+        container.addView(TextView(ctx).apply {
+            text = "Muscle focus"
+            textSize = 12f
+            setTextColor(Color.parseColor("#8888A8"))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dpI(2) }
+        })
+        val muscleSpinner = Spinner(ctx).apply {
+            adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item, muscleOptions).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            setSelection(currentMuscleIdx)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        container.addView(muscleSpinner)
 
-        container.addView(tilEquipment, fullWidthParams)
-        container.addView(tilNotes, fullWidthParams)
-
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Regenerate $dayName")
-            .setMessage("Enter the equipment available. Only this day will change — the rest of the week stays intact.")
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Swap $dayName's workout")
+            .setMessage("Only this day changes — the rest of the week stays the same.")
             .setView(container)
             .setPositiveButton("Generate") { _, _ ->
-                val equipText = etEquipment.text?.toString()?.trim() ?: ""
-                val equipment = if (equipText.isBlank()) emptyList()
-                    else equipText.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                val notes = etNotes.text?.toString()?.trim() ?: ""
-                viewModel.regenerateDay(dayOfWeek, equipment, notes)
+                val selectedPresetId = presetIds[equipSpinner.selectedItemPosition]
+                val equipment = viewModel.getEquipmentForPreset(selectedPresetId)
+                val notes = viewModel.getNotesForPreset(selectedPresetId)
+                val focus = muscleOptions[muscleSpinner.selectedItemPosition].let { if (it == "AI decides") "" else it }
+                viewModel.regenerateDay(dayOfWeek, equipment, notes, focus)
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun dominantMuscleGroup(exercises: List<PlannedExercise>): String {
+        if (exercises.isEmpty()) return "AI decides"
+        val dominant = exercises.map { getMuscleGroup(it.exerciseName) }
+            .groupBy { it }
+            .maxByOrNull { it.value.size }
+            ?.key ?: return "AI decides"
+        return if (dominant == "Training") "AI decides" else dominant
     }
 
     override fun onDestroyView() {

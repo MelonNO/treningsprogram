@@ -1,0 +1,8 @@
+appId: com.migul.treningsprogram
+---
+# Smoke test: launch the app and verify the bottom nav and home screen load
+- launchApp
+- assertVisible:
+    id: "bottom_nav"
+- assertVisible:
+    id: "nav_host_fragment"

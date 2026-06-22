@@ -35,19 +35,22 @@ import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.repository.WgerRepository
-import com.migul.treningsprogram.databinding.DialogWorkoutResultBinding
 import com.migul.treningsprogram.databinding.FragmentLogWorkoutBinding
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.migul.treningsprogram.domain.model.WorkoutResult
+import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.fragment.app.activityViewModels
 @AndroidEntryPoint
 class LogWorkoutFragment : Fragment() {
 
     private var _binding: FragmentLogWorkoutBinding? = null
     private val binding get() = _binding!!
     private val viewModel: LogWorkoutViewModel by viewModels()
+    private val sharedResultVm: SharedWorkoutResultViewModel by activityViewModels()
     @Inject lateinit var wgerRepository: WgerRepository
     @Inject lateinit var restTimerManager: RestTimerManager
 
@@ -280,7 +283,7 @@ class LogWorkoutFragment : Fragment() {
                 }
                 launch {
                     viewModel.workoutResult.collect { result ->
-                        result?.let { showResultDialog(it) }
+                        result?.let { startCompletionFlow(it) }
                     }
                 }
 
@@ -610,46 +613,20 @@ class LogWorkoutFragment : Fragment() {
         }
     }
 
-    private fun showResultDialog(result: WorkoutResult) {
+    private fun startCompletionFlow(result: WorkoutResult) {
         if (!isAdded || _binding == null) return
-        val dialogBinding = DialogWorkoutResultBinding.inflate(layoutInflater)
-        dialogBinding.tvLevel.text = "L${result.level}"
-        dialogBinding.tvXpEarned.text = "+${result.xpEarned} XP"
-        dialogBinding.progressXp.progress = (result.levelProgress * 100).toInt()
-        dialogBinding.tvXpToNext.text = "${result.xpToNextLevel} XP to Level ${result.level + 1}"
-        if (result.didLevelUp) dialogBinding.tvLevelUp.visibility = View.VISIBLE
-        val streakEmoji = when {
-            result.currentStreak >= 7  -> "🔥🔥"
-            result.currentStreak >= 3  -> "🔥"
-            else                       -> "📅"
+        viewModel.clearResult()
+        sharedResultVm.setResult(result)
+        val prevDestId = findNavController().previousBackStackEntry?.destination?.id
+        // Pop logWorkoutFragment so it doesn't persist in any tab's back stack
+        findNavController().popBackStack()
+        // If we came from Home, we need to explicitly switch to Program tab.
+        // If we came from Program, popBackStack() already returned to programFragment
+        // and ProgramFragment.onResume() will pick up the pending result.
+        if (prevDestId != R.id.programFragment) {
+            requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
+                ?.selectedItemId = R.id.programFragment
         }
-        dialogBinding.tvStreak.text = "$streakEmoji ${result.currentStreak}-day streak"
-        val volumeStr = if (result.totalVolumeKg > 0f) "  •  ${result.totalVolumeKg.toInt()} kg volume" else ""
-        dialogBinding.tvSessionSummary.text =
-            "${result.exerciseCount} exercises  •  ${result.setsLogged} sets$volumeStr"
-        if (result.personalRecords.isNotEmpty()) {
-            dialogBinding.cardPrs.visibility = View.VISIBLE
-            dialogBinding.tvPrs.text = result.personalRecords.joinToString("\n") { "• $it" }
-        }
-        val bonusLines = buildList {
-            result.newAchievements.forEach { add("${it.emoji} ${it.name} — ${it.description}") }
-            result.completedChallenges.forEach { add("Goal: ${it.name} challenge! +${it.bonusXp} XP") }
-        }
-        if (bonusLines.isNotEmpty()) {
-            dialogBinding.cardAchievements.visibility = View.VISIBLE
-            dialogBinding.tvAchievements.text = bonusLines.joinToString("\n")
-        }
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Workout Complete!")
-            .setView(dialogBinding.root)
-            .setPositiveButton("Awesome!") { _, _ ->
-                viewModel.clearResult()
-                if (isAdded) {
-                    findNavController().popBackStack(R.id.homeFragment, false)
-                }
-            }
-            .setCancelable(false)
-            .show()
     }
 
     private fun showSwapDialog(exercise: PlannedExercise) {
