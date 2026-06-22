@@ -52,6 +52,11 @@ class MainActivity : AppCompatActivity() {
         navController = navHostFragment.navController
 
         binding.bottomNav.setupWithNavController(navController)
+        binding.btnHeaderBack.setOnClickListener { navController.navigateUp() }
+
+        val topLevelIds = setOf(R.id.homeFragment, R.id.historyFragment, R.id.programFragment, R.id.profileFragment)
+        // Fragments that manage their own header/toolbar internally
+        val selfHeaderIds = setOf(R.id.gymPresetsFragment)
 
         // Map every non-tab destination to the tab that owns it,
         // so the correct bottom nav item stays highlighted when navigating deeper.
@@ -71,9 +76,17 @@ class MainActivity : AppCompatActivity() {
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            binding.bottomNav.visibility =
-                if (destination.id == R.id.setupWizardFragment) android.view.View.GONE
-                else android.view.View.VISIBLE
+            val isFullScreen = destination.id == R.id.setupWizardFragment
+            val isTopLevel = destination.id in topLevelIds
+            val hasSelfHeader = destination.id in selfHeaderIds
+            binding.bottomNav.visibility = if (isFullScreen) android.view.View.GONE else android.view.View.VISIBLE
+            // Show in-screen header with back button for non-tab destinations
+            if (isTopLevel || isFullScreen || hasSelfHeader) {
+                binding.screenHeader.visibility = android.view.View.GONE
+            } else {
+                binding.screenHeader.visibility = android.view.View.VISIBLE
+                binding.tvHeaderTitle.text = destination.label ?: ""
+            }
             // Update visual selection without triggering navigation.
             // selectedItemId fires the item-selected listener → causes a nav loop; isChecked does not.
             destToTab[destination.id]?.let { tabId ->
