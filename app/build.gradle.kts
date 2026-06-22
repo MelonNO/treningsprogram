@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    id("io.github.takahirom.roborazzi") version "1.7.0"
 }
 
 val keystorePropsFile = rootProject.file("keystore.properties")
@@ -20,8 +21,8 @@ android {
         applicationId = "com.migul.treningsprogram"
         minSdk = 26
         targetSdk = 34
-        versionCode = 17
-        versionName = "1.5.6"
+        versionCode = 18
+        versionName = "1.5.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -50,6 +51,11 @@ android {
     }
     buildFeatures {
         viewBinding = true
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 }
 
@@ -82,5 +88,11 @@ dependencies {
     implementation(libs.coil)
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.7.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-junit-rule:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
