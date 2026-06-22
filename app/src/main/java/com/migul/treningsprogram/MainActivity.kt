@@ -10,9 +10,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.navigateUp
-import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -49,20 +46,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setSupportActionBar(binding.toolbar)
 
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
 
-        // Only the four bottom-nav tabs are top-level destinations.
-        // logWorkoutFragment is NOT included — it's entered via a nav action from Home,
-        // so it should show an Up/Back arrow and navigate correctly.
-        val topLevelDests = setOf(
-            R.id.homeFragment, R.id.historyFragment,
-            R.id.programFragment, R.id.profileFragment
-        )
-        setupActionBarWithNavController(navController, AppBarConfiguration(topLevelDests))
         binding.bottomNav.setupWithNavController(navController)
 
         // Map every non-tab destination to the tab that owns it,
@@ -83,9 +71,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            val fullScreen = destination.id == R.id.setupWizardFragment
-            binding.bottomNav.visibility = if (fullScreen) android.view.View.GONE else android.view.View.VISIBLE
-            supportActionBar?.let { if (fullScreen) it.hide() else it.show() }
+            binding.bottomNav.visibility =
+                if (destination.id == R.id.setupWizardFragment) android.view.View.GONE
+                else android.view.View.VISIBLE
             // Update visual selection without triggering navigation.
             // selectedItemId fires the item-selected listener → causes a nav loop; isChecked does not.
             destToTab[destination.id]?.let { tabId ->
@@ -144,9 +132,4 @@ class MainActivity : AppCompatActivity() {
         prefsManager.lastAutoGenerateWeek = thisWeek
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        return navController.navigateUp(
-            AppBarConfiguration(setOf(R.id.homeFragment, R.id.historyFragment, R.id.programFragment, R.id.profileFragment))
-        ) || super.onSupportNavigateUp()
-    }
 }
