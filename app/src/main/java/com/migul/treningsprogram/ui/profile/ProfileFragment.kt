@@ -25,6 +25,11 @@ class ProfileFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: ProfileViewModel by viewModels()
 
+    private var achievementsExpanded = true
+
+    // How many locked "shadow" achievements to tease below the unlocked ones
+    private val shadowCount = 3
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentProfileBinding.inflate(inflater, container, false)
         return binding.root
@@ -35,6 +40,7 @@ class ProfileFragment : Fragment() {
         binding.cardSettings.setOnClickListener {
             findNavController().navigate(R.id.action_profile_to_settings)
         }
+        binding.headerAchievements.setOnClickListener { toggleAchievements() }
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.state.collect { state ->
@@ -58,12 +64,14 @@ class ProfileFragment : Fragment() {
                     binding.tvPrs.text = if (state.topPrs.isEmpty()) "No records yet. Complete a workout!"
                     else state.topPrs.joinToString("\n") { "🏆 ${it.exerciseName}: ${formatWeight(it.maxWeight)}kg" }
 
-                    // Achievements
-                    val unlocked = state.achievements.count { it.isUnlocked }
+                    // Achievements — show all unlocked, then only a few locked "shadow" teasers
+                    val unlocked = state.achievements.filter { it.isUnlocked }
+                    val locked = state.achievements.filter { !it.isUnlocked }
                     val total = state.achievements.size
-                    binding.tvAchievementsHeader.text = "Achievements ($unlocked/$total)"
+                    binding.tvAchievementsHeader.text = "Achievements (${unlocked.size}/$total)"
                     binding.layoutAchievements.removeAllViews()
-                    state.achievements.forEach { a -> binding.layoutAchievements.addView(makeAchievementItem(a)) }
+                    unlocked.forEach { binding.layoutAchievements.addView(makeAchievementItem(it)) }
+                    locked.take(shadowCount).forEach { binding.layoutAchievements.addView(makeAchievementItem(it)) }
                 }
             }
         }
@@ -77,11 +85,26 @@ class ProfileFragment : Fragment() {
         val emoji = item.findViewById<TextView>(R.id.tv_achievement_emoji)
         val name = item.findViewById<TextView>(R.id.tv_achievement_name)
         val desc = item.findViewById<TextView>(R.id.tv_achievement_desc)
-        emoji.text = if (a.isUnlocked) a.emoji else "🔒"
-        name.text = a.name
-        desc.text = a.description
-        item.alpha = if (a.isUnlocked) 1f else 0.35f
+        if (a.isUnlocked) {
+            emoji.text = a.emoji
+            name.text = a.name
+            desc.text = a.description
+            desc.visibility = View.VISIBLE
+            item.alpha = 1f
+        } else {
+            // "Shadow" achievement — hide its name and how to unlock it
+            emoji.text = "🔒"
+            name.text = "???"
+            desc.visibility = View.GONE
+            item.alpha = 0.35f
+        }
         return item
+    }
+
+    private fun toggleAchievements() {
+        achievementsExpanded = !achievementsExpanded
+        binding.layoutAchievements.visibility = if (achievementsExpanded) View.VISIBLE else View.GONE
+        binding.tvAchievementsChevron.text = if (achievementsExpanded) "▾" else "▸"
     }
 
     override fun onDestroyView() {
