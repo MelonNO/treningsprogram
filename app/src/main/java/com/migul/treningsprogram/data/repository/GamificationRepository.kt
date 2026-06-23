@@ -74,7 +74,7 @@ class GamificationRepository @Inject constructor(
         )
         userStatsDao.upsert(updatedStats)
 
-        val newAchievements = checkAchievements(updatedStats, workingSets.size)
+        val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg)
 
         return WorkoutResult(
             xpEarned = xpEarned,
@@ -106,23 +106,143 @@ class GamificationRepository @Inject constructor(
             }
             .keys.toList()
 
-    private suspend fun checkAchievements(stats: UserStats, setCount: Int): List<Achievement> {
+    private suspend fun checkAchievements(
+        stats: UserStats,
+        setCount: Int,
+        exerciseCount: Int = 0,
+        totalVolumeKg: Float = 0f
+    ): List<Achievement> {
         val now = System.currentTimeMillis()
+        val w = stats.totalWorkouts
+        val s = stats.currentStreak
+        val p = stats.totalPrs
+        val l = stats.level
+        val xp = stats.totalXp
+        val bs = stats.bestStreak
         val checks = mapOf(
-            "first_workout" to (stats.totalWorkouts >= 1),
-            "workouts_5"    to (stats.totalWorkouts >= 5),
-            "workouts_10"   to (stats.totalWorkouts >= 10),
-            "workouts_25"   to (stats.totalWorkouts >= 25),
-            "workouts_50"   to (stats.totalWorkouts >= 50),
-            "workouts_100"  to (stats.totalWorkouts >= 100),
-            "streak_3"      to (stats.currentStreak >= 3),
-            "streak_7"      to (stats.currentStreak >= 7),
-            "streak_14"     to (stats.currentStreak >= 14),
-            "first_pr"      to (stats.totalPrs >= 1),
-            "pr_5"          to (stats.totalPrs >= 5),
-            "level_5"       to (stats.level >= 5),
-            "level_10"      to (stats.level >= 10),
+            // workout count
+            "first_workout" to (w >= 1),
+            "workouts_2"    to (w >= 2),
+            "workouts_3"    to (w >= 3),
+            "workouts_5"    to (w >= 5),
+            "workouts_7"    to (w >= 7),
+            "workouts_10"   to (w >= 10),
+            "workouts_15"   to (w >= 15),
+            "workouts_20"   to (w >= 20),
+            "workouts_25"   to (w >= 25),
+            "workouts_30"   to (w >= 30),
+            "workouts_40"   to (w >= 40),
+            "workouts_50"   to (w >= 50),
+            "workouts_60"   to (w >= 60),
+            "workouts_75"   to (w >= 75),
+            "workouts_100"  to (w >= 100),
+            "workouts_150"  to (w >= 150),
+            "workouts_200"  to (w >= 200),
+            "workouts_250"  to (w >= 250),
+            "workouts_300"  to (w >= 300),
+            "workouts_365"  to (w >= 365),
+            "workouts_500"  to (w >= 500),
+            "workouts_1000" to (w >= 1000),
+            // current streak
+            "streak_2"      to (s >= 2),
+            "streak_3"      to (s >= 3),
+            "streak_4"      to (s >= 4),
+            "streak_5"      to (s >= 5),
+            "streak_7"      to (s >= 7),
+            "streak_10"     to (s >= 10),
+            "streak_14"     to (s >= 14),
+            "streak_15"     to (s >= 15),
+            "streak_20"     to (s >= 20),
+            "streak_21"     to (s >= 21),
+            "streak_30"     to (s >= 30),
+            "streak_45"     to (s >= 45),
+            "streak_60"     to (s >= 60),
+            "streak_90"     to (s >= 90),
+            "streak_180"    to (s >= 180),
+            "streak_365"    to (s >= 365),
+            // personal records
+            "first_pr"      to (p >= 1),
+            "pr_2"          to (p >= 2),
+            "pr_3"          to (p >= 3),
+            "pr_5"          to (p >= 5),
+            "pr_7"          to (p >= 7),
+            "pr_10"         to (p >= 10),
+            "pr_15"         to (p >= 15),
+            "pr_25"         to (p >= 25),
+            "pr_30"         to (p >= 30),
+            "pr_50"         to (p >= 50),
+            "pr_75"         to (p >= 75),
+            "pr_100"        to (p >= 100),
+            // levels
+            "level_2"       to (l >= 2),
+            "level_3"       to (l >= 3),
+            "level_4"       to (l >= 4),
+            "level_5"       to (l >= 5),
+            "level_6"       to (l >= 6),
+            "level_7"       to (l >= 7),
+            "level_8"       to (l >= 8),
+            "level_10"      to (l >= 10),
+            "level_12"      to (l >= 12),
+            "level_15"      to (l >= 15),
+            "level_20"      to (l >= 20),
+            "level_25"      to (l >= 25),
+            "level_30"      to (l >= 30),
+            "level_35"      to (l >= 35),
+            "level_40"      to (l >= 40),
+            "level_50"      to (l >= 50),
+            "level_75"      to (l >= 75),
+            "level_100"     to (l >= 100),
+            // sets in one session
+            "sets_3"        to (setCount >= 3),
+            "sets_5"        to (setCount >= 5),
+            "sets_7"        to (setCount >= 7),
+            "sets_10"       to (setCount >= 10),
+            "sets_15"       to (setCount >= 15),
             "volume_beast"  to (setCount >= 20),
+            "sets_25"       to (setCount >= 25),
+            "sets_30"       to (setCount >= 30),
+            "sets_40"       to (setCount >= 40),
+            "sets_50"       to (setCount >= 50),
+            // total XP
+            "xp_250"        to (xp >= 250),
+            "xp_500"        to (xp >= 500),
+            "xp_1000"       to (xp >= 1_000),
+            "xp_2500"       to (xp >= 2_500),
+            "xp_5000"       to (xp >= 5_000),
+            "xp_10000"      to (xp >= 10_000),
+            "xp_25000"      to (xp >= 25_000),
+            "xp_50000"      to (xp >= 50_000),
+            "xp_75000"      to (xp >= 75_000),
+            "xp_100000"     to (xp >= 100_000),
+            "xp_150000"     to (xp >= 150_000),
+            "xp_500000"     to (xp >= 500_000),
+            // exercise variety in one session
+            "ex_variety_3"  to (exerciseCount >= 3),
+            "ex_variety_5"  to (exerciseCount >= 5),
+            "ex_variety_7"  to (exerciseCount >= 7),
+            "ex_variety_10" to (exerciseCount >= 10),
+            "ex_variety_12" to (exerciseCount >= 12),
+            "ex_variety_15" to (exerciseCount >= 15),
+            // total volume in one session (kg)
+            "vol_100"       to (totalVolumeKg >= 100f),
+            "vol_250"       to (totalVolumeKg >= 250f),
+            "vol_500"       to (totalVolumeKg >= 500f),
+            "vol_750"       to (totalVolumeKg >= 750f),
+            "vol_1000"      to (totalVolumeKg >= 1_000f),
+            "vol_2000"      to (totalVolumeKg >= 2_000f),
+            "vol_3000"      to (totalVolumeKg >= 3_000f),
+            "vol_5000"      to (totalVolumeKg >= 5_000f),
+            "vol_7500"      to (totalVolumeKg >= 7_500f),
+            "vol_10000"     to (totalVolumeKg >= 10_000f),
+            "vol_20000"     to (totalVolumeKg >= 20_000f),
+            // best streak ever
+            "best_3"        to (bs >= 3),
+            "best_7"        to (bs >= 7),
+            "best_14"       to (bs >= 14),
+            "best_21"       to (bs >= 21),
+            "best_30"       to (bs >= 30),
+            "best_60"       to (bs >= 60),
+            "best_90"       to (bs >= 90),
         )
         return checks.mapNotNull { (id, condition) ->
             if (!condition) return@mapNotNull null
@@ -135,9 +255,7 @@ class GamificationRepository @Inject constructor(
     }
 
     suspend fun ensureAchievementsSeeded() {
-        if (achievementDao.count() == 0) {
-            achievementDao.insertAll(AppDatabase.PREDEFINED_ACHIEVEMENTS)
-        }
+        achievementDao.insertAll(AppDatabase.PREDEFINED_ACHIEVEMENTS)
     }
 
     companion object {
