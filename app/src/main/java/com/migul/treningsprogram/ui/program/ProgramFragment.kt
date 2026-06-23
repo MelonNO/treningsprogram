@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
@@ -46,6 +47,7 @@ class ProgramFragment : Fragment() {
 
     private val dayAbbreviations = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     private val dayChipViews = mutableListOf<View>()
+    private var progressAnimating = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentProgramBinding.inflate(inflater, container, false)
@@ -95,7 +97,9 @@ class ProgramFragment : Fragment() {
                 launch {
                     viewModel.weekProgress.collect { (logged, total) ->
                         binding.tvWeekProgress.text = if (total > 0) "$logged / $total done" else ""
-                        binding.progressWeek.progress = if (total > 0) (logged * 100 / total) else 0
+                        if (!progressAnimating) {
+                            binding.progressWeek.progress = if (total > 0) (logged * 100 / total) else 0
+                        }
                     }
                 }
                 launch {
@@ -118,6 +122,8 @@ class ProgramFragment : Fragment() {
                         }
                     }
                 }
+                // Keep presets populated so the swap-day dialog always has the current list
+                launch { viewModel.presets.collect { } }
             }
         }
     }
@@ -129,38 +135,57 @@ class ProgramFragment : Fragment() {
     }
 
     private fun playCompletionAnimation() {
-        val today = currentDayOfWeek()
-        viewModel.selectDay(today)
+        val workoutDay = sharedResultVm.workoutDayOfWeek.let { if (it > 0) it else currentDayOfWeek() }
+        viewModel.selectDay(workoutDay)
 
-        // Bounce the completed day's chip
-        val chip = dayChipViews.getOrNull(today - 1) ?: return
+        // Compute progress before vs after this workout
+        val (logged, total) = viewModel.weekProgress.value
+        val dayCount  = viewModel.weekPlan.value.count { it.dayOfWeek == workoutDay }
+        val afterPct  = if (total > 0) (logged * 100 / total) else 0
+        val beforePct = if (total > 0) ((logged - dayCount).coerceAtLeast(0) * 100 / total) else 0
+
+        // Reset bar to pre-workout position and take control
+        progressAnimating = true
+        binding.progressWeek.progress = beforePct
+
+        val chip = dayChipViews.getOrNull(workoutDay - 1) ?: return
+        val abbr = chip.findViewById<TextView>(R.id.tv_day_abbr)
+
+        // Step 1 — bounce the chip, mid-bounce swap background to green
         chip.animate()
-            .scaleX(1.45f).scaleY(1.45f)
-            .setDuration(180)
+            .scaleX(1.5f).scaleY(1.5f)
+            .setDuration(220)
             .withEndAction {
+                // At peak: swap to green "done" background
+                abbr.background = requireContext().getDrawable(R.drawable.bg_day_done)
+                abbr.setTextColor(Color.WHITE)
                 chip.animate()
                     .scaleX(1f).scaleY(1f)
-                    .setDuration(350)
+                    .setDuration(420)
                     .setInterpolator(OvershootInterpolator(4f))
                     .start()
             }.start()
 
-        // Pulse the week progress bar to draw attention after a short delay
+        // Step 2 — fill the week progress bar after the chip settles
         binding.progressWeek.postDelayed({
             if (_binding == null) return@postDelayed
-            binding.progressWeek.animate()
-                .scaleY(1.6f).setDuration(120)
-                .withEndAction {
-                    binding.progressWeek.animate().scaleY(1f).setDuration(200).start()
-                }.start()
-        }, 250)
-
-        // Navigate to Home after animations settle
-        binding.root.postDelayed({
-            if (!isAdded || _binding == null) return@postDelayed
-            requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
-                ?.selectedItemId = R.id.homeFragment
-        }, 1600)
+            ObjectAnimator.ofInt(binding.progressWeek, "progress", beforePct, afterPct).apply {
+                duration = 1400
+                interpolator = AccelerateDecelerateInterpolator()
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        progressAnimating = false
+                        // Step 3 — navigate to Home after the bar finishes filling
+                        binding.root.postDelayed({
+                            if (!isAdded || _binding == null) return@postDelayed
+                            requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
+                                ?.selectedItemId = R.id.homeFragment
+                        }, 600)
+                    }
+                })
+                start()
+            }
+        }, 550)
     }
 
     private fun getDayWorkoutType(exercises: List<PlannedExercise>): String? {
@@ -187,9 +212,15 @@ class ProgramFragment : Fragment() {
             val workoutType = getDayWorkoutType(dayExercises)
 
             val today = currentDayOfWeek()
+            val isDone = logged >= 1 && total > 0
             when {
+                i == selectedDay && isDone -> {
+                    // Selected AND fully done — green
+                    abbr.background = requireContext().getDrawable(R.drawable.bg_day_done)
+                    abbr.setTextColor(Color.WHITE)
+                    abbr.textSize = 11.5f
+                }
                 i == selectedDay && i == today -> {
-                    // Today AND selected — bold filled
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_selected)
                     abbr.setTextColor(Color.WHITE)
                     abbr.textSize = 11.5f
@@ -199,8 +230,13 @@ class ProgramFragment : Fragment() {
                     abbr.setTextColor(Color.WHITE)
                     abbr.textSize = 11f
                 }
+                isDone -> {
+                    // Fully done, not selected — green circle
+                    abbr.background = requireContext().getDrawable(R.drawable.bg_day_done)
+                    abbr.setTextColor(Color.WHITE)
+                    abbr.textSize = 11f
+                }
                 i == today -> {
-                    // Today but not selected — outlined indicator
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_has_workout)
                     abbr.setTextColor(Color.WHITE)
                     abbr.textSize = 11.5f
@@ -250,7 +286,7 @@ class ProgramFragment : Fragment() {
                 else -> "$logged/$total"
             }
             progress.setTextColor(
-                if (logged == total && total > 0) Color.parseColor("#4CAF50")
+                if (logged >= 1 && total > 0) Color.parseColor("#4CAF50")
                 else Color.parseColor("#8888A8")
             )
         }
@@ -273,8 +309,9 @@ class ProgramFragment : Fragment() {
                 "RUN" -> "Cardio"
                 "MIX" -> "Mixed"
                 else -> {
-                    val firstMuscle = getMuscleGroup(exercises.firstOrNull()?.exerciseName ?: "")
-                    "$firstMuscle focus"
+                    val dominant = dominantMuscleGroup(exercises)
+                    val label = if (dominant == "AI decides") "Strength" else dominant
+                    "$label focus"
                 }
             }
             binding.tvWorkoutType.text = "${exercises.size} exercises  •  $typeLabel"
@@ -370,8 +407,9 @@ class ProgramFragment : Fragment() {
         return when {
             lower.containsAny("run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill", "burpee", "mountain climber", "high knee", "jump rope", "tempo", "interval run") -> "Cardio"
             lower.containsAny("bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip") -> "Chest"
-            lower.containsAny("row", "pulldown", "pull-up", "pullup", "lat ", "deadlift", "shrug", "back") -> "Back"
-            lower.containsAny("squat", "leg press", "lunge", "calf", "hamstring", "quad", "romanian", "glute") -> "Legs"
+            // Legs before Back so "Romanian Deadlift", "Back Squat", "Stiff-Leg Deadlift" etc resolve correctly
+            lower.containsAny("squat", "leg press", "lunge", "calf", "hamstring", "quad", "romanian", "rdl", "glute", "hip thrust", "leg curl", "leg extension", "hip hinge", "step up", "step-up", "box jump", "split squat", "wall sit", "sumo") -> "Legs"
+            lower.containsAny("row", "pulldown", "pull-up", "pullup", "chin-up", "chinup", "lat ", "deadlift", "shrug", "back") -> "Back"
             lower.containsAny("shoulder", "overhead", "lateral raise", "face pull", "delt", "military") -> "Shoulders"
             lower.containsAny("curl", "tricep", "bicep", "arm") -> "Arms"
             lower.containsAny("plank", "crunch", "ab ", "abs", "core", "sit-up", "sit up", "russian", "leg raise") -> "Core"

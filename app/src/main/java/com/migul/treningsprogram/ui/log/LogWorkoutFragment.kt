@@ -154,6 +154,19 @@ class LogWorkoutFragment : Fragment() {
         binding.btnTimerRecall.setOnClickListener { openTimerRecall() }
         binding.btnPauseWorkout.setOnClickListener { showPauseDialog() }
 
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (viewModel.currentIndex.value > 0) {
+                        saveCurrentValues()
+                        viewModel.previousExercise()
+                    } else {
+                        showPauseDialog()
+                    }
+                }
+            }
+        )
+
         // Navigation
         binding.btnPrevExercise.setOnClickListener {
             saveCurrentValues()
@@ -601,11 +614,6 @@ class LogWorkoutFragment : Fragment() {
     private fun showResultDialog(result: WorkoutResult) {
         if (!isAdded || _binding == null) return
         val dialogBinding = DialogWorkoutResultBinding.inflate(layoutInflater)
-        dialogBinding.tvLevel.text = "L${result.level}"
-        dialogBinding.tvXpEarned.text = "+${result.xpEarned} XP"
-        dialogBinding.progressXp.progress = (result.levelProgress * 100).toInt()
-        dialogBinding.tvXpToNext.text = "${result.xpToNextLevel} XP to Level ${result.level + 1}"
-        if (result.didLevelUp) dialogBinding.tvLevelUp.visibility = View.VISIBLE
         val streakEmoji = when {
             result.currentStreak >= 7 -> "🔥🔥"
             result.currentStreak >= 3 -> "🔥"
@@ -621,7 +629,7 @@ class LogWorkoutFragment : Fragment() {
         }
         val bonusLines = buildList {
             result.newAchievements.forEach { add("${it.emoji} ${it.name} — ${it.description}") }
-            result.completedChallenges.forEach { add("🎯 ${it.name} challenge! +${it.bonusXp} XP") }
+            result.completedChallenges.forEach { add("🎯 ${it.name} challenge!") }
         }
         if (bonusLines.isNotEmpty()) {
             dialogBinding.cardAchievements.visibility = View.VISIBLE

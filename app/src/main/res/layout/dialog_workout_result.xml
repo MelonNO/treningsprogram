@@ -13,78 +13,12 @@
         android:gravity="center_horizontal">
 
         <TextView
-            android:id="@+id/tv_level"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:gravity="center"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:textColor="?attr/colorOnPrimary"
-            android:background="@drawable/bg_level_badge"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:id="@+id/tv_level_up"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="⚡ LEVEL UP!"
-            android:textColor="#FFB347"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            android:layout_marginBottom="8dp" />
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            app:cardElevation="0dp"
-            app:cardCornerRadius="14dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="?attr/colorOutlineVariant">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:gravity="center_horizontal">
-
-                <TextView
-                    android:id="@+id/tv_xp_earned"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="32sp"
-                    android:textStyle="bold"
-                    android:textColor="#FFB347"
-                    android:layout_marginBottom="10dp" />
-
-                <com.google.android.material.progressindicator.LinearProgressIndicator
-                    android:id="@+id/progress_xp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="100"
-                    android:layout_marginBottom="6dp"
-                    app:trackCornerRadius="4dp"
-                    app:trackColor="#2A2A3A" />
-
-                <TextView
-                    android:id="@+id/tv_xp_to_next"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <TextView
             android:id="@+id/tv_streak"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="15sp"
             android:textColor="?attr/colorOnSurface"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="6dp" />
 
         <TextView
