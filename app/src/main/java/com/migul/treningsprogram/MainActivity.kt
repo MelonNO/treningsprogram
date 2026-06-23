@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
             R.id.settingsRejectionLogFragment to R.id.profileFragment,
             R.id.settingsCrashLogFragment    to R.id.profileFragment,
             R.id.settingsUnrecognizedFragment to R.id.profileFragment,
+            R.id.settingsAboutFragment       to R.id.profileFragment,
             R.id.gymPresetsFragment          to R.id.profileFragment,
         )
 

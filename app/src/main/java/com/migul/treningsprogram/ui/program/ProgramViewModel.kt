@@ -41,9 +41,13 @@ class ProgramViewModel @Inject constructor(
         combine(weekPlan, selectedDay) { plan, day -> plan.filter { it.dayOfWeek == day } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Progress in workout-days: (days with ≥1 logged exercise) / (days with ≥1 planned exercise)
     val weekProgress: StateFlow<Pair<Int, Int>> =
         weekPlan.map { plan ->
-            plan.count { it.isLogged } to plan.size
+            val byDay = plan.groupBy { it.dayOfWeek }
+            val workoutDays = byDay.values.filter { it.isNotEmpty() }
+            val doneDays = workoutDays.count { exercises -> exercises.any { it.isLogged } }
+            doneDays to workoutDays.size
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to 0)
 
     val presets: StateFlow<List<GymPreset>> = gymPresetDao.getAll()

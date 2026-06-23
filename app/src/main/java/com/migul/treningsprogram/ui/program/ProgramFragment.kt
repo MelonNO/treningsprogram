@@ -138,11 +138,10 @@ class ProgramFragment : Fragment() {
         val workoutDay = sharedResultVm.workoutDayOfWeek.let { if (it > 0) it else currentDayOfWeek() }
         viewModel.selectDay(workoutDay)
 
-        // Compute progress before vs after this workout
+        // Compute progress before vs after this workout (unit = workout days, not exercises)
         val (logged, total) = viewModel.weekProgress.value
-        val dayCount  = viewModel.weekPlan.value.count { it.dayOfWeek == workoutDay }
         val afterPct  = if (total > 0) (logged * 100 / total) else 0
-        val beforePct = if (total > 0) ((logged - dayCount).coerceAtLeast(0) * 100 / total) else 0
+        val beforePct = if (total > 0) ((logged - 1).coerceAtLeast(0) * 100 / total) else 0
 
         // Reset bar to pre-workout position and take control
         progressAnimating = true

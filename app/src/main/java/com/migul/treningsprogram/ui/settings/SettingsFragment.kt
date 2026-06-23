@@ -36,6 +36,9 @@ class SettingsFragment : Fragment() {
         binding.rowBackup.setOnClickListener {
             findNavController().navigate(R.id.action_settings_to_backup)
         }
+        binding.rowAbout.setOnClickListener {
+            findNavController().navigate(R.id.action_settings_to_about)
+        }
     }
 
     override fun onDestroyView() {
