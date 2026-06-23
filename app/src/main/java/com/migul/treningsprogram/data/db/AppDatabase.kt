@@ -307,7 +307,7 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("vol_10000",      "Ten Ton Titan",        "10,000 kg total volume in one session", "👑"),
             Achievement("vol_20000",      "Freight Train",        "20,000 kg total volume in one session", "🚂"),
 
-            // --- best streak ever achieved (7 new) ---
+            // --- best streak ever achieved (7) ---
             Achievement("best_3",         "Weekend Warrior",      "Achieve a best streak of 3+ days",      "🏅"),
             Achievement("best_7",         "Best Week Yet",        "Achieve a best streak of 7+ days",      "📅"),
             Achievement("best_14",        "Two Week Best",        "Achieve a best streak of 14+ days",     "⚡"),
@@ -315,6 +315,112 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("best_30",        "Best Month",           "Achieve a best streak of 30+ days",     "🏆"),
             Achievement("best_60",        "Best Two Months",      "Achieve a best streak of 60+ days",     "🔥"),
             Achievement("best_90",        "Quarter Year Best",    "Achieve a best streak of 90+ days",     "🌟"),
+
+            // === 86 more to reach 200 total ===
+
+            // --- workout count fill-in (15) ---
+            Achievement("workouts_4",     "On a Roll",            "Complete 4 workouts",                   "💪"),
+            Achievement("workouts_6",     "Half Dozen",           "Complete 6 workouts",                   "💪"),
+            Achievement("workouts_8",     "Eight Is Great",       "Complete 8 workouts",                   "🌟"),
+            Achievement("workouts_11",    "Going Eleven",         "Complete 11 workouts",                  "⚡"),
+            Achievement("workouts_17",    "Seventeen In",         "Complete 17 workouts",                  "🌱"),
+            Achievement("workouts_22",    "Twenty-Two",           "Complete 22 workouts",                  "📆"),
+            Achievement("workouts_28",    "Four Weeks",           "Complete 28 workouts",                  "🗓️"),
+            Achievement("workouts_35",    "Thirty-Five",          "Complete 35 workouts",                  "💪"),
+            Achievement("workouts_45",    "Forty-Five",           "Complete 45 workouts",                  "💎"),
+            Achievement("workouts_55",    "Fifty-Five",           "Complete 55 workouts",                  "🏅"),
+            Achievement("workouts_80",    "Eighty Strong",        "Complete 80 workouts",                  "🔥"),
+            Achievement("workouts_125",   "One Twenty-Five",      "Complete 125 workouts",                 "⚡"),
+            Achievement("workouts_175",   "One Seventy-Five",     "Complete 175 workouts",                 "🏆"),
+            Achievement("workouts_400",   "Four Hundred",         "Complete 400 workouts",                 "🤖"),
+            Achievement("workouts_750",   "Titan",                "Complete 750 workouts",                 "🦾"),
+
+            // --- streak fill-in (11) ---
+            Achievement("streak_6",       "Six Pack Streak",      "6-day workout streak",                  "🔥"),
+            Achievement("streak_8",       "Eight Day Run",        "8-day workout streak",                  "📅"),
+            Achievement("streak_11",      "Eleven Eleven",        "11-day workout streak",                 "🌟"),
+            Achievement("streak_13",      "Unlucky Thirteen",     "13-day workout streak",                 "🍀"),
+            Achievement("streak_16",      "Sweet Sixteen",        "16-day workout streak",                 "⭐"),
+            Achievement("streak_25",      "Quarter Month",        "25-day workout streak",                 "⚡"),
+            Achievement("streak_35",      "Five Week Streak",     "35-day workout streak",                 "💪"),
+            Achievement("streak_50",      "Fifty Day Grind",      "50-day workout streak",                 "🔥"),
+            Achievement("streak_75",      "Seventy-Five Days",    "75-day workout streak",                 "🌟"),
+            Achievement("streak_100",     "Century Streak",       "100-day workout streak",                "🏆"),
+            Achievement("streak_150",     "Five Month Streak",    "150-day workout streak",                "👑"),
+
+            // --- PR fill-in (10) ---
+            Achievement("pr_4",           "Fab Four PRs",         "Set 4 personal records",                "💥"),
+            Achievement("pr_6",           "Half Dozen PRs",       "Set 6 personal records",                "🔥"),
+            Achievement("pr_8",           "Eight PRs",            "Set 8 personal records",                "⚡"),
+            Achievement("pr_12",          "Dozen PRs",            "Set 12 personal records",               "🎯"),
+            Achievement("pr_20",          "Twenty PRs",           "Set 20 personal records",               "💪"),
+            Achievement("pr_40",          "Forty PRs",            "Set 40 personal records",               "🔥"),
+            Achievement("pr_60",          "Sixty PRs",            "Set 60 personal records",               "💪"),
+            Achievement("pr_150",         "PR Machine",           "Set 150 personal records",              "🏆"),
+            Achievement("pr_200",         "Two Hundred PRs",      "Set 200 personal records",              "👑"),
+            Achievement("pr_250",         "Quarter K PRs",        "Set 250 personal records",              "🌠"),
+
+            // --- level fill-in (9) ---
+            Achievement("level_9",        "Level 9",              "Reach Level 9",                         "🌟"),
+            Achievement("level_11",       "Level 11",             "Reach Level 11",                        "💫"),
+            Achievement("level_14",       "Level 14",             "Reach Level 14",                        "🏅"),
+            Achievement("level_17",       "Level 17",             "Reach Level 17",                        "🥇"),
+            Achievement("level_22",       "Level 22",             "Reach Level 22",                        "👑"),
+            Achievement("level_45",       "Level 45",             "Reach Level 45",                        "⚡"),
+            Achievement("level_60",       "Level 60",             "Reach Level 60",                        "🔱"),
+            Achievement("level_80",       "Level 80",             "Reach Level 80",                        "🌌"),
+            Achievement("level_90",       "Level 90",             "Reach Level 90",                        "🌠"),
+
+            // --- sets per session fill-in (8) ---
+            Achievement("sets_4",         "Four Setter",          "Log 4 sets in one workout",             "💪"),
+            Achievement("sets_6",         "Six Sets",             "Log 6 sets in one workout",             "⚡"),
+            Achievement("sets_8",         "Eight-Pack",           "Log 8 sets in one workout",             "🍀"),
+            Achievement("sets_12",        "Twelve Set Day",       "Log 12 sets in one workout",            "🔥"),
+            Achievement("sets_18",        "Eighteen Sets",        "Log 18 sets in one workout",            "💪"),
+            Achievement("sets_35",        "Thirty-Five Sets",     "Log 35 sets in one workout",            "🔥"),
+            Achievement("sets_45",        "Forty-Five Sets",      "Log 45 sets in one workout",            "⚡"),
+            Achievement("sets_60",        "Sixty Setter",         "Log 60 sets in one workout",            "🦾"),
+
+            // --- total XP fill-in (10) ---
+            Achievement("xp_750",         "XP Stash",             "Earn 750 total XP",                     "⚡"),
+            Achievement("xp_1500",        "XP Builder",           "Earn 1,500 total XP",                   "💫"),
+            Achievement("xp_3500",        "XP Hoarder",           "Earn 3,500 total XP",                   "🔥"),
+            Achievement("xp_7500",        "XP Surge",             "Earn 7,500 total XP",                   "⚡"),
+            Achievement("xp_15000",       "XP Overflow",          "Earn 15,000 total XP",                  "🏆"),
+            Achievement("xp_20000",       "XP Fountain",          "Earn 20,000 total XP",                  "🌟"),
+            Achievement("xp_35000",       "XP Empire",            "Earn 35,000 total XP",                  "⭐"),
+            Achievement("xp_200000",      "XP Monument",          "Earn 200,000 total XP",                 "🌌"),
+            Achievement("xp_300000",      "XP Colossus",          "Earn 300,000 total XP",                 "🌠"),
+            Achievement("xp_1000000",     "XP Infinity",          "Earn 1,000,000 total XP",               "♾️"),
+
+            // --- exercise variety fill-in (7) ---
+            Achievement("ex_variety_2",   "Dynamic Duo",          "Do 2 different exercises in one workout","💪"),
+            Achievement("ex_variety_4",   "Fab Four Exercises",   "Do 4 exercises in one workout",          "⚡"),
+            Achievement("ex_variety_6",   "Sixfold",              "Do 6 exercises in one workout",          "🔥"),
+            Achievement("ex_variety_8",   "Eight-Way",            "Do 8 exercises in one workout",          "💪"),
+            Achievement("ex_variety_9",   "Nine Lives",           "Do 9 exercises in one workout",          "🍀"),
+            Achievement("ex_variety_11",  "Eleven Exercises",     "Do 11 exercises in one workout",         "🌟"),
+            Achievement("ex_variety_13",  "Baker's Dozen Lifts",  "Do 13 exercises in one workout",         "📚"),
+
+            // --- session volume fill-in (8) ---
+            Achievement("vol_150",        "One Fifty",            "150 kg total volume in one session",    "💪"),
+            Achievement("vol_400",        "Four Hundred Kilos",   "400 kg total volume in one session",    "💪"),
+            Achievement("vol_600",        "Six Hundred Kilos",    "600 kg total volume in one session",    "🔥"),
+            Achievement("vol_1500",       "Ton and a Half",       "1,500 kg total volume in one session",  "⚡"),
+            Achievement("vol_2500",       "Two and a Half Tons",  "2,500 kg total volume in one session",  "💪"),
+            Achievement("vol_4000",       "Four Ton Session",     "4,000 kg total volume in one session",  "🏋️"),
+            Achievement("vol_6000",       "Six Ton Session",      "6,000 kg total volume in one session",  "🔥"),
+            Achievement("vol_15000",      "Fifteen Ton Beast",    "15,000 kg total volume in one session", "👑"),
+
+            // --- best streak fill-in (8) ---
+            Achievement("best_5",         "Five Day Best",        "Achieve a best streak of 5+ days",      "📚"),
+            Achievement("best_10",        "Ten Day Best",         "Achieve a best streak of 10+ days",     "🔟"),
+            Achievement("best_25",        "Quarter Month Best",   "Achieve a best streak of 25+ days",     "⚡"),
+            Achievement("best_45",        "Six Week Best",        "Achieve a best streak of 45+ days",     "💪"),
+            Achievement("best_120",       "Four Month Best",      "Achieve a best streak of 120+ days",    "🏆"),
+            Achievement("best_180",       "Half Year Best",       "Achieve a best streak of 180+ days",    "🌟"),
+            Achievement("best_250",       "Eight Month Best",     "Achieve a best streak of 250+ days",    "🌌"),
+            Achievement("best_365",       "Full Year Best",       "Achieve a best streak of 365+ days",    "👑"),
         )
     }
 }
