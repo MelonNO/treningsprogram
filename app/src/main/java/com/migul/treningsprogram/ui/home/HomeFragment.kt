@@ -5,11 +5,13 @@ import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
@@ -22,6 +24,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
+import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.databinding.FragmentHomeBinding
@@ -56,6 +59,7 @@ class HomeFragment : Fragment() {
     private val viewModel: HomeViewModel by viewModels()
     private val sharedResultVm: SharedWorkoutResultViewModel by activityViewModels()
     private var xpAnimating = false
+    private val bwDateFmt = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
@@ -188,7 +192,19 @@ class HomeFragment : Fragment() {
                         }
                     }
                 }
+                launch {
+                    viewModel.bodyMeasurements.collect { measurements ->
+                        renderBodyWeightEntries(measurements.take(5))
+                    }
+                }
             }
+        }
+
+        binding.btnHomeAddWeight.setOnClickListener {
+            val text = binding.etHomeBodyweight.text?.toString() ?: return@setOnClickListener
+            val kg = text.toFloatOrNull() ?: return@setOnClickListener
+            viewModel.addBodyWeight(kg)
+            binding.etHomeBodyweight.text?.clear()
         }
     }
 
@@ -320,6 +336,36 @@ class HomeFragment : Fragment() {
         if (!isAdded || _binding == null) return
         result.completedChallenges.forEach { ch ->
             Snackbar.make(binding.root, "Challenge complete: ${ch.name}  +${ch.bonusXp} XP", Snackbar.LENGTH_LONG).show()
+        }
+    }
+
+    private fun renderBodyWeightEntries(entries: List<BodyMeasurement>) {
+        binding.layoutHomeBwEntries.removeAllViews()
+        entries.forEach { m ->
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val p = (4 * resources.displayMetrics.density).toInt()
+                setPadding(0, p, 0, p)
+            }
+            val tvDate = TextView(requireContext()).apply {
+                text = bwDateFmt.format(java.util.Date(m.dateMs))
+                textSize = 13f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_background_emphasis_medium))
+            }
+            val tvWeight = TextView(requireContext()).apply {
+                text = "${formatWeight(m.weightKg)} kg"
+                textSize = 13f
+                setTextColor(android.graphics.Color.parseColor("#7C67F5"))
+            }
+            row.addView(tvDate)
+            row.addView(tvWeight)
+            row.setOnLongClickListener {
+                viewModel.deleteBodyMeasurement(m)
+                true
+            }
+            binding.layoutHomeBwEntries.addView(row)
         }
     }
 

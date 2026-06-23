@@ -14,20 +14,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.migul.treningsprogram.data.db.dao.ExercisePrWithDate
-import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
-
 @AndroidEntryPoint
 class HistoryProgressFragment : Fragment() {
 
     private var _binding: FragmentHistoryProgressBinding? = null
     private val binding get() = _binding!!
     private val viewModel: HistoryViewModel by viewModels({ requireParentFragment() })
-    private val dateFmt = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -97,21 +92,6 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
-        // Body weight
-        binding.btnAddWeight.setOnClickListener {
-            val text = binding.etBodyweight.text?.toString() ?: return@setOnClickListener
-            val kg = text.toFloatOrNull() ?: return@setOnClickListener
-            viewModel.addBodyWeight(kg)
-            binding.etBodyweight.text?.clear()
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.bodyMeasurements.collect { measurements ->
-                    renderBodyWeightEntries(measurements.take(5))
-                }
-            }
-        }
     }
 
     private fun renderPRs(prs: List<ExercisePrWithDate>) {
@@ -143,36 +123,6 @@ class HistoryProgressFragment : Fragment() {
                 row.addView(tvWeight)
                 binding.layoutPrs.addView(row)
             }
-        }
-    }
-
-    private fun renderBodyWeightEntries(entries: List<BodyMeasurement>) {
-        binding.layoutBwEntries.removeAllViews()
-        entries.forEach { m ->
-            val row = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                val p = (4 * resources.displayMetrics.density).toInt()
-                setPadding(0, p, 0, p)
-            }
-            val tvDate = TextView(requireContext()).apply {
-                text = dateFmt.format(Date(m.dateMs))
-                textSize = 13f
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_background_emphasis_medium))
-            }
-            val tvWeight = TextView(requireContext()).apply {
-                text = "${formatWeight(m.weightKg)} kg"
-                textSize = 13f
-                setTextColor(android.graphics.Color.parseColor("#7C67F5"))
-            }
-            row.addView(tvDate)
-            row.addView(tvWeight)
-            row.setOnLongClickListener {
-                viewModel.deleteBodyMeasurement(m)
-                true
-            }
-            binding.layoutBwEntries.addView(row)
         }
     }
 

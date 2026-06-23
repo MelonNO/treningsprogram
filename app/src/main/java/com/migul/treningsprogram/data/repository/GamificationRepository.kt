@@ -74,7 +74,7 @@ class GamificationRepository @Inject constructor(
         )
         userStatsDao.upsert(updatedStats)
 
-        val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg)
+        val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg, prExercises.size)
 
         return WorkoutResult(
             xpEarned = xpEarned,
@@ -110,15 +110,20 @@ class GamificationRepository @Inject constructor(
         stats: UserStats,
         setCount: Int,
         exerciseCount: Int = 0,
-        totalVolumeKg: Float = 0f
+        totalVolumeKg: Float = 0f,
+        sessionPrCount: Int = 0
     ): List<Achievement> {
         val now = System.currentTimeMillis()
-        val w = stats.totalWorkouts
-        val s = stats.currentStreak
-        val p = stats.totalPrs
-        val l = stats.level
+        val w  = stats.totalWorkouts
+        val s  = stats.currentStreak
+        val p  = stats.totalPrs
+        val l  = stats.level
         val xp = stats.totalXp
         val bs = stats.bestStreak
+        val sc = setCount
+        val ec = exerciseCount
+        val vol = totalVolumeKg
+        val sp = sessionPrCount
         val checks = mapOf(
             // workout count
             "first_workout" to (w >= 1),
@@ -242,103 +247,101 @@ class GamificationRepository @Inject constructor(
             "best_21"       to (bs >= 21),
             "best_30"       to (bs >= 30),
             "best_60"       to (bs >= 60),
-            "best_90"       to (bs >= 90),
-            // === 86 more to reach 200 total ===
-            // workout count fill-in
-            "workouts_4"    to (w >= 4),
-            "workouts_6"    to (w >= 6),
-            "workouts_8"    to (w >= 8),
-            "workouts_11"   to (w >= 11),
-            "workouts_17"   to (w >= 17),
-            "workouts_22"   to (w >= 22),
-            "workouts_28"   to (w >= 28),
-            "workouts_35"   to (w >= 35),
-            "workouts_45"   to (w >= 45),
-            "workouts_55"   to (w >= 55),
-            "workouts_80"   to (w >= 80),
-            "workouts_125"  to (w >= 125),
-            "workouts_175"  to (w >= 175),
-            "workouts_400"  to (w >= 400),
-            "workouts_750"  to (w >= 750),
-            // streak fill-in
-            "streak_6"      to (s >= 6),
-            "streak_8"      to (s >= 8),
-            "streak_11"     to (s >= 11),
-            "streak_13"     to (s >= 13),
-            "streak_16"     to (s >= 16),
-            "streak_25"     to (s >= 25),
-            "streak_35"     to (s >= 35),
-            "streak_50"     to (s >= 50),
-            "streak_75"     to (s >= 75),
-            "streak_100"    to (s >= 100),
-            "streak_150"    to (s >= 150),
-            // PR fill-in
-            "pr_4"          to (p >= 4),
-            "pr_6"          to (p >= 6),
-            "pr_8"          to (p >= 8),
-            "pr_12"         to (p >= 12),
-            "pr_20"         to (p >= 20),
-            "pr_40"         to (p >= 40),
-            "pr_60"         to (p >= 60),
-            "pr_150"        to (p >= 150),
-            "pr_200"        to (p >= 200),
-            "pr_250"        to (p >= 250),
-            // level fill-in
-            "level_9"       to (l >= 9),
-            "level_11"      to (l >= 11),
-            "level_14"      to (l >= 14),
-            "level_17"      to (l >= 17),
-            "level_22"      to (l >= 22),
-            "level_45"      to (l >= 45),
-            "level_60"      to (l >= 60),
-            "level_80"      to (l >= 80),
-            "level_90"      to (l >= 90),
-            // sets per session fill-in
-            "sets_4"        to (setCount >= 4),
-            "sets_6"        to (setCount >= 6),
-            "sets_8"        to (setCount >= 8),
-            "sets_12"       to (setCount >= 12),
-            "sets_18"       to (setCount >= 18),
-            "sets_35"       to (setCount >= 35),
-            "sets_45"       to (setCount >= 45),
-            "sets_60"       to (setCount >= 60),
-            // total XP fill-in
-            "xp_750"        to (xp >= 750),
-            "xp_1500"       to (xp >= 1_500),
-            "xp_3500"       to (xp >= 3_500),
-            "xp_7500"       to (xp >= 7_500),
-            "xp_15000"      to (xp >= 15_000),
-            "xp_20000"      to (xp >= 20_000),
-            "xp_35000"      to (xp >= 35_000),
-            "xp_200000"     to (xp >= 200_000),
-            "xp_300000"     to (xp >= 300_000),
-            "xp_1000000"    to (xp >= 1_000_000),
-            // exercise variety fill-in
-            "ex_variety_2"  to (exerciseCount >= 2),
-            "ex_variety_4"  to (exerciseCount >= 4),
-            "ex_variety_6"  to (exerciseCount >= 6),
-            "ex_variety_8"  to (exerciseCount >= 8),
-            "ex_variety_9"  to (exerciseCount >= 9),
-            "ex_variety_11" to (exerciseCount >= 11),
-            "ex_variety_13" to (exerciseCount >= 13),
-            // volume per session fill-in
-            "vol_150"       to (totalVolumeKg >= 150f),
-            "vol_400"       to (totalVolumeKg >= 400f),
-            "vol_600"       to (totalVolumeKg >= 600f),
-            "vol_1500"      to (totalVolumeKg >= 1_500f),
-            "vol_2500"      to (totalVolumeKg >= 2_500f),
-            "vol_4000"      to (totalVolumeKg >= 4_000f),
-            "vol_6000"      to (totalVolumeKg >= 6_000f),
-            "vol_15000"     to (totalVolumeKg >= 15_000f),
-            // best streak fill-in
-            "best_5"        to (bs >= 5),
-            "best_10"       to (bs >= 10),
-            "best_25"       to (bs >= 25),
-            "best_45"       to (bs >= 45),
-            "best_120"      to (bs >= 120),
-            "best_180"      to (bs >= 180),
-            "best_250"      to (bs >= 250),
-            "best_365"      to (bs >= 365),
+            "best_90"            to (bs >= 90),
+            // === 86 creative replacements ===
+            // per-session PR achievements
+            "session_pr_2"       to (sp >= 2),
+            "session_pr_3"       to (sp >= 3),
+            "session_pr_5"       to (sp >= 5),
+            "session_pr_8"       to (sp >= 8),
+            "session_pr_10"      to (sp >= 10),
+            // cross-stat combo achievements
+            "combo_allrounder"   to (ec >= 7 && vol >= 2_000f),
+            "combo_deep_focus"   to (ec <= 3 && ec >= 1 && vol >= 3_000f),
+            "combo_iron_end"     to (sc >= 35 && vol >= 3_000f),
+            "combo_less_more"    to (ec in 1..4 && vol >= 2_000f),
+            "combo_marathon"     to (sc >= 40 && ec >= 8),
+            "combo_beast"        to (sc >= 50 && vol >= 5_000f),
+            "combo_singular"     to (sc >= 20 && ec == 1),
+            "combo_peak"         to (sp >= 3 && vol >= 2_000f),
+            "combo_qty_qual"     to (sc >= 20 && sp >= 3),
+            "combo_explosive"    to (sp >= 5 && vol >= 1_500f),
+            "combo_clean_sweep"  to (sp >= 3 && ec >= 3 && sp >= ec),
+            "combo_every_rep"    to (sp >= 5 && ec >= 5 && sp >= ec),
+            "combo_diverse_pr"   to (ec >= 6 && sp >= 2),
+            "combo_hercules"     to (sp >= 5 && vol >= 3_000f),
+            "combo_world_tour"   to (ec >= 12),
+            "combo_jack"         to (ec >= 10 && sc >= 15),
+            "combo_big3"         to (ec in 1..3 && vol >= 5_000f),
+            "combo_pr_blitz"     to (sp >= 7),
+            "combo_strength"     to (sp >= 5 && vol >= 3_000f),
+            "combo_vol_artist"   to (vol >= 2_500f && ec >= 6),
+            "combo_relentless"   to (sc >= 60),
+            "combo_go_big"       to (sc >= 25 && sp >= 5),
+            "combo_intensity"    to (sc >= 20 && vol >= 4_000f),
+            "combo_specialist"   to (sc >= 30 && ec in 1..2),
+            "combo_heavyweight"  to (vol >= 15_000f),
+            "combo_grind_set"    to (sc >= 25 && ec >= 4 && sp >= 1),
+            // workout count: character milestones
+            "the_foundation"     to (w >= 4),
+            "habit_lock"         to (w >= 6),
+            "the_initiate"       to (w >= 8),
+            "going_eleven"       to (w >= 11),
+            "three_week_club"    to (w >= 17),
+            "the_grind"          to (w >= 22),
+            "four_weeks_in"      to (w >= 28),
+            "five_week_warrior"  to (w >= 35),
+            "six_week_champ"     to (w >= 45),
+            "the_dedicated"      to (w >= 55),
+            "the_fanatic"        to (w >= 80),
+            "one_twenty_five"    to (w >= 125),
+            "the_ironclad"       to (w >= 175),
+            "four_centuries"     to (w >= 400),
+            "the_giant"          to (w >= 750),
+            // streak: evocative milestones
+            "six_sense"          to (s >= 6),
+            "eight_days_week"    to (s >= 8),
+            "more_than_a_week"   to (s >= 11),
+            "unlucky_thirteen"   to (s >= 13),
+            "sweet_sixteen"      to (s >= 16),
+            "almost_a_month"     to (s >= 25),
+            "five_weeks_str"     to (s >= 35),
+            "fifty_day_grind"    to (s >= 50),
+            "the_obsessed"       to (s >= 75),
+            "century_challenge"  to (s >= 100),
+            "five_month_miss"    to (s >= 150),
+            // PR: personality names
+            "four_aces"          to (p >= 4),
+            "six_shooter"        to (p >= 6),
+            "the_octopus"        to (p >= 8),
+            "bakers_dozen_pr"    to (p >= 12),
+            "high_score"         to (p >= 20),
+            "forty_records"      to (p >= 40),
+            "sixty_records"      to (p >= 60),
+            "elite_records"      to (p >= 150),
+            "two_hundred_recs"   to (p >= 200),
+            "quarter_k_prs"      to (p >= 250),
+            // levels: titles that feel earned
+            "nine_lives"         to (l >= 9),
+            "one_for_eleven"     to (l >= 11),
+            "battle_hardened"    to (l >= 14),
+            "seventeen_up"       to (l >= 17),
+            "over_the_line"      to (l >= 22),
+            "forty_five_lives"   to (l >= 45),
+            "diamond_level"      to (l >= 60),
+            "the_overlord"       to (l >= 80),
+            "the_transcendent"   to (l >= 90),
+            // XP: evocative names
+            "lucky_xp"           to (xp >= 750),
+            "xp_builder"         to (xp >= 1_500),
+            "xp_rolling"         to (xp >= 3_500),
+            "xp_surge"           to (xp >= 7_500),
+            "xp_overflow"        to (xp >= 15_000),
+            "xp_fountain"        to (xp >= 20_000),
+            "xp_empire"          to (xp >= 35_000),
+            "xp_monument"        to (xp >= 200_000),
+            "xp_colossus"        to (xp >= 300_000),
+            "xp_infinity"        to (xp >= 1_000_000),
         )
         return checks.mapNotNull { (id, condition) ->
             if (!condition) return@mapNotNull null

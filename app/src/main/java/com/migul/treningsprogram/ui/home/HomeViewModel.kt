@@ -2,6 +2,8 @@ package com.migul.treningsprogram.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
+import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
@@ -26,6 +28,7 @@ class HomeViewModel @Inject constructor(
     private val gamificationRepository: GamificationRepository,
     private val dailyChallengeManager: DailyChallengeManager,
     private val gymPresetDao: GymPresetDao,
+    private val bodyMeasurementDao: BodyMeasurementDao,
     val prefs: PreferencesManager
 ) : ViewModel() {
 
@@ -63,6 +66,20 @@ class HomeViewModel @Inject constructor(
 
     private val _challenges = MutableStateFlow<List<DailyChallenge>>(emptyList())
     val challenges: StateFlow<List<DailyChallenge>> = _challenges.asStateFlow()
+
+    val bodyMeasurements: StateFlow<List<BodyMeasurement>> =
+        bodyMeasurementDao.getAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addBodyWeight(weightKg: Float) {
+        viewModelScope.launch {
+            bodyMeasurementDao.insert(BodyMeasurement(dateMs = System.currentTimeMillis(), weightKg = weightKg))
+        }
+    }
+
+    fun deleteBodyMeasurement(m: BodyMeasurement) {
+        viewModelScope.launch { bodyMeasurementDao.delete(m) }
+    }
 
     init {
         viewModelScope.launch { workoutRepository.ensureExercisesPopulated() }

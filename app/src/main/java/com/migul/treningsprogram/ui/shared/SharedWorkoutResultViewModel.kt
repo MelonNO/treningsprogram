@@ -10,10 +10,13 @@ class SharedWorkoutResultViewModel @Inject constructor() : ViewModel() {
 
     private var resultForProgram: WorkoutResult? = null
     private var resultForHome: WorkoutResult? = null
+    var workoutDayOfWeek: Int = 0
+        private set
 
-    fun setResult(result: WorkoutResult) {
+    fun setResult(result: WorkoutResult, dayOfWeek: Int) {
         resultForProgram = result
         resultForHome = result
+        workoutDayOfWeek = dayOfWeek
     }
 
     fun consumeForProgram(): WorkoutResult? = resultForProgram.also { resultForProgram = null }
