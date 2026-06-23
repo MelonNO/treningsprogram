@@ -44,6 +44,29 @@ interface WorkoutSetDao {
     @Query("SELECT COUNT(*) FROM workout_sets WHERE sessionId = :sessionId AND isWarmup = 0")
     suspend fun getWorkingSetCount(sessionId: Long): Int
 
+    /** Heaviest working set for [name] in any completed session strictly before [beforeMs]. */
+    @Query("""
+        SELECT MAX(ws.weightKg) FROM workout_sets ws
+        JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.exerciseName = :name AND ws.isWarmup = 0
+        AND s.isCompleted = 1 AND s.dateMs < :beforeMs
+    """)
+    suspend fun getMaxWeightBefore(name: String, beforeMs: Long): Float?
+
+    /** Sets from the most recent completed session for [name] strictly before [beforeMs]. */
+    @Query("""
+        SELECT * FROM workout_sets
+        WHERE exerciseName = :name AND isWarmup = 0
+        AND sessionId = (
+            SELECT ws2.sessionId FROM workout_sets ws2
+            JOIN workout_sessions s ON ws2.sessionId = s.id
+            WHERE ws2.exerciseName = :name AND s.isCompleted = 1 AND s.dateMs < :beforeMs
+            ORDER BY s.dateMs DESC LIMIT 1
+        )
+        ORDER BY setNumber ASC
+    """)
+    suspend fun getLastSetsForExerciseBefore(name: String, beforeMs: Long): List<WorkoutSet>
+
     @Insert
     suspend fun insert(set: WorkoutSet): Long
 

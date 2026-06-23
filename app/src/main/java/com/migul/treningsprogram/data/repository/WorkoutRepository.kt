@@ -6,10 +6,13 @@ import com.migul.treningsprogram.data.ResolveHints
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
+import com.migul.treningsprogram.domain.model.ExerciseRecap
+import com.migul.treningsprogram.domain.model.SessionRecap
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 @Singleton
 class WorkoutRepository @Inject constructor(
@@ -105,6 +108,11 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getActiveSession(): WorkoutSession? = sessionDao.getActiveSession()
 
+    suspend fun getSessionById(id: Long): WorkoutSession? = sessionDao.getById(id)
+
+    suspend fun getPreviousMaxWeight(exerciseName: String, excludeSessionId: Long): Float? =
+        setDao.getPreviousMaxWeight(exerciseName, excludeSessionId)
+
     fun getSetsForSession(sessionId: Long): Flow<List<WorkoutSet>> =
         setDao.getSetsForSession(sessionId)
 
@@ -147,6 +155,91 @@ class WorkoutRepository @Inject constructor(
         setDao.deleteAll()
         sessionDao.deleteAll()
     }
+
+    /**
+     * Builds the session-scoped recap. Returns null for sessions with no working
+     * sets (consistent with the app's "real workout" threshold).
+     */
+    suspend fun buildSessionRecap(sessionId: Long): SessionRecap? {
+        val session = sessionDao.getById(sessionId) ?: return null
+        val working = setDao.getSetsForSessionOnce(sessionId).filter { !it.isWarmup }
+        if (working.isEmpty()) return null
+
+        val prByName = setDao.getPRsWithDate().associateBy { it.exerciseName }
+
+        // Preserve the order exercises first appeared in the session.
+        val exercises = working
+            .groupBy { it.exerciseName }
+            .map { (name, sets) ->
+                val muscle = sets.firstOrNull { it.muscleGroup.isNotBlank() }?.muscleGroup ?: ""
+                val topWeight = sets.maxOf { it.weightKg }
+                val topReps = sets.filter { it.weightKg == topWeight }.maxOf { it.reps }
+                val volume = sets.sumOf { it.reps.toDouble() * it.weightKg }.toFloat()
+                // Compare only against sessions before this one, so a historical
+                // session shows the PR it earned at the time (not relative to later lifts).
+                val prevMax = setDao.getMaxWeightBefore(name, session.dateMs)
+                val isPr = topWeight > 0f && (prevMax == null || topWeight > prevMax)
+                val lastSets = setDao.getLastSetsForExerciseBefore(name, session.dateMs)
+                val prevTopWeight = lastSets.maxOfOrNull { it.weightKg }
+                val prevTopReps = prevTopWeight?.let { w ->
+                    lastSets.filter { it.weightKg == w }.maxOf { it.reps }
+                }
+                val pr = prByName[name]
+                ExerciseRecap(
+                    exerciseName = name,
+                    muscleGroup = muscle,
+                    isCardio = muscle.equals("Cardio", ignoreCase = true),
+                    sets = sets.size,
+                    topWeightKg = topWeight,
+                    topReps = topReps,
+                    totalReps = sets.sumOf { it.reps },
+                    volumeKg = volume,
+                    prevTopWeightKg = prevTopWeight,
+                    prevTopReps = prevTopReps,
+                    isPrThisSession = isPr,
+                    existingPrWeightKg = pr?.maxWeight,
+                    existingPrDateMs = pr?.dateMs
+                )
+            }
+
+        val focusMuscle = working.filter { it.muscleGroup.isNotBlank() }
+            .groupBy { it.muscleGroup }.maxByOrNull { it.value.size }?.key ?: ""
+        val muscleVolume = working.filter { it.muscleGroup.isNotBlank() }
+            .groupBy { it.muscleGroup }
+            .map { it.key to it.value.size }
+            .sortedByDescending { it.second }
+
+        val effortCounts = working.filter { it.rpeLabel.isNotBlank() }
+            .groupingBy { it.rpeLabel }.eachCount()
+        val effort = listOf("Easy", "Moderate", "Hard")
+            .mapNotNull { lbl -> effortCounts[lbl]?.let { lbl to it } }
+
+        // Adherence — match against the plan for this session's week + day, if any.
+        val planned = plannedDao.getForDayOnce(mondayOf(session.dateMs), dayOfWeekOf(session.dateMs))
+        val plannedSets = if (planned.isEmpty()) null else planned.sumOf { it.sets }
+        val estimatedMinutes = if (planned.isEmpty()) null else {
+            // ~40s of work per set + the prescribed rest after it.
+            val seconds = planned.sumOf { p -> p.sets * (40 + p.recommendedRestSeconds) }
+            (seconds / 60.0).roundToInt()
+        }
+        val performed = working.map { it.exerciseName.lowercase() }.toSet()
+        val skipped = planned.filter { it.exerciseName.lowercase() !in performed }
+            .map { it.exerciseName }
+
+        return SessionRecap(
+            session = session,
+            focusMuscle = focusMuscle,
+            durationMinutes = session.durationMinutes,
+            totalVolumeKg = working.sumOf { it.reps.toDouble() * it.weightKg }.toFloat(),
+            totalSets = working.size,
+            exercises = exercises,
+            muscleVolume = muscleVolume,
+            effort = effort,
+            plannedSets = plannedSets,
+            estimatedMinutes = estimatedMinutes,
+            skippedExercises = skipped
+        )
+    }
 }
 
 fun thisMonday(): Long {
@@ -166,6 +259,36 @@ fun thisMonday(): Long {
 fun currentDayOfWeek(): Int {
     val day = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
     return when (day) {
+        Calendar.MONDAY -> 1
+        Calendar.TUESDAY -> 2
+        Calendar.WEDNESDAY -> 3
+        Calendar.THURSDAY -> 4
+        Calendar.FRIDAY -> 5
+        Calendar.SATURDAY -> 6
+        Calendar.SUNDAY -> 7
+        else -> 1
+    }
+}
+
+/** Monday 00:00 of the week containing [ms]. */
+fun mondayOf(ms: Long): Long {
+    val cal = Calendar.getInstance().apply {
+        firstDayOfWeek = Calendar.MONDAY
+        timeInMillis = ms
+        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    if (cal.timeInMillis > ms) cal.add(Calendar.WEEK_OF_YEAR, -1)
+    return cal.timeInMillis
+}
+
+/** 1 = Monday … 7 = Sunday for the day containing [ms]. */
+fun dayOfWeekOf(ms: Long): Int {
+    val cal = Calendar.getInstance().apply { timeInMillis = ms }
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
         Calendar.MONDAY -> 1
         Calendar.TUESDAY -> 2
         Calendar.WEDNESDAY -> 3

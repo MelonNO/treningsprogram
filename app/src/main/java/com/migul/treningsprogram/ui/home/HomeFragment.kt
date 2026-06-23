@@ -28,6 +28,7 @@ import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.databinding.FragmentHomeBinding
+import com.migul.treningsprogram.ui.history.RecapTargetViewModel
 import com.migul.treningsprogram.domain.model.DailyChallenge
 import com.migul.treningsprogram.domain.model.WorkoutResult
 import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
@@ -58,6 +59,7 @@ class HomeFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: HomeViewModel by viewModels()
     private val sharedResultVm: SharedWorkoutResultViewModel by activityViewModels()
+    private val recapTarget: RecapTargetViewModel by activityViewModels()
     private var xpAnimating = false
     private val bwDateFmt = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
 
@@ -103,11 +105,13 @@ class HomeFragment : Fragment() {
                                 }
                                 completed -> {
                                     binding.btnStartWorkout.isEnabled = true
-                                    binding.btnStartWorkout.text = "View Today's Session"
+                                    binding.btnStartWorkout.text = "View Recap"
                                     binding.tvTodayPlan.text = "Today's session is logged. Great work!"
                                     binding.btnStartWorkout.setOnClickListener {
+                                        // Open the latest session's recap under the Stats tab.
                                         // Navigate by selecting the tab — avoids pushing historyFragment
                                         // onto homeFragment's back stack which desyncs NavigationUI.
+                                        recapTarget.request(null)
                                         requireActivity()
                                             .findViewById<BottomNavigationView>(R.id.bottom_nav)
                                             ?.selectedItemId = R.id.historyFragment

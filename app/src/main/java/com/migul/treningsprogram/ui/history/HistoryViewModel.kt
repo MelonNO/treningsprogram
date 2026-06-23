@@ -60,6 +60,13 @@ class HistoryViewModel @Inject constructor(
         viewModelScope.launch { workoutRepository.deleteSet(set) }
     }
 
+    // ── Recap tab ────────────────────────────────────────────────────────────
+    suspend fun getRecentSessions(count: Int = 30): List<WorkoutSession> =
+        workoutRepository.getRecentSessions(count)
+
+    suspend fun buildRecap(sessionId: Long): com.migul.treningsprogram.domain.model.SessionRecap? =
+        workoutRepository.buildSessionRecap(sessionId)
+
     // ── Progress tab ──────────────────────────────────────────────────────
     val selectedExercise = MutableStateFlow("")
     val timeWindowMonths = MutableStateFlow(0)

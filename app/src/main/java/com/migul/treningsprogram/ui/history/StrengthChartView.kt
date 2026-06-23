@@ -13,6 +13,7 @@ class StrengthChartView @JvmOverloads constructor(
 
     private var entries: List<Entry> = emptyList()
     private var yLabel = "kg"
+    private var highlightDateMs: Long? = null
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#7C67F5")
@@ -41,10 +42,16 @@ class StrengthChartView @JvmOverloads constructor(
         color = Color.parseColor("#8888A8")
         textSize = 36f
     }
+    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#FFD54A")
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+    }
 
-    fun setData(data: List<Entry>, label: String = "kg") {
+    fun setData(data: List<Entry>, label: String = "kg", highlightDateMs: Long? = null) {
         entries = data
         yLabel = label
+        this.highlightDateMs = highlightDateMs
         invalidate()
     }
 
@@ -95,6 +102,12 @@ class StrengthChartView @JvmOverloads constructor(
 
         // dots
         for (e in entries) canvas.drawCircle(x(e.dateMs), y(e.value), 7f, dotPaint)
+
+        // highlight the session's data point (the one nearest the requested date)
+        highlightDateMs?.let { hd ->
+            val target = entries.minByOrNull { kotlin.math.abs(it.dateMs - hd) }
+            if (target != null) canvas.drawCircle(x(target.dateMs), y(target.value), 13f, highlightPaint)
+        }
 
         // axis labels
         textPaint.textAlign = Paint.Align.LEFT

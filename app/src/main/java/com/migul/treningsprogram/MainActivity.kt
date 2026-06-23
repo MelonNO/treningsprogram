@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
             R.id.settingsUnrecognizedFragment to R.id.profileFragment,
             R.id.settingsAboutFragment       to R.id.profileFragment,
             R.id.gymPresetsFragment          to R.id.profileFragment,
+            R.id.recapTrendsFragment         to R.id.historyFragment,
         )
 
         navController.addOnDestinationChangedListener { controller, destination, _ ->

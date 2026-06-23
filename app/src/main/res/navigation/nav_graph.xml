@@ -210,4 +210,19 @@
             app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
+    <fragment
+        android:id="@+id/recapTrendsFragment"
+        android:name="com.migul.treningsprogram.ui.history.RecapTrendsFragment"
+        android:label="Trends"
+        tools:layout="@layout/fragment_recap_trends">
+        <argument
+            android:name="exerciseName"
+            app:argType="string"
+            android:defaultValue="" />
+        <argument
+            android:name="sessionDateMs"
+            app:argType="long"
+            android:defaultValue="0L" />
+    </fragment>
+
 </navigation>

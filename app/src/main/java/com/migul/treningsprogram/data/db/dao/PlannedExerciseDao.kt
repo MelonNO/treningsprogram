@@ -12,6 +12,9 @@ interface PlannedExerciseDao {
     @Query("SELECT * FROM planned_exercises WHERE weekStart = :weekStart AND dayOfWeek = :day ORDER BY orderInDay")
     fun getForDay(weekStart: Long, day: Int): Flow<List<PlannedExercise>>
 
+    @Query("SELECT * FROM planned_exercises WHERE weekStart = :weekStart AND dayOfWeek = :day ORDER BY orderInDay")
+    suspend fun getForDayOnce(weekStart: Long, day: Int): List<PlannedExercise>
+
     @Insert
     suspend fun insertAll(exercises: List<PlannedExercise>)
 

@@ -51,6 +51,7 @@ class LogWorkoutFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: LogWorkoutViewModel by viewModels()
     private val sharedResultVm: SharedWorkoutResultViewModel by activityViewModels()
+    private val recapTarget: com.migul.treningsprogram.ui.history.RecapTargetViewModel by activityViewModels()
     @Inject lateinit var wgerRepository: WgerRepository
     @Inject lateinit var restTimerManager: RestTimerManager
 
@@ -642,8 +643,22 @@ class LogWorkoutFragment : Fragment() {
                 viewModel.clearResult()
                 if (isAdded) startCompletionFlow(result)
             }
+            .setNeutralButton("View full analysis") { _, _ ->
+                viewModel.clearResult()
+                if (isAdded) startAnalysisFlow()
+            }
             .setCancelable(false)
             .show()
+    }
+
+    /** Leaves the log screen and opens the latest session's Recap under the Stats tab. */
+    private fun startAnalysisFlow() {
+        if (!isAdded || _binding == null) return
+        viewModel.clearResult()
+        findNavController().popBackStack()
+        recapTarget.request(null)  // latest session
+        requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
+            ?.selectedItemId = R.id.historyFragment
     }
 
     private fun startCompletionFlow(result: WorkoutResult) {

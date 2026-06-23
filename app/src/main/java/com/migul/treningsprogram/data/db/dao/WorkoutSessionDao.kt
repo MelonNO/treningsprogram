@@ -29,6 +29,9 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions WHERE isCompleted = 0 ORDER BY dateMs DESC LIMIT 1")
     suspend fun getActiveSession(): WorkoutSession?
 
+    @Query("SELECT * FROM workout_sessions WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): WorkoutSession?
+
     @Insert
     suspend fun insert(session: WorkoutSession): Long
 

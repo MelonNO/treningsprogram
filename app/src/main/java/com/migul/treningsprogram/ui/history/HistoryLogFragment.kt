@@ -210,6 +210,10 @@ class HistoryLogFragment : Fragment() {
         outer.addView(btnExpand)
         outer.addView(setsContainer)
         card.addView(outer)
+        // Tapping the card (outside the Show-sets / Edit-date controls) opens the recap.
+        card.setOnClickListener {
+            (requireParentFragment() as? HistoryFragment)?.openRecap(session.id)
+        }
         return card
     }
 
