@@ -30,6 +30,7 @@ import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
+import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
 import com.migul.treningsprogram.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -224,7 +225,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun checkAndAutoGenerateWeeklyPlan() {
-        val thisWeek = java.text.SimpleDateFormat("yyyy-'W'ww", java.util.Locale.getDefault()).format(java.util.Date())
+        val thisWeek = autoGenWeekKey()
         if (prefsManager.lastAutoGenerateWeek == thisWeek) return
         if (prefsManager.apiKey.isBlank()) return
         if (!prefsManager.hasCompletedOnboarding) return  // wait until user completes onboarding

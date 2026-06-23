@@ -29,6 +29,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.CalisthenicsProgressionMap
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
@@ -233,7 +234,9 @@ class LogWorkoutFragment : Fragment() {
                             if (plan.isNotEmpty()) {
                                 val isLast = idx >= plan.size - 1
                                 binding.tvExerciseCounter.text = "Exercise ${idx + 1} / ${plan.size}"
-                                binding.progressSession.progress = idx * 100 / plan.size
+                                // Completion-based: reaching the last exercise fills the bar
+                                // to 100% (was idx/size, which capped at (size-1)/size).
+                                binding.progressSession.progress = (idx + 1) * 100 / plan.size
                                 binding.btnNextExercise.text = if (isLast) "Finish" else "Next"
                                 binding.btnPrevExercise.visibility = if (idx == 0) View.INVISIBLE else View.VISIBLE
                             }
@@ -567,49 +570,16 @@ class LogWorkoutFragment : Fragment() {
         }
     }
 
+    // Badge label + colour for an exercise, via the shared MuscleClassifier so the Log
+    // banner agrees with the Program badges and the muscle group stored on each set.
+    // Keeps this screen's accent-purple fallback for unclassifiable names.
     private fun getMuscleStyle(exerciseName: String): Pair<String, String> {
-        val lower = exerciseName.lowercase()
-        return when {
-            lower.contains("run") || lower.contains("jog") || lower.contains("bike") ||
-            lower.contains("burpee") || lower.contains("interval") || lower.contains("tempo") ||
-            lower.contains("mountain") || lower.contains("high knee") || lower.contains("jump rope") -> "Cardio" to "#00BCD4"
-            lower.contains("bench") || lower.contains("fly") || lower.contains("push") ||
-            lower.contains("chest") -> "Chest" to "#E91E63"
-            lower.contains("pull") || lower.contains("row") || lower.contains("deadlift") ||
-            lower.contains("lat") -> "Back" to "#2196F3"
-            lower.contains("squat") || lower.contains("leg") || lower.contains("lunge") ||
-            lower.contains("calf") || lower.contains("romanian") -> "Legs" to "#4CAF50"
-            lower.contains("shoulder") || lower.contains("lateral") || lower.contains("face pull") ||
-            lower.contains("overhead") -> "Shoulders" to "#9C27B0"
-            lower.contains("curl") || lower.contains("tricep") || lower.contains("hammer") ||
-            lower.contains("skull") || lower.contains("pushdown") -> "Arms" to "#FF5722"
-            lower.contains("plank") || lower.contains("crunch") || lower.contains("russian") ||
-            lower.contains("ab") || lower.contains("core") -> "Core" to "#FF9800"
-            else -> "Training" to "#7C67F5"
-        }
+        val group = getMuscleGroupName(exerciseName)
+        return group to MuscleClassifier.colorFor(group, fallbackColor = "#7C67F5")
     }
 
-    private fun getMuscleGroupName(exerciseName: String): String {
-        val lower = exerciseName.lowercase()
-        return when {
-            lower.contains("run") || lower.contains("jog") || lower.contains("bike") ||
-            lower.contains("burpee") || lower.contains("interval") || lower.contains("tempo") ||
-            lower.contains("mountain") || lower.contains("high knee") || lower.contains("jump rope") -> "Cardio"
-            lower.contains("bench") || lower.contains("fly") || lower.contains("push") ||
-            lower.contains("chest") -> "Chest"
-            lower.contains("pull") || lower.contains("row") || lower.contains("deadlift") ||
-            lower.contains("lat") -> "Back"
-            lower.contains("squat") || lower.contains("leg") || lower.contains("lunge") ||
-            lower.contains("calf") || lower.contains("romanian") -> "Legs"
-            lower.contains("shoulder") || lower.contains("lateral") || lower.contains("face pull") ||
-            lower.contains("overhead") -> "Shoulders"
-            lower.contains("curl") || lower.contains("tricep") || lower.contains("hammer") ||
-            lower.contains("skull") || lower.contains("pushdown") -> "Arms"
-            lower.contains("plank") || lower.contains("crunch") || lower.contains("russian") ||
-            lower.contains("ab") || lower.contains("core") -> "Core"
-            else -> "Training"
-        }
-    }
+    private fun getMuscleGroupName(exerciseName: String): String =
+        MuscleClassifier.displayName(exerciseName)
 
     private fun showRestTimer(seconds: Int, exerciseName: String = "") {
         if (!restTimerManager.isRunning.value) {

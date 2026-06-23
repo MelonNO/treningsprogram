@@ -17,6 +17,7 @@ import com.migul.treningsprogram.data.repository.ExportRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.db.AppDatabase
+import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -233,7 +234,7 @@ class SettingsViewModel @Inject constructor(
             )
             result.onSuccess { generationResult ->
                 workoutRepository.savePlan(thisMonday(), generationResult.exercises)
-                prefs.lastAutoGenerateWeek = java.text.SimpleDateFormat("yyyy-'W'ww", java.util.Locale.getDefault()).format(java.util.Date())
+                prefs.lastAutoGenerateWeek = autoGenWeekKey()
                 prefs.lastGenerationAttemptCount = generationResult.attemptCount
                 _lastAttemptCount.value = generationResult.attemptCount
                 _retryLog.value = capturedReasons.mapIndexed { i, r -> RetryEntry(i + 1, r, false) }

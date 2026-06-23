@@ -23,6 +23,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.repository.WgerRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
@@ -401,36 +402,17 @@ class ProgramFragment : Fragment() {
         }
     }
 
-    private fun getMuscleGroup(name: String): String {
-        val lower = name.lowercase()
-        return when {
-            lower.containsAny("run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill", "burpee", "mountain climber", "high knee", "jump rope", "tempo", "interval run") -> "Cardio"
-            lower.containsAny("bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip") -> "Chest"
-            // Legs before Back so "Romanian Deadlift", "Back Squat", "Stiff-Leg Deadlift" etc resolve correctly
-            lower.containsAny("squat", "leg press", "lunge", "calf", "hamstring", "quad", "romanian", "rdl", "glute", "hip thrust", "leg curl", "leg extension", "hip hinge", "step up", "step-up", "box jump", "split squat", "wall sit", "sumo") -> "Legs"
-            lower.containsAny("row", "pulldown", "pull-up", "pullup", "chin-up", "chinup", "lat ", "deadlift", "shrug", "back") -> "Back"
-            lower.containsAny("shoulder", "overhead", "lateral raise", "face pull", "delt", "military") -> "Shoulders"
-            lower.containsAny("curl", "tricep", "bicep", "arm") -> "Arms"
-            lower.containsAny("plank", "crunch", "ab ", "abs", "core", "sit-up", "sit up", "russian", "leg raise") -> "Core"
-            else -> "Training"
-        }
-    }
+    // Muscle classification is centralised in MuscleClassifier (shared with the Log screen
+    // and the set-write path) so badges, day-type detection, and stored muscle groups all
+    // agree. "" → "Training" for display; the neutral fallback colour stays this screen's.
+    private fun getMuscleGroup(name: String): String =
+        MuscleClassifier.displayName(name)
 
-    private fun getMuscleStyle(group: String): Pair<String, String> = when (group) {
-        "Cardio"    -> "Cardio" to "#00BCD4"
-        "Chest"     -> "Chest" to "#E91E63"
-        "Back"      -> "Back" to "#2196F3"
-        "Legs"      -> "Legs" to "#4CAF50"
-        "Shoulders" -> "Shoulders" to "#9C27B0"
-        "Arms"      -> "Arms" to "#FF5722"
-        "Core"      -> "Core" to "#FF9800"
-        else        -> "Training" to "#607D8B"
-    }
+    private fun getMuscleStyle(group: String): Pair<String, String> =
+        group to MuscleClassifier.colorFor(group, fallbackColor = "#607D8B")
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
-
-    private fun String.containsAny(vararg keywords: String) = keywords.any { this.contains(it) }
 
     private fun parseCardioSeconds(targetReps: String): Int {
         // "30 min" → 1800, "5km" → 1500 (@ 5min/km), "6×400m" → fallback 30 min

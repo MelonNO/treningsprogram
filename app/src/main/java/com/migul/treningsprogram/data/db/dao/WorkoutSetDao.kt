@@ -92,10 +92,10 @@ interface WorkoutSetDao {
     """)
     suspend fun getTopPersonalRecords(): List<ExercisePr>
 
-    @Query("SELECT COALESCE(SUM(CAST(reps AS REAL) * weightKg), 0.0) FROM workout_sets")
+    @Query("SELECT COALESCE(SUM(CAST(reps AS REAL) * weightKg), 0.0) FROM workout_sets WHERE isWarmup = 0")
     suspend fun getTotalVolumeKg(): Float
 
-    @Query("SELECT COUNT(*) FROM workout_sets")
+    @Query("SELECT COUNT(*) FROM workout_sets WHERE isWarmup = 0")
     suspend fun getTotalSets(): Int
 
     @Query("SELECT DISTINCT exerciseName FROM workout_sets ORDER BY exerciseName ASC")
@@ -104,7 +104,7 @@ interface WorkoutSetDao {
     @Query("""
         SELECT s.dateMs AS dateMs, MAX(ws.weightKg) AS maxWeight, ws.reps AS bestReps
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.weightKg > 0
+        WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.weightKg > 0 AND ws.isWarmup = 0
         GROUP BY ws.sessionId ORDER BY s.dateMs ASC
     """)
     suspend fun getStrengthHistory(name: String): List<StrengthPoint>
@@ -119,7 +119,7 @@ interface WorkoutSetDao {
 
     @Query("""
         SELECT muscleGroup, COUNT(*) AS totalSets FROM workout_sets
-        WHERE muscleGroup != '' GROUP BY muscleGroup ORDER BY totalSets DESC
+        WHERE muscleGroup != '' AND isWarmup = 0 GROUP BY muscleGroup ORDER BY totalSets DESC
     """)
     suspend fun getMuscleGroupVolume(): List<MuscleVolume>
 
@@ -127,7 +127,7 @@ interface WorkoutSetDao {
         SELECT CASE WHEN CAST(reps AS INTEGER) <= 5 THEN 'Heavy (1-5)'
                     WHEN CAST(reps AS INTEGER) <= 12 THEN 'Moderate (6-12)'
                     ELSE 'Light (13+)' END AS label,
-               COUNT(*) AS setCount FROM workout_sets GROUP BY label
+               COUNT(*) AS setCount FROM workout_sets WHERE isWarmup = 0 GROUP BY label
     """)
     suspend fun getRepRangeDistribution(): List<RepRange>
 

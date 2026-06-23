@@ -2,6 +2,7 @@ package com.migul.treningsprogram.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -334,6 +335,17 @@ class LogWorkoutViewModel @Inject constructor(
 
     val isLastExercise: Boolean get() = _currentIndex.value >= _guidedPlan.value.size - 1
 
+    /**
+     * Resolves the muscle group to STORE on a [WorkoutSet]. Exact match against the
+     * bundled library wins (authoritative); otherwise fall back to name-based
+     * classification so swapped progression variants and custom "Add anyway" exercises
+     * — none of which are in DEFAULT_EXERCISES — still get a real group instead of "".
+     * A blank result is acceptable (genuinely unclassifiable name).
+     */
+    private fun resolveMuscleGroup(exerciseName: String): String =
+        AppDatabase.DEFAULT_EXERCISES.find { it.name == exerciseName }?.muscleGroup
+            ?: MuscleClassifier.fromName(exerciseName)
+
     fun logSet(weight: Float, reps: Int, isWarmup: Boolean, rpeLabel: String) {
         val sid = _sessionId.value ?: return
         val exercise = currentExercise.value ?: return
@@ -343,8 +355,7 @@ class LogWorkoutViewModel @Inject constructor(
                 WorkoutSet(
                     sessionId = sid,
                     exerciseName = exercise.exerciseName,
-                    muscleGroup = AppDatabase.DEFAULT_EXERCISES
-                        .find { it.name == exercise.exerciseName }?.muscleGroup ?: "",
+                    muscleGroup = resolveMuscleGroup(exercise.exerciseName),
                     setNumber = existingSets.size + 1,
                     reps = reps,
                     weightKg = weight,
@@ -360,12 +371,11 @@ class LogWorkoutViewModel @Inject constructor(
         val sid = _sessionId.value ?: return
         viewModelScope.launch {
             val existingSets = sets.value.filter { it.exerciseName == exerciseName }
-            val muscleGroup = AppDatabase.DEFAULT_EXERCISES.find { it.name == exerciseName }?.muscleGroup ?: ""
             workoutRepository.addSet(
                 WorkoutSet(
                     sessionId = sid,
                     exerciseName = exerciseName,
-                    muscleGroup = muscleGroup,
+                    muscleGroup = resolveMuscleGroup(exerciseName),
                     setNumber = existingSets.size + 1,
                     reps = reps,
                     weightKg = weight,
@@ -382,7 +392,8 @@ class LogWorkoutViewModel @Inject constructor(
         viewModelScope.launch {
             val existingSets = sets.value.filter { it.exerciseName == exerciseName }
             workoutRepository.addSet(WorkoutSet(
-                sessionId = sid, exerciseName = exerciseName, muscleGroup = muscleGroup,
+                sessionId = sid, exerciseName = exerciseName,
+                muscleGroup = muscleGroup.ifBlank { resolveMuscleGroup(exerciseName) },
                 setNumber = existingSets.size + 1, reps = reps, weightKg = weightKg,
                 loggedAtMs = System.currentTimeMillis()
             ))

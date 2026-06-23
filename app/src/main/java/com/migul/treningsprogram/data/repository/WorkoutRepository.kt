@@ -289,6 +289,15 @@ fun thisMonday(): Long {
     return cal.timeInMillis
 }
 
+/**
+ * Locale-independent key identifying the current training week, used to mark when the
+ * weekly plan was last auto-generated. Derived from [thisMonday] (the same Monday the
+ * plan itself is keyed on) rather than `SimpleDateFormat("yyyy-'W'ww")`, whose week
+ * numbering depends on the device's locale (first-day-of-week / min-days-in-first-week)
+ * and so could shift the boundary between users. Format: "wk-<epochMillisOfMonday>".
+ */
+fun autoGenWeekKey(): String = "wk-${thisMonday()}"
+
 fun currentDayOfWeek(): Int {
     val day = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
     return when (day) {

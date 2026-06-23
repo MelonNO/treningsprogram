@@ -9,6 +9,7 @@ import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
+import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +17,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -104,7 +102,7 @@ class SetupWizardViewModel @Inject constructor(
                 onProgress = { _generationStatus.value = it }
             ).onSuccess { result ->
                 workoutRepository.savePlan(thisMonday(), result.exercises)
-                prefs.lastAutoGenerateWeek = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(Date())
+                prefs.lastAutoGenerateWeek = autoGenWeekKey()
                 prefs.lastGenerationAttemptCount = result.attemptCount
                 prefs.hasCompletedOnboarding = true
                 _attemptCount.value = result.attemptCount

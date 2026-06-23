@@ -31,11 +31,10 @@ class DailyChallengeManager @Inject constructor(
             ChallengeTemplate("exercises_3",      "Variety Pack",  "Log 3+ different exercises",         75),
             ChallengeTemplate("exercises_5",      "Full Body",     "Log 5+ different exercises",        100),
         )
-        private val WEEK_FMT = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault())
     }
 
     fun getTodayChallenges(): List<DailyChallenge> {
-        val thisWeek = WEEK_FMT.format(Date())
+        val thisWeek = isoWeekKey()
         val stored = preferencesManager.dailyChallengesJson
         if (stored.isNotEmpty()) {
             runCatching {
@@ -52,7 +51,7 @@ class DailyChallengeManager @Inject constructor(
     }
 
     fun completeChallenges(sets: List<WorkoutSet>, hasPr: Boolean): List<DailyChallenge> {
-        val thisWeek = WEEK_FMT.format(Date())
+        val thisWeek = isoWeekKey()
         val current = getTodayChallenges()
         val muscleGroups = sets.map { it.muscleGroup }.toSet()
         val exerciseNames = sets.map { it.exerciseName }.toSet()
@@ -85,3 +84,18 @@ class DailyChallengeManager @Inject constructor(
         preferencesManager.dailyChallengesJson = gson.toJson(DailyChallengesState(weekKey, challenges))
     }
 }
+
+/**
+ * Locale-independent ISO-week key (e.g. "2026-W26") scoping the weekly challenge rotation.
+ *
+ * Uses Locale.ROOT with explicit Monday-first / minimal-4-days-in-first-week rules so the key
+ * — and the RNG seed derived from it — is identical regardless of the device locale, and always
+ * uses Latin digits. For Monday-first / ISO locales this is byte-identical to the previous
+ * default-locale "yyyy-'W'ww" formatting, so existing stored keys still match and challenges do
+ * not re-roll on upgrade. (Same locale bug as autoGenWeekKey, on the separate challenge key.)
+ */
+fun isoWeekKey(date: Date = Date()): String =
+    SimpleDateFormat("yyyy-'W'ww", Locale.ROOT).apply {
+        calendar.firstDayOfWeek = Calendar.MONDAY
+        calendar.minimalDaysInFirstWeek = 4
+    }.format(date)

@@ -41,6 +41,11 @@ class ProfileViewModel @Inject constructor(
                         levelTitle = GamificationRepository.levelTitle(stats?.level ?: 1)
                     )
                 }
+                // Volume/sets/top-PR tiles are derived from logged sets. Re-query them
+                // whenever stats change (a completed workout always bumps UserStats) so
+                // returning to Profile after a session shows fresh totals instead of the
+                // values captured once at first construction.
+                refreshSetTotals()
             }
         }
         viewModelScope.launch {
@@ -48,11 +53,14 @@ class ProfileViewModel @Inject constructor(
                 _state.update { it.copy(achievements = list) }
             }
         }
-        viewModelScope.launch {
-            val vol = workoutSetDao.getTotalVolumeKg()
-            val sets = workoutSetDao.getTotalSets()
-            val prs = workoutSetDao.getTopPersonalRecords()
-            _state.update { it.copy(totalVolumeKg = vol, totalSets = sets, topPrs = prs) }
-        }
+        // Initial load so the tiles populate even before the first userStats emission.
+        viewModelScope.launch { refreshSetTotals() }
+    }
+
+    private suspend fun refreshSetTotals() {
+        val vol = workoutSetDao.getTotalVolumeKg()
+        val sets = workoutSetDao.getTotalSets()
+        val prs = workoutSetDao.getTopPersonalRecords()
+        _state.update { it.copy(totalVolumeKg = vol, totalSets = sets, topPrs = prs) }
     }
 }
