@@ -1,9 +1,17 @@
 package com.migul.treningsprogram
 
 import android.Manifest
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -11,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
+import com.google.android.material.snackbar.Snackbar
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
@@ -30,6 +39,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
+
+    private var updateDownloadId: Long = -1L
+    private var downloadReceiver: BroadcastReceiver? = null
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -79,7 +91,8 @@ class MainActivity : AppCompatActivity() {
             val isFullScreen = destination.id == R.id.setupWizardFragment
             val isTopLevel = destination.id in topLevelIds
             val hasSelfHeader = destination.id in selfHeaderIds
-            binding.bottomNav.visibility = if (isFullScreen) android.view.View.GONE else android.view.View.VISIBLE
+            val hideNav = isFullScreen || destination.id == R.id.logWorkoutFragment
+            binding.bottomNav.visibility = if (hideNav) android.view.View.GONE else android.view.View.VISIBLE
             // Show in-screen header with back button for non-tab destinations
             if (isTopLevel || isFullScreen || hasSelfHeader) {
                 binding.screenHeader.visibility = android.view.View.GONE
@@ -114,6 +127,63 @@ class MainActivity : AppCompatActivity() {
             gamificationRepository.ensureAchievementsSeeded()
             checkAndAutoGenerateWeeklyPlan()
         }
+
+        lifecycleScope.launch {
+            val release = UpdateChecker.fetchLatest()
+            val currentVersion = try {
+                packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
+            } catch (_: Exception) { "0" }
+            if (release != null && UpdateChecker.isNewer(release.tag, currentVersion)) {
+                showUpdateSnackbar(release)
+            }
+        }
+    }
+
+    private fun showUpdateSnackbar(release: UpdateChecker.ReleaseInfo) {
+        Snackbar.make(binding.root, "Update ${release.tag} available", Snackbar.LENGTH_INDEFINITE)
+            .setAction("Download & Install") { downloadAndInstall(release) }
+            .show()
+    }
+
+    private fun downloadAndInstall(release: UpdateChecker.ReleaseInfo) {
+        val fileName = "treningsprogram-${release.tag}.apk"
+        val request = DownloadManager.Request(Uri.parse(release.apkUrl))
+            .setTitle("Treningsprogram ${release.tag}")
+            .setDescription("Downloading update…")
+            .setMimeType("application/vnd.android.package-archive")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+
+        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        updateDownloadId = dm.enqueue(request)
+        Toast.makeText(this, "Downloading ${release.tag}…", Toast.LENGTH_SHORT).show()
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                if (id != updateDownloadId) return
+                val apkUri = dm.getUriForDownloadedFile(id) ?: return
+                startActivity(Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(apkUri, "application/vnd.android.package-archive")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                })
+                unregisterReceiver(this)
+                downloadReceiver = null
+            }
+        }
+        downloadReceiver = receiver
+        @Suppress("UnspecifiedRegisterReceiverFlag")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        downloadReceiver?.let { unregisterReceiver(it) }
     }
 
     private suspend fun checkAndAutoGenerateWeeklyPlan() {

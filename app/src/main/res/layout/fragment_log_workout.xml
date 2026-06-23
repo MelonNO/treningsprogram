@@ -4,7 +4,7 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="?android:attr/colorBackground">
 
-    <!-- Header bar: counter + elapsed + progress -->
+    <!-- Header bar: counter + elapsed + pause button + progress -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
         android:paddingTop="12dp" android:paddingBottom="8dp">
@@ -18,7 +18,16 @@
             <TextView android:id="@+id/tv_elapsed"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:layout_marginEnd="4dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_pause_workout"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="36dp" android:layout_height="36dp"
+                android:text="✕"
+                android:textSize="16sp"
+                android:minWidth="0dp"
+                android:paddingStart="0dp" android:paddingEnd="0dp" />
         </LinearLayout>
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progress_session"
@@ -40,114 +49,142 @@
                 app:strokeColor="?attr/colorOutlineVariant">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="16dp">
-                    <!-- name row -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:gravity="center_vertical"
-                        android:layout_marginBottom="12dp">
-                        <TextView android:id="@+id/tv_muscle_badge"
-                            android:layout_width="wrap_content" android:layout_height="44dp"
-                            android:minWidth="44dp"
-                            android:paddingStart="8dp" android:paddingEnd="8dp"
-                            android:gravity="center" android:textSize="9sp" android:textStyle="bold"
-                            android:background="@drawable/bg_achievement_icon"
-                            android:layout_marginEnd="12dp" />
-                        <TextView android:id="@+id/tv_exercise_name"
-                            android:layout_width="0dp" android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface" />
-                    </LinearLayout>
-                    <!-- exercise image / muscle banner fallback -->
-                    <FrameLayout
-                        android:id="@+id/layout_muscle_banner"
-                        android:layout_width="match_parent"
-                        android:layout_height="210dp"
-                        android:layout_marginBottom="12dp"
-                        android:background="#1C1C2A"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackground">
-                        <TextView
-                            android:id="@+id/tv_muscle_banner_label"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:letterSpacing="0.1"
-                            android:textColor="?attr/colorOnSurface" />
-                        <ImageView
-                            android:id="@+id/iv_exercise_image"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:scaleType="centerCrop"
-                            android:visibility="gone"
-                            android:contentDescription="Exercise image" />
-                        <TextView
-                            android:id="@+id/tv_image_expand_hint"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="bottom|end"
-                            android:layout_margin="8dp"
-                            android:padding="4dp"
-                            android:text="⛶"
-                            android:textSize="18sp"
-                            android:textColor="#AAFFFFFF"
-                            android:background="#44000000"
-                            android:visibility="gone" />
-                    </FrameLayout>
-                    <!-- target chips row -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:layout_marginBottom="6dp">
-                        <TextView android:id="@+id/chip_target_sets"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginEnd="8dp"
-                            android:paddingStart="10dp" android:paddingEnd="10dp"
-                            android:paddingTop="4dp" android:paddingBottom="4dp"
-                            android:textSize="12sp" android:textStyle="bold"
-                            android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
-                        <TextView android:id="@+id/chip_target_reps"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginEnd="8dp"
-                            android:paddingStart="10dp" android:paddingEnd="10dp"
-                            android:paddingTop="4dp" android:paddingBottom="4dp"
-                            android:textSize="12sp" android:textStyle="bold"
-                            android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
-                        <TextView android:id="@+id/chip_target_weight"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:paddingStart="10dp" android:paddingEnd="10dp"
-                            android:paddingTop="4dp" android:paddingBottom="4dp"
-                            android:textSize="12sp" android:textStyle="bold"
-                            android:textColor="?attr/colorOnSurfaceVariant" android:background="@drawable/bg_spec_chip" />
-                    </LinearLayout>
-                    <!-- per-exercise elapsed timer -->
-                    <TextView android:id="@+id/tv_exercise_time"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:layout_marginTop="6dp" />
 
-                    <!-- last session reference -->
-                    <TextView android:id="@+id/tv_last_session"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="#8888A8" android:visibility="gone" />
-                    <!-- Freestyle exercise name input (hidden in guided mode) -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/til_freestyle_exercise"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:hint="Exercise name"
-                        android:visibility="gone"
-                        android:layout_marginTop="8dp"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/et_freestyle_exercise"
-                            android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:inputType="textCapWords|textNoSuggestions"
-                            android:imeOptions="actionDone"
-                            android:privateImeOptions="nm" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    <!-- Main row: info on left, thumbnail on right -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="top"
+                        android:layout_marginBottom="10dp">
+
+                        <!-- Left column: name, chips, timers, last session, freestyle -->
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:orientation="vertical"
+                            android:layout_marginEnd="12dp">
+
+                            <!-- name row -->
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="horizontal" android:gravity="center_vertical"
+                                android:layout_marginBottom="10dp">
+                                <TextView android:id="@+id/tv_muscle_badge"
+                                    android:layout_width="wrap_content" android:layout_height="44dp"
+                                    android:minWidth="44dp"
+                                    android:paddingStart="8dp" android:paddingEnd="8dp"
+                                    android:gravity="center" android:textSize="9sp" android:textStyle="bold"
+                                    android:background="@drawable/bg_achievement_icon"
+                                    android:layout_marginEnd="12dp" />
+                                <TextView android:id="@+id/tv_exercise_name"
+                                    android:layout_width="0dp" android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                                    android:textColor="?attr/colorOnSurface" />
+                            </LinearLayout>
+
+                            <!-- target chips row -->
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="horizontal" android:layout_marginBottom="6dp">
+                                <TextView android:id="@+id/chip_target_sets"
+                                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:layout_marginEnd="8dp"
+                                    android:paddingStart="10dp" android:paddingEnd="10dp"
+                                    android:paddingTop="4dp" android:paddingBottom="4dp"
+                                    android:textSize="12sp" android:textStyle="bold"
+                                    android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
+                                <TextView android:id="@+id/chip_target_reps"
+                                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:layout_marginEnd="8dp"
+                                    android:paddingStart="10dp" android:paddingEnd="10dp"
+                                    android:paddingTop="4dp" android:paddingBottom="4dp"
+                                    android:textSize="12sp" android:textStyle="bold"
+                                    android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
+                                <TextView android:id="@+id/chip_target_weight"
+                                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:paddingStart="10dp" android:paddingEnd="10dp"
+                                    android:paddingTop="4dp" android:paddingBottom="4dp"
+                                    android:textSize="12sp" android:textStyle="bold"
+                                    android:textColor="?attr/colorOnSurfaceVariant" android:background="@drawable/bg_spec_chip" />
+                            </LinearLayout>
+
+                            <!-- per-exercise elapsed timer -->
+                            <TextView android:id="@+id/tv_exercise_time"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+
+                            <!-- last session reference -->
+                            <TextView android:id="@+id/tv_last_session"
+                                android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="#8888A8" android:visibility="gone" />
+
+                            <!-- Freestyle exercise name input (hidden in guided mode) -->
+                            <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/til_freestyle_exercise"
+                                android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:hint="Exercise name"
+                                android:visibility="gone"
+                                android:layout_marginTop="8dp"
+                                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/et_freestyle_exercise"
+                                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                                    android:inputType="textCapWords|textNoSuggestions"
+                                    android:imeOptions="actionDone"
+                                    android:privateImeOptions="nm" />
+                            </com.google.android.material.textfield.TextInputLayout>
+
+                        </LinearLayout>
+
+                        <!-- Right: thumbnail (tap to view full screen with dimmed background) -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="88dp"
+                            android:layout_height="100dp"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeWidth="1dp"
+                            app:strokeColor="?attr/colorOutlineVariant">
+                            <FrameLayout
+                                android:id="@+id/layout_muscle_banner"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="#1C1C2A"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:foreground="?attr/selectableItemBackground">
+                                <TextView
+                                    android:id="@+id/tv_muscle_banner_label"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="center"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.05"
+                                    android:gravity="center"
+                                    android:padding="4dp"
+                                    android:textColor="?attr/colorOnSurface" />
+                                <ImageView
+                                    android:id="@+id/iv_exercise_image"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:scaleType="centerCrop"
+                                    android:visibility="gone"
+                                    android:contentDescription="Exercise image" />
+                                <TextView
+                                    android:id="@+id/tv_image_expand_hint"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="bottom|end"
+                                    android:layout_margin="4dp"
+                                    android:padding="2dp"
+                                    android:text="⛶"
+                                    android:textSize="11sp"
+                                    android:textColor="#AAFFFFFF"
+                                    android:background="#44000000"
+                                    android:visibility="gone" />
+                            </FrameLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                    </LinearLayout>
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -160,7 +197,7 @@
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="16dp">
 
-                    <!-- top row: warmup toggle + plate calc -->
+                    <!-- top row: warmup toggle -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:gravity="center_vertical"
                         android:layout_marginBottom="14dp">
@@ -321,48 +358,10 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- challenge card removed from workout screen -->
-
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Persistent rest timer recall bar -->
-    <LinearLayout
-        android:id="@+id/view_timer_recall_bar"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#1A1030"
-        android:clickable="true"
-        android:focusable="true"
-        android:foreground="?attr/selectableItemBackground">
-        <View
-            android:layout_width="3dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="14dp"
-            android:layout_marginEnd="12dp"
-            android:background="#7C67F5" />
-        <TextView
-            android:id="@+id/tv_timer_bar_label"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Rest Timer"
-            android:textSize="14sp"
-            android:textColor="#A498D8" />
-        <TextView
-            android:id="@+id/tv_timer_bar_countdown"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="#9D8EFF"
-            android:paddingEnd="16dp"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- Bottom navigation bar -->
+    <!-- Bottom action bar: navigation + timer button -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:gravity="center_vertical"
         android:paddingStart="12dp" android:paddingEnd="12dp"
@@ -381,6 +380,15 @@
             android:text="Skip"
             android:textSize="13sp" android:textColor="?attr/colorOnSurfaceVariant" />
         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_timer_recall"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content" android:layout_height="36dp"
+            android:text="⏱"
+            android:textSize="14sp"
+            android:minWidth="0dp"
+            android:paddingStart="14dp" android:paddingEnd="14dp"
+            android:layout_marginEnd="8dp" />
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_next_exercise"
             style="@style/Widget.Material3.Button.OutlinedButton"

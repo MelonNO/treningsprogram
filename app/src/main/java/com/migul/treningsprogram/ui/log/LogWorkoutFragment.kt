@@ -6,9 +6,7 @@ import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.GestureDetector
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -35,9 +33,11 @@ import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.repository.WgerRepository
+import com.migul.treningsprogram.databinding.DialogWorkoutResultBinding
 import com.migul.treningsprogram.databinding.FragmentLogWorkoutBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.migul.treningsprogram.domain.model.WorkoutResult
+import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.combine
@@ -151,20 +151,8 @@ class LogWorkoutFragment : Fragment() {
             showRestTimer(restSecs, exerciseName)
         }
 
-        // Persistent recall bar — tap or swipe-up to start or re-open rest timer (Bug 02)
-        val timerBarDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent) = true
-            override fun onSingleTapUp(e: MotionEvent): Boolean {
-                openTimerRecall(); return true
-            }
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                if (e1 != null && (e1.y - e2.y) > 80 && velocityY < -300) {
-                    openTimerRecall(); return true
-                }
-                return false
-            }
-        })
-        binding.viewTimerRecallBar.setOnTouchListener { _, event -> timerBarDetector.onTouchEvent(event) }
+        binding.btnTimerRecall.setOnClickListener { openTimerRecall() }
+        binding.btnPauseWorkout.setOnClickListener { showPauseDialog() }
 
         // Navigation
         binding.btnPrevExercise.setOnClickListener {
@@ -283,22 +271,19 @@ class LogWorkoutFragment : Fragment() {
                 }
                 launch {
                     viewModel.workoutResult.collect { result ->
-                        result?.let { startCompletionFlow(it) }
+                        result?.let { showResultDialog(it) }
                     }
                 }
 
-                // Update persistent recall bar (Bug 02)
+                // Update timer button in bottom bar
                 launch {
                     combine(restTimerManager.isRunning, restTimerManager.remainingMs) { running, ms -> running to ms }
                         .collect { (running, ms) ->
                             if (running) {
                                 val secs = (ms / 1000).toInt()
-                                binding.tvTimerBarLabel.text = "Resting — tap to view"
-                                binding.tvTimerBarCountdown.text = "%d:%02d".format(secs / 60, secs % 60)
-                                binding.tvTimerBarCountdown.visibility = View.VISIBLE
+                                binding.btnTimerRecall.text = "⏱ %d:%02d".format(secs / 60, secs % 60)
                             } else {
-                                binding.tvTimerBarLabel.text = "Rest Timer"
-                                binding.tvTimerBarCountdown.visibility = View.GONE
+                                binding.btnTimerRecall.text = "⏱"
                             }
                         }
                 }
@@ -465,18 +450,18 @@ class LogWorkoutFragment : Fragment() {
     }
 
     private fun showFullScreenImage(dbId: String) {
-        val dialog = Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val dialog = Dialog(requireContext(), android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
 
+        val margin = dpToPx(32)
         val imageView = ImageView(requireContext()).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setBackgroundColor(Color.BLACK)
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
-            )
+            ).also { it.setMargins(margin, margin * 2, margin, margin * 2) }
         }
         val container = FrameLayout(requireContext()).apply {
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(Color.parseColor("#CC000000"))
             addView(imageView)
         }
 
@@ -613,10 +598,51 @@ class LogWorkoutFragment : Fragment() {
         }
     }
 
+    private fun showResultDialog(result: WorkoutResult) {
+        if (!isAdded || _binding == null) return
+        val dialogBinding = DialogWorkoutResultBinding.inflate(layoutInflater)
+        dialogBinding.tvLevel.text = "L${result.level}"
+        dialogBinding.tvXpEarned.text = "+${result.xpEarned} XP"
+        dialogBinding.progressXp.progress = (result.levelProgress * 100).toInt()
+        dialogBinding.tvXpToNext.text = "${result.xpToNextLevel} XP to Level ${result.level + 1}"
+        if (result.didLevelUp) dialogBinding.tvLevelUp.visibility = View.VISIBLE
+        val streakEmoji = when {
+            result.currentStreak >= 7 -> "🔥🔥"
+            result.currentStreak >= 3 -> "🔥"
+            else                      -> "📅"
+        }
+        dialogBinding.tvStreak.text = "$streakEmoji ${result.currentStreak}-day streak"
+        val volumeStr = if (result.totalVolumeKg > 0f) "  •  ${result.totalVolumeKg.toInt()} kg volume" else ""
+        dialogBinding.tvSessionSummary.text =
+            "${result.exerciseCount} exercises  •  ${result.setsLogged} sets$volumeStr"
+        if (result.personalRecords.isNotEmpty()) {
+            dialogBinding.cardPrs.visibility = View.VISIBLE
+            dialogBinding.tvPrs.text = result.personalRecords.joinToString("\n") { "• $it" }
+        }
+        val bonusLines = buildList {
+            result.newAchievements.forEach { add("${it.emoji} ${it.name} — ${it.description}") }
+            result.completedChallenges.forEach { add("🎯 ${it.name} challenge! +${it.bonusXp} XP") }
+        }
+        if (bonusLines.isNotEmpty()) {
+            dialogBinding.cardAchievements.visibility = View.VISIBLE
+            dialogBinding.tvAchievements.text = bonusLines.joinToString("\n")
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Workout Complete!")
+            .setView(dialogBinding.root)
+            .setPositiveButton("Awesome!") { _, _ ->
+                viewModel.clearResult()
+                if (isAdded) startCompletionFlow(result)
+            }
+            .setCancelable(false)
+            .show()
+    }
+
     private fun startCompletionFlow(result: WorkoutResult) {
         if (!isAdded || _binding == null) return
         viewModel.clearResult()
-        sharedResultVm.setResult(result)
+        val day = viewModel.workoutDayOfWeek.let { if (it > 0) it else currentDayOfWeek() }
+        sharedResultVm.setResult(result, day)
         val prevDestId = findNavController().previousBackStackEntry?.destination?.id
         // Pop logWorkoutFragment so it doesn't persist in any tab's back stack
         findNavController().popBackStack()
@@ -655,6 +681,21 @@ class LogWorkoutFragment : Fragment() {
                 viewModel.swapCurrentExercise(exercise, chosen)
             }
             .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showPauseDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Pause Workout")
+            .setPositiveButton("Resume", null)
+            .setNegativeButton("Abandon") { _, _ ->
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Abandon Workout?")
+                    .setMessage("This session will be discarded.")
+                    .setPositiveButton("Yes, abandon") { _, _ -> viewModel.abandonSession() }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
             .show()
     }
 

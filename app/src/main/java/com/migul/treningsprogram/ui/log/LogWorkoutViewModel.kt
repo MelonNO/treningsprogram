@@ -31,6 +31,7 @@ class LogWorkoutViewModel @Inject constructor(
     private val _sessionId = MutableStateFlow<Long?>(null)
     private val _sessionStartMs = MutableStateFlow(0L)
     private val _dayOfWeek = MutableStateFlow(0)
+    val workoutDayOfWeek: Int get() = _dayOfWeek.value
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val sets: StateFlow<List<WorkoutSet>> = _sessionId
@@ -268,6 +269,14 @@ class LogWorkoutViewModel @Inject constructor(
     }
 
     fun clearResult() { _workoutResult.value = null }
+
+    fun abandonSession() {
+        val sid = _sessionId.value ?: return
+        viewModelScope.launch {
+            workoutRepository.deleteSession(sid)
+            _sessionAbandoned.value = true
+        }
+    }
 
     suspend fun getLastSets(exerciseName: String): List<WorkoutSet> =
         workoutRepository.getLastSetsForExercise(exerciseName, _sessionId.value ?: -1)
