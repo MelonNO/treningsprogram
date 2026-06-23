@@ -22,6 +22,20 @@ data class ExerciseRecap(
     val existingPrDateMs: Long?
 )
 
+/**
+ * Pacing derived from per-set log timestamps. Only the gaps *between* logged sets
+ * are measurable from a single timestamp per set — a gap contains both the rest
+ * and the next set's work, so this models rest/idle, not a true work split.
+ */
+data class SessionPacing(
+    val gapCount: Int,            // number of between-set intervals measured
+    val avgRestSeconds: Int,      // mean of the normal-rest gaps
+    val targetRestSeconds: Int?,  // prescribed rest from the plan, or null if unknown
+    val restSeconds: Int,         // total between-set time within the idle ceiling
+    val idleSeconds: Int,         // total time spent in long pauses (over the ceiling)
+    val longPauseCount: Int       // how many gaps exceeded the idle ceiling
+)
+
 /** Everything the session-scoped Recap screen needs for one session. */
 data class SessionRecap(
     val session: WorkoutSession,
@@ -34,5 +48,6 @@ data class SessionRecap(
     val effort: List<Pair<String, Int>>,         // Easy/Moderate/Hard (ordered) -> count
     val plannedSets: Int?,                        // null = no plan for this day
     val estimatedMinutes: Int?,                   // null = no plan for this day
-    val skippedExercises: List<String>           // planned but not performed
+    val skippedExercises: List<String>,          // planned but not performed
+    val pacing: SessionPacing?                    // null = too few timestamped sets to measure
 )

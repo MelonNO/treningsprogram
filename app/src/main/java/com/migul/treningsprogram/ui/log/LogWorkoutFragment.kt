@@ -155,6 +155,11 @@ class LogWorkoutFragment : Fragment() {
         binding.btnTimerRecall.setOnClickListener { openTimerRecall() }
         binding.btnPauseWorkout.setOnClickListener { showPauseDialog() }
 
+        // Item 6 — tap the "Exercise X / Y" progress bar to open the quick-access menu
+        val openQuickAccess = View.OnClickListener { if (!freestyleMode) showQuickAccessMenu() }
+        binding.tvExerciseCounter.setOnClickListener(openQuickAccess)
+        binding.progressSession.setOnClickListener(openQuickAccess)
+
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,
             object : androidx.activity.OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
@@ -172,10 +177,6 @@ class LogWorkoutFragment : Fragment() {
         binding.btnPrevExercise.setOnClickListener {
             saveCurrentValues()
             viewModel.previousExercise()
-        }
-        binding.btnSkipExercise.setOnClickListener {
-            saveCurrentValues()
-            viewModel.skipExercise()
         }
         binding.btnNextExercise.setOnClickListener {
             if (freestyleMode || viewModel.isLastExercise) {
@@ -212,7 +213,6 @@ class LogWorkoutFragment : Fragment() {
                                 binding.progressSession.visibility = View.GONE
                                 binding.btnNextExercise.text = "Complete"
                                 binding.btnPrevExercise.visibility = View.GONE
-                                binding.btnSkipExercise.visibility = View.GONE
                                 binding.tilFreestyleExercise.visibility = View.VISIBLE
                                 binding.tvExerciseName.text = "Log any exercise"
                                 binding.chipTargetSets.visibility = View.GONE
@@ -223,7 +223,6 @@ class LogWorkoutFragment : Fragment() {
                                 binding.tilFreestyleExercise.visibility = View.GONE
                                 binding.progressSession.visibility = View.VISIBLE
                                 binding.btnPrevExercise.visibility = View.VISIBLE
-                                binding.btnSkipExercise.visibility = View.VISIBLE
                             }
                         }
                 }
@@ -237,7 +236,6 @@ class LogWorkoutFragment : Fragment() {
                                 binding.progressSession.progress = idx * 100 / plan.size
                                 binding.btnNextExercise.text = if (isLast) "Finish" else "Next"
                                 binding.btnPrevExercise.visibility = if (idx == 0) View.INVISIBLE else View.VISIBLE
-                                binding.btnSkipExercise.visibility = if (isLast) View.INVISIBLE else View.VISIBLE
                             }
                         }
                 }
@@ -311,8 +309,9 @@ class LogWorkoutFragment : Fragment() {
         // Issue 11 — tap name to see instructions
         binding.tvExerciseName.setOnClickListener {
             if (isAdded) {
-                ExerciseInfoBottomSheet.newInstance(exercise.exerciseName, exercise.exerciseDbId)
-                    .show(childFragmentManager, "exercise_info")
+                ExerciseInfoBottomSheet.newInstance(
+                    exercise.exerciseName, exercise.exerciseDbId, exercise.notes
+                ).show(childFragmentManager, "exercise_info")
             }
         }
 
@@ -349,14 +348,24 @@ class LogWorkoutFragment : Fragment() {
             swapButton = btn
         }
 
-        binding.chipTargetSets.visibility = View.VISIBLE
-        binding.chipTargetReps.visibility = View.VISIBLE
-        binding.chipTargetWeight.visibility = View.VISIBLE
-        binding.chipTargetSets.text = "${exercise.sets} sets"
-        val isCardio = exercise.targetWeightKg == 0f &&
-            (exercise.targetReps.contains("min", ignoreCase = true) || exercise.targetReps.contains("km") || exercise.targetReps.contains("×"))
-        binding.chipTargetReps.text = if (isCardio) exercise.targetReps else "${exercise.targetReps} reps"
-        binding.chipTargetWeight.text = if (exercise.targetWeightKg > 0f) "${formatWeight(exercise.targetWeightKg)}kg" else "BW"
+        // Added / custom exercises (Item 6) carry no AI target: sets == 0 and no target reps.
+        // Show a single "Log freely" chip instead of empty "0 sets /  reps" prescriptions.
+        val hasAiTarget = exercise.sets > 0 || exercise.targetReps.isNotBlank()
+        if (hasAiTarget) {
+            binding.chipTargetSets.visibility = View.VISIBLE
+            binding.chipTargetReps.visibility = View.VISIBLE
+            binding.chipTargetWeight.visibility = View.VISIBLE
+            binding.chipTargetSets.text = "${exercise.sets} sets"
+            val isCardio = exercise.targetWeightKg == 0f &&
+                (exercise.targetReps.contains("min", ignoreCase = true) || exercise.targetReps.contains("km") || exercise.targetReps.contains("×"))
+            binding.chipTargetReps.text = if (isCardio) exercise.targetReps else "${exercise.targetReps} reps"
+            binding.chipTargetWeight.text = if (exercise.targetWeightKg > 0f) "${formatWeight(exercise.targetWeightKg)}kg" else "BW"
+        } else {
+            binding.chipTargetSets.visibility = View.VISIBLE
+            binding.chipTargetReps.visibility = View.GONE
+            binding.chipTargetWeight.visibility = View.GONE
+            binding.chipTargetSets.text = "Log freely"
+        }
 
         val (badge, color) = getMuscleStyle(exercise.exerciseName)
         binding.tvMuscleBadge.text = badge
@@ -707,6 +716,125 @@ class LogWorkoutFragment : Fragment() {
             .show()
     }
 
+    // ---- Item 6: quick-access exercise menu ----------------------------------------
+
+    private fun showQuickAccessMenu() {
+        val plan = viewModel.guidedPlan.value
+        if (plan.isEmpty()) return
+        val currentIdx = viewModel.currentIndex.value
+        val finished = viewModel.loggedExerciseNames()
+        val rows = plan.mapIndexed { idx, ex ->
+            val status = when {
+                idx == currentIdx -> QuickAccessBottomSheet.Status.CURRENT
+                ex.exerciseName in finished -> QuickAccessBottomSheet.Status.FINISHED
+                else -> QuickAccessBottomSheet.Status.UPCOMING
+            }
+            QuickAccessBottomSheet.Row(ex.exerciseName, status, idx)
+        }
+        val sheet = QuickAccessBottomSheet().apply {
+            this.rows = rows
+            onJump = { targetIdx ->
+                // Save typed values first, then jump. Jumping to a finished exercise behaves
+                // like Back to it (its logged sets show and can be edited) — nothing is lost.
+                saveCurrentValues()
+                viewModel.jumpToExercise(targetIdx)
+            }
+            onAddExercise = { showAddExerciseDialog() }
+        }
+        sheet.show(childFragmentManager, "quick_access")
+    }
+
+    private fun showAddExerciseDialog() {
+        val ctx = requireContext()
+        val density = resources.displayMetrics.density
+        val pad = (16 * density).toInt()
+
+        val input = com.google.android.material.textfield.TextInputEditText(ctx).apply {
+            hint = "Search exercises"
+            setSingleLine()
+        }
+        val til = com.google.android.material.textfield.TextInputLayout(ctx).apply {
+            addView(input)
+        }
+        val resultsContainer = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val scroll = androidx.core.widget.NestedScrollView(ctx).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (260 * density).toInt()
+            )
+            addView(resultsContainer)
+        }
+        val root = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, (8 * density).toInt(), pad, 0)
+            addView(til)
+            addView(scroll)
+        }
+
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle("Add exercise")
+            .setView(root)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        fun renderResults(query: String) {
+            resultsContainer.removeAllViews()
+            val q = query.trim()
+            viewLifecycleOwner.lifecycleScope.launch {
+                val matches = if (q.isBlank()) emptyList() else viewModel.searchLocalExercises(q)
+                if (!isAdded) return@launch
+                resultsContainer.removeAllViews()
+                matches.forEach { ex ->
+                    resultsContainer.addView(TextView(ctx).apply {
+                        text = ex.name
+                        textSize = 16f
+                        val v = (12 * density).toInt()
+                        setPadding((4 * density).toInt(), v, (4 * density).toInt(), v)
+                        isClickable = true
+                        setBackgroundResource(selectableItemBg())
+                        setOnClickListener {
+                            viewModel.addExerciseAfterCurrent(ex.name, ex.exerciseDbId, ex.muscleGroup)
+                            dialog.dismiss()
+                        }
+                    })
+                }
+                // "Add anyway" — create a custom, loggable exercise (no DB info, no AI target)
+                if (q.isNotBlank()) {
+                    resultsContainer.addView(TextView(ctx).apply {
+                        text = "Add anyway: \"$q\"  (custom exercise)"
+                        textSize = 15f
+                        setTextColor(Color.parseColor("#7C67F5"))
+                        val v = (12 * density).toInt()
+                        setPadding((4 * density).toInt(), v, (4 * density).toInt(), v)
+                        isClickable = true
+                        setBackgroundResource(selectableItemBg())
+                        setOnClickListener {
+                            viewModel.addExerciseAfterCurrent(q, null, "")
+                            dialog.dismiss()
+                        }
+                    })
+                }
+            }
+        }
+
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { renderResults(s?.toString() ?: "") }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+
+        dialog.show()
+    }
+
+    private fun selectableItemBg(): Int {
+        val outValue = android.util.TypedValue()
+        requireContext().theme.resolveAttribute(
+            android.R.attr.selectableItemBackground, outValue, true
+        )
+        return outValue.resourceId
+    }
+
     private fun showPauseDialog() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Pause Workout")
@@ -732,6 +860,13 @@ class LogWorkoutFragment : Fragment() {
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    override fun onPause() {
+        super.onPause()
+        // Capture whatever the user has typed so a process kill mid-workout doesn't
+        // revert it to AI suggestions on resume. Persists via the ViewModel's draft store.
+        if (_binding != null && !freestyleMode) saveCurrentValues()
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()

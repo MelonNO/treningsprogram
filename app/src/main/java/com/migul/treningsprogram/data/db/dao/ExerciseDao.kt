@@ -18,6 +18,13 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE resolvedAt = 0")
     suspend fun getUnresolved(): List<Exercise>
 
+    /** Local-DB exercise search for the quick-access "Add exercise" picker. */
+    @Query("SELECT * FROM exercises WHERE name LIKE '%' || :query || '%' ORDER BY name LIMIT 50")
+    suspend fun searchByName(query: String): List<Exercise>
+
+    @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
+    suspend fun findByName(name: String): Exercise?
+
     @Query("UPDATE exercises SET exerciseDbId = :dbId, matchConfidence = :confidence, matchSource = :source, resolvedAt = :resolvedAt WHERE name = :name")
     suspend fun bindByName(name: String, dbId: String?, confidence: Float, source: String, resolvedAt: Long)
 }

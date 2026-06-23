@@ -373,12 +373,6 @@
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Back"
             android:textSize="13sp" />
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_skip_exercise"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Skip"
-            android:textSize="13sp" android:textColor="?attr/colorOnSurfaceVariant" />
         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_timer_recall"

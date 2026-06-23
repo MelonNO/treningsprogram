@@ -19,7 +19,7 @@ import com.migul.treningsprogram.data.db.entity.*
         GymPreset::class,
         BodyMeasurement::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -119,6 +119,12 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE exercises ADD COLUMN matchConfidence REAL NOT NULL DEFAULT -1")
                 db.execSQL("ALTER TABLE exercises ADD COLUMN matchSource TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE exercises ADD COLUMN resolvedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workout_sets ADD COLUMN loggedAtMs INTEGER NOT NULL DEFAULT 0")
             }
         }
 

@@ -101,8 +101,10 @@ class GamificationRepository @Inject constructor(
             .groupBy { it.exerciseName }
             .mapValues { (_, s) -> s.maxOf { it.weightKg } }
             .filter { (name, currentMax) ->
-                val prevMax = workoutSetDao.getPreviousMaxWeight(name, sessionId) ?: 0f
-                currentMax > prevMax
+                // null = no prior performance → this is the baseline, NOT a PR.
+                // Do NOT coerce null to 0f: a first-ever lift must never count as a PR.
+                val prevMax = workoutSetDao.getPreviousMaxWeight(name, sessionId)
+                isWeightPr(currentMax, prevMax)
             }
             .keys.toList()
 
@@ -358,6 +360,14 @@ class GamificationRepository @Inject constructor(
     }
 
     companion object {
+        /**
+         * A heaviest-weight PR is awarded ONLY when a real prior performance is beaten.
+         * The first-ever performance ([previousMax] == null) establishes the baseline
+         * and is never itself a PR. Equalling or going below the previous max is not a PR.
+         */
+        fun isWeightPr(currentMax: Float, previousMax: Float?): Boolean =
+            previousMax != null && currentMax > previousMax
+
         fun xpToLevel(xp: Int): Int = floor(sqrt(xp / 200.0)).toInt() + 1
 
         fun xpForLevel(level: Int): Int = ((level - 1) * (level - 1)) * 200

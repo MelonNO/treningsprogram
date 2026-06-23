@@ -101,6 +101,17 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_SKIPPED_UPDATE_VERSION, "") ?: ""
         set(value) { prefs.edit().putString(KEY_SKIPPED_UPDATE_VERSION, value).apply() }
 
+    /**
+     * In-progress set-entry drafts for the active workout, as a raw JSON string keyed by
+     * session id. Lets the values the user typed into the weight/reps fields (but hasn't
+     * logged yet) survive a full process kill, so resuming restores them instead of
+     * reverting to AI suggestions. Stored per-session so an old session's draft never
+     * bleeds into a new one; cleared when the session completes/abandons.
+     */
+    var workoutDraftJson: String
+        get() = prefs.getString(KEY_WORKOUT_DRAFT, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_WORKOUT_DRAFT, value).apply() }
+
     fun clearAll() {
         prefs.edit().clear().apply()
     }
@@ -124,5 +135,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_PRIORITY_MUSCLES = "priority_muscles"
         private const val KEY_DISLIKED_EXERCISES = "disliked_exercises"
         private const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"
+        private const val KEY_WORKOUT_DRAFT = "workout_inprogress_draft"
     }
 }

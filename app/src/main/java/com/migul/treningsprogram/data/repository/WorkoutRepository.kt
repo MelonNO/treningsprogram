@@ -7,6 +7,7 @@ import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
 import com.migul.treningsprogram.domain.model.ExerciseRecap
+import com.migul.treningsprogram.domain.model.SessionPacing
 import com.migul.treningsprogram.domain.model.SessionRecap
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
@@ -51,6 +52,12 @@ class WorkoutRepository @Inject constructor(
     suspend fun getTotalSets(): Int = setDao.getTotalSets()
 
     suspend fun getTotalVolumeKg(): Float = setDao.getTotalVolumeKg()
+
+    /** Local-DB exercise search for the quick-access "Add exercise" picker (Item 6). */
+    suspend fun searchExercises(query: String): List<Exercise> =
+        if (query.isBlank()) emptyList() else exerciseDao.searchByName(query.trim())
+
+    suspend fun findExerciseByName(name: String): Exercise? = exerciseDao.findByName(name)
 
     suspend fun ensureExercisesPopulated() {
         if (exerciseDao.count() == 0) {
@@ -178,7 +185,8 @@ class WorkoutRepository @Inject constructor(
                 // Compare only against sessions before this one, so a historical
                 // session shows the PR it earned at the time (not relative to later lifts).
                 val prevMax = setDao.getMaxWeightBefore(name, session.dateMs)
-                val isPr = topWeight > 0f && (prevMax == null || topWeight > prevMax)
+                // First-ever performance (prevMax == null) is the baseline, never a PR.
+                val isPr = topWeight > 0f && GamificationRepository.isWeightPr(topWeight, prevMax)
                 val lastSets = setDao.getLastSetsForExerciseBefore(name, session.dateMs)
                 val prevTopWeight = lastSets.maxOfOrNull { it.weightKg }
                 val prevTopReps = prevTopWeight?.let { w ->
@@ -226,6 +234,30 @@ class WorkoutRepository @Inject constructor(
         val skipped = planned.filter { it.exerciseName.lowercase() !in performed }
             .map { it.exerciseName }
 
+        // Pacing — measurable only from the gaps between timestamped sets.
+        val stamped = working.filter { it.loggedAtMs > 0 }.sortedBy { it.loggedAtMs }
+        val pacing = if (stamped.size < 2) null else {
+            val idleCeiling = 300  // seconds; a gap longer than 5 min counts the excess as idle
+            val gaps = stamped.zipWithNext { a, b -> ((b.loggedAtMs - a.loggedAtMs) / 1000L).toInt() }
+                .filter { it > 0 }
+            if (gaps.isEmpty()) null else {
+                val restSecs = gaps.sumOf { minOf(it, idleCeiling) }
+                val idleSecs = gaps.sumOf { maxOf(0, it - idleCeiling) }
+                val normalGaps = gaps.filter { it <= idleCeiling }
+                val avgRest = (if (normalGaps.isNotEmpty()) normalGaps.average() else gaps.average()).roundToInt()
+                val targetRest = if (planned.isEmpty()) null
+                    else planned.map { it.recommendedRestSeconds }.average().roundToInt()
+                SessionPacing(
+                    gapCount = gaps.size,
+                    avgRestSeconds = avgRest,
+                    targetRestSeconds = targetRest,
+                    restSeconds = restSecs,
+                    idleSeconds = idleSecs,
+                    longPauseCount = gaps.count { it > idleCeiling }
+                )
+            }
+        }
+
         return SessionRecap(
             session = session,
             focusMuscle = focusMuscle,
@@ -237,7 +269,8 @@ class WorkoutRepository @Inject constructor(
             effort = effort,
             plannedSets = plannedSets,
             estimatedMinutes = estimatedMinutes,
-            skippedExercises = skipped
+            skippedExercises = skipped,
+            pacing = pacing
         )
     }
 }

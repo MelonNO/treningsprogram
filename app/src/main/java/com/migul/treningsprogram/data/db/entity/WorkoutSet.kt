@@ -26,5 +26,6 @@ data class WorkoutSet(
     val reps: Int,
     val weightKg: Float,
     val isWarmup: Boolean = false,
-    val rpeLabel: String = ""
+    val rpeLabel: String = "",
+    val loggedAtMs: Long = 0L   // wall-clock time the set was logged; 0 = legacy/unknown
 )

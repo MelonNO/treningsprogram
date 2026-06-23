@@ -119,6 +119,7 @@ class HistoryRecapFragment : Fragment() {
             buildEffort(recap)
             buildAdherence(recap)
             buildDuration(recap)
+            buildPacing(recap)
             buildTotals(recap)
         }
     }
@@ -314,6 +315,73 @@ class HistoryRecapFragment : Fragment() {
         binding.layoutRecap.addView(card)
     }
 
+    private fun buildPacing(r: SessionRecap) {
+        val p = r.pacing ?: return
+        val card = card()
+        val col = cardColumn(card)
+        col.addView(sectionTitle("Rest & pacing"))
+
+        // Rest adherence — neutral framing, never red.
+        val restLine = if (p.targetRestSeconds != null) {
+            "Avg rest ${fmtDur(p.avgRestSeconds)}  ·  target ~${fmtDur(p.targetRestSeconds)}"
+        } else {
+            "Avg rest ${fmtDur(p.avgRestSeconds)} between sets"
+        }
+        col.addView(TextView(requireContext()).apply {
+            text = restLine
+            textSize = 14f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(onSurface())
+        })
+        if (p.targetRestSeconds != null) {
+            val diff = p.avgRestSeconds - p.targetRestSeconds
+            val tol = 20
+            val (verdict, color) = when {
+                kotlin.math.abs(diff) <= tol -> "On target" to up
+                diff > 0 -> "Resting ${fmtDur(diff)} longer than prescribed" to neutral
+                else -> "Resting ${fmtDur(-diff)} shorter than prescribed" to neutral
+            }
+            col.addView(TextView(requireContext()).apply {
+                text = verdict
+                textSize = 12f
+                setTextColor(color)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(2) }
+            })
+        }
+
+        // Measured between-set time split into rest vs long pauses (idle).
+        val totalGap = p.restSeconds + p.idleSeconds
+        if (totalGap > 0 && p.idleSeconds > 0) {
+            val bar = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(10)
+                ).apply { topMargin = dp(10) }
+            }
+            bar.addView(View(requireContext()).apply {
+                setBackgroundColor(accent)
+                layoutParams = LinearLayout.LayoutParams(0, dp(10), p.restSeconds.toFloat())
+            })
+            bar.addView(View(requireContext()).apply {
+                setBackgroundColor(neutral)
+                layoutParams = LinearLayout.LayoutParams(0, dp(10), p.idleSeconds.toFloat())
+            })
+            col.addView(bar)
+            col.addView(mutedText("Rest ${fmtDur(p.restSeconds)}  ·  idle ${fmtDur(p.idleSeconds)} in ${p.longPauseCount} long pause${if (p.longPauseCount == 1) "" else "s"}").apply {
+                textSize = 12f
+                (layoutParams as LinearLayout.LayoutParams).topMargin = dp(4)
+            })
+        }
+
+        col.addView(mutedText("Between-set time includes the next set's work, so this reflects pacing — not effort.").apply {
+            textSize = 11f
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        })
+        binding.layoutRecap.addView(card)
+    }
+
     private fun buildTotals(r: SessionRecap) {
         val card = card()
         val col = cardColumn(card)
@@ -388,6 +456,13 @@ class HistoryRecapFragment : Fragment() {
 
     private fun fmt(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    /** Seconds → "M:SS" (under an hour) or "Hh Mm". */
+    private fun fmtDur(seconds: Int): String {
+        val s = seconds.coerceAtLeast(0)
+        return if (s < 3600) "%d:%02d".format(s / 60, s % 60)
+        else "%dh %dm".format(s / 3600, (s % 3600) / 60)
+    }
 
     private fun relativeTime(ms: Long): String {
         val days = ((System.currentTimeMillis() - ms) / 86_400_000L).toInt()

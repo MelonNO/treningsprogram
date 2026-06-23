@@ -20,11 +20,17 @@ import com.migul.treningsprogram.data.ExerciseCatalog
 class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
 
     companion object {
-        fun newInstance(exerciseName: String, dbId: String? = null) =
+        /**
+         * [aiNote] is the AI's short, exercise-specific explanation (PlannedExercise.notes).
+         * When present it is shown as a distinct "Coach's note" section above the DB info
+         * (Item 5). Defaults to null so callers that have no AI note are unaffected.
+         */
+        fun newInstance(exerciseName: String, dbId: String? = null, aiNote: String? = null) =
             ExerciseInfoBottomSheet().apply {
                 arguments = Bundle().also {
                     it.putString("name", exerciseName)
                     it.putString("dbId", dbId)
+                    it.putString("aiNote", aiNote)
                 }
             }
     }
@@ -54,6 +60,7 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
 
         val name    = arguments?.getString("name") ?: ""
         val dbId    = arguments?.getString("dbId")
+        val aiNote  = arguments?.getString("aiNote")?.trim().orEmpty()
         val dbEntry = dbId?.let { ExerciseCatalog.getDbEntry(it) }
         val staticEntry = ExerciseCatalog.getEntry(name)
 
@@ -103,6 +110,26 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
             setTypeface(null, Typeface.BOLD)
             setPadding(0, 0, 0, smallPad)
         })
+
+        // Item 5 — the AI's short, exercise-specific note, shown alongside the DB info.
+        // Distinguished from the DB content by a labelled, accent-coloured block. Surfaced
+        // in every branch below (including the no-DB-match case) since it sits above them.
+        if (aiNote.isNotBlank()) {
+            layout.addView(TextView(requireContext()).apply {
+                text = "Coach's note"
+                textSize = 13f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(0xFF7C67F5.toInt())
+                setPadding(0, 0, 0, (2 * density).toInt())
+            })
+            layout.addView(TextView(requireContext()).apply {
+                text = aiNote
+                textSize = 15f
+                setLineSpacing(0f, 1.35f)
+                setPadding(0, 0, 0, smallPad)
+            })
+            layout.addView(divider(density, medPad))
+        }
 
         when {
             dbEntry != null -> {
