@@ -11,6 +11,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -19,7 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
-import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
@@ -134,16 +137,48 @@ class MainActivity : AppCompatActivity() {
             val currentVersion = try {
                 packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
             } catch (_: Exception) { "0" }
-            if (release != null && UpdateChecker.isNewer(release.tag, currentVersion)) {
-                showUpdateSnackbar(release)
+            if (release != null &&
+                UpdateChecker.isNewer(release.tag, currentVersion) &&
+                release.tag != prefsManager.skippedUpdateVersion
+            ) {
+                showUpdateDialog(release, currentVersion)
             }
         }
     }
 
-    private fun showUpdateSnackbar(release: UpdateChecker.ReleaseInfo) {
-        Snackbar.make(binding.root, "Update ${release.tag} available", Snackbar.LENGTH_INDEFINITE)
-            .setAction("Download & Install") { downloadAndInstall(release) }
-            .show()
+    private fun showUpdateDialog(release: UpdateChecker.ReleaseInfo, currentVersion: String) {
+        val view = layoutInflater.inflate(R.layout.dialog_update_prompt, null)
+
+        view.findViewById<TextView>(R.id.tv_update_dialog_version).text =
+            "v$currentVersion  →  ${release.tag}"
+
+        if (release.notes.isNotBlank()) {
+            view.findViewById<View>(R.id.card_update_notes).visibility = View.VISIBLE
+            view.findViewById<TextView>(R.id.tv_update_dialog_notes).text = release.notes.trim()
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .setCancelable(false)
+            .create()
+
+        view.findViewById<View>(R.id.btn_update_download).setOnClickListener {
+            dialog.dismiss()
+            downloadAndInstall(release)
+        }
+        view.findViewById<View>(R.id.btn_update_later).setOnClickListener {
+            dialog.dismiss()
+        }
+        view.findViewById<View>(R.id.btn_update_skip).setOnClickListener {
+            prefsManager.skippedUpdateVersion = release.tag
+            dialog.dismiss()
+        }
+
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT
+        )
     }
 
     private fun downloadAndInstall(release: UpdateChecker.ReleaseInfo) {

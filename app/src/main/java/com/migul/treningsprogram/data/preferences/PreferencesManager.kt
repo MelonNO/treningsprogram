@@ -97,6 +97,10 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_DISLIKED_EXERCISES, "") ?: ""
         set(value) { prefs.edit().putString(KEY_DISLIKED_EXERCISES, value).apply() }
 
+    var skippedUpdateVersion: String
+        get() = prefs.getString(KEY_SKIPPED_UPDATE_VERSION, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_SKIPPED_UPDATE_VERSION, value).apply() }
+
     fun clearAll() {
         prefs.edit().clear().apply()
     }
@@ -119,5 +123,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_INJURIES = "injuries"
         private const val KEY_PRIORITY_MUSCLES = "priority_muscles"
         private const val KEY_DISLIKED_EXERCISES = "disliked_exercises"
+        private const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"
     }
 }

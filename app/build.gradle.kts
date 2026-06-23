@@ -21,8 +21,8 @@ android {
         applicationId = "com.migul.treningsprogram"
         minSdk = 26
         targetSdk = 34
-        versionCode = 26
-        versionName = "1.5.15"
+        versionCode = 27
+        versionName = "1.5.16"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
