@@ -56,6 +56,14 @@ class WorkoutRepository @Inject constructor(
     fun observeLastTrainedPerMuscleGroup(): Flow<List<MuscleLastTrained>> =
         setDao.observeLastTrainedPerMuscleGroup()
 
+    /**
+     * Live stream of all (exerciseName, sessionId, sessionDateMs) rows from working sets
+     * in completed sessions. Used by the weighted recovery model (U1) to derive fine-grain
+     * per-muscle recovery from MuscleClassifier.finerMusclesFor.
+     */
+    fun observeExerciseSessionRows(): Flow<List<ExerciseSessionRow>> =
+        setDao.observeExerciseSessionRows()
+
     suspend fun getRepRangeDistribution(): List<RepRange> = setDao.getRepRangeDistribution()
 
     suspend fun getTrainingDayEpochs(): List<Long> = setDao.getTrainingDayEpochs()
