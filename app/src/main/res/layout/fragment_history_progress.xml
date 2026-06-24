@@ -189,8 +189,16 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Personal Records"
+                    android:text="PR history (estimated 1RM)"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Working sets only · Epley formula"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="12dp" />
 
                 <LinearLayout

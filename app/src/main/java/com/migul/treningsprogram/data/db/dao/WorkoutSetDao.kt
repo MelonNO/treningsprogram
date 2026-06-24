@@ -126,7 +126,7 @@ interface WorkoutSetDao {
     @Query("""
         SELECT (s.dateMs / 604800000 * 604800000) AS weekStart, COUNT(*) AS totalSets
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.exerciseName = :name AND s.isCompleted = 1
+        WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.isWarmup = 0
         GROUP BY weekStart ORDER BY weekStart ASC
     """)
     suspend fun getWeeklyVolume(name: String): List<WeekVolume>
@@ -177,7 +177,7 @@ interface WorkoutSetDao {
     @Query("""
         SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight, s.dateMs AS dateMs
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.weightKg > 0 AND s.isCompleted = 1
+        WHERE ws.weightKg > 0 AND ws.isWarmup = 0 AND s.isCompleted = 1
         GROUP BY ws.exerciseName ORDER BY maxWeight DESC
     """)
     suspend fun getPRsWithDate(): List<ExercisePrWithDate>
@@ -185,7 +185,7 @@ interface WorkoutSetDao {
     @Query("""
         SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight, s.dateMs AS dateMs
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.weightKg > 0 AND s.isCompleted = 1
+        WHERE ws.weightKg > 0 AND ws.isWarmup = 0 AND s.isCompleted = 1
         GROUP BY ws.exerciseName ORDER BY maxWeight DESC
     """)
     fun observePRsWithDate(): Flow<List<ExercisePrWithDate>>

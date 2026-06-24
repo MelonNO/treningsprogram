@@ -91,10 +91,6 @@ class HistoryViewModel @Inject constructor(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val prs: StateFlow<List<ExercisePrWithDate>> =
-        workoutRepository.observePRsWithDate()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     /**
      * Stalled lifts surfaced on the Progress tab (feature B3). A lift is stalled when its estimated
      * 1RM has not improved across the last [com.migul.treningsprogram.domain.StallDetector.STALL_WINDOW]
