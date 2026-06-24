@@ -17,9 +17,11 @@ import com.migul.treningsprogram.data.db.entity.*
         UserStats::class,
         Achievement::class,
         GymPreset::class,
-        BodyMeasurement::class
+        BodyMeasurement::class,
+        WeeklySummary::class,
+        Program::class
     ],
-    version = 10,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +33,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun achievementDao(): AchievementDao
     abstract fun gymPresetDao(): GymPresetDao
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
+    abstract fun weeklySummaryDao(): WeeklySummaryDao
+    abstract fun programDao(): ProgramDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -125,6 +129,59 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE workout_sets ADD COLUMN loggedAtMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // B2: persist the model's "why did the program change?" rationale with the saved plan.
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE planned_exercises ADD COLUMN rationale TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        // B1: persisted scrollable history of automatic weekly coaching summaries.
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `weekly_summaries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `weekKey` TEXT NOT NULL,
+                        `createdAtMs` INTEGER NOT NULL,
+                        `summaryText` TEXT NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
+        // E2: named, switchable programs + periodized mesocycle state. Adds the `programs` table
+        // and scopes plans to a program via planned_exercises.programId. Backfill: create ONE
+        // default active program and stamp every existing plan row with its id, so no existing
+        // plan data is orphaned and a single-program user gets a sensible default (no block).
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `programs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `createdAtMs` INTEGER NOT NULL,
+                        `isActive` INTEGER NOT NULL DEFAULT 0,
+                        `mesocycleWeeks` INTEGER NOT NULL DEFAULT 0,
+                        `blockStartWeek` INTEGER NOT NULL DEFAULT 0,
+                        `isDeloadActive` INTEGER NOT NULL DEFAULT 0,
+                        `isFrozen` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                // Nullable column so the entity default (null) and Room's expected schema agree.
+                db.execSQL("ALTER TABLE planned_exercises ADD COLUMN programId INTEGER")
+                // Seed exactly one active default program and adopt all existing plans into it.
+                db.execSQL(
+                    "INSERT INTO programs (name, createdAtMs, isActive, mesocycleWeeks, blockStartWeek, isDeloadActive, isFrozen) " +
+                        "VALUES ('My Program', ${System.currentTimeMillis()}, 1, 0, 0, 0, 0)"
+                )
+                db.execSQL(
+                    "UPDATE planned_exercises SET programId = (SELECT id FROM programs WHERE isActive = 1 LIMIT 1) " +
+                        "WHERE programId IS NULL"
+                )
             }
         }
 

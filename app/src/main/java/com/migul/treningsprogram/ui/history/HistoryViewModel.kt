@@ -95,6 +95,27 @@ class HistoryViewModel @Inject constructor(
         workoutRepository.observePRsWithDate()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * Stalled lifts surfaced on the Progress tab (feature B3). A lift is stalled when its estimated
+     * 1RM has not improved across the last [com.migul.treningsprogram.domain.StallDetector.STALL_WINDOW]
+     * consecutive sessions (double-progression-aware — reps climbing at the same load does NOT flag).
+     * Each entry is (exerciseName, rule-based suggestion). Recomputed whenever completed sessions
+     * change, so logging a heavier/higher-rep set clears the alert.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val stalledLifts: StateFlow<List<Pair<String, String>>> =
+        allSessions.mapLatest {
+            workoutRepository.getDistinctExerciseNames()
+                .filter { name ->
+                    com.migul.treningsprogram.domain.StallDetector.isStalled(
+                        workoutRepository.getStrengthHistory(name)
+                    )
+                }
+                .map { name ->
+                    name to com.migul.treningsprogram.domain.StallDetector.suggestionFor(name)
+                }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val bodyMeasurements: StateFlow<List<BodyMeasurement>> =
         bodyMeasurementDao.getAll()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

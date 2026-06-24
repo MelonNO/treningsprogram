@@ -105,6 +105,58 @@
             android:layout_marginTop="8dp"
             android:visibility="gone" />
 
+        <!-- E1: per-exercise edit controls (edit / move up / move down / delete) -->
+        <LinearLayout
+            android:id="@+id/layout_edit_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="8dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_edit_exercise"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingStart="10dp" android:paddingEnd="10dp"
+                android:textSize="12sp"
+                android:text="Edit" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_move_up"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingStart="10dp" android:paddingEnd="10dp"
+                android:textSize="12sp"
+                android:text="&#8593;" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_move_down"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingStart="10dp" android:paddingEnd="10dp"
+                android:textSize="12sp"
+                android:text="&#8595;" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_delete_exercise"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingStart="10dp" android:paddingEnd="10dp"
+                android:textSize="12sp"
+                android:textColor="?attr/colorError"
+                android:text="Delete" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

@@ -27,6 +27,12 @@ class SettingsFragment : Fragment() {
         binding.rowTrainingProfile.setOnClickListener {
             findNavController().navigate(R.id.action_settings_to_training)
         }
+        binding.rowExerciseLibrary.setOnClickListener {
+            findNavController().navigate(R.id.action_settings_to_library)
+        }
+        binding.rowCoachSummary.setOnClickListener {
+            findNavController().navigate(R.id.action_settings_to_weekly_summary)
+        }
         binding.rowAiProgram.setOnClickListener {
             findNavController().navigate(R.id.action_settings_to_ai)
         }

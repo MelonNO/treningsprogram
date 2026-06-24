@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.migul.treningsprogram.data.db.dao.ExercisePrWithDate
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
+import com.migul.treningsprogram.domain.Epley
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 @AndroidEntryPoint
@@ -73,7 +74,7 @@ class HistoryProgressFragment : Fragment() {
                     // Compute e1RM from best set with reps < 20
                     val best = history.filter { it.bestReps < 20 }.maxByOrNull { it.maxWeight }
                     if (best != null) {
-                        val e1rm = best.maxWeight * (1 + best.bestReps / 30.0)
+                        val e1rm = Epley.estimate(best.maxWeight, best.bestReps)
                         binding.tvE1rm.text = "Estimated 1RM: ~${e1rm.toInt()} kg"
                         binding.tvE1rm.isVisible = true
                         binding.tvE1rmDisclaimer.isVisible = true
@@ -92,6 +93,38 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
+        // Observe stalled lifts (B3) — show a named plateau alert with a concrete suggestion
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.stalledLifts.collect { stalled -> renderStalled(stalled) }
+            }
+        }
+
+    }
+
+    private fun renderStalled(stalled: List<Pair<String, String>>) {
+        binding.cardStalled.isVisible = stalled.isNotEmpty()
+        binding.layoutStalled.removeAllViews()
+        stalled.forEach { (name, suggestion) ->
+            val column = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                val p = (4 * resources.displayMetrics.density).toInt()
+                setPadding(0, p, 0, p)
+            }
+            val tvName = TextView(requireContext()).apply {
+                text = name
+                textSize = 14f
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            }
+            val tvSuggestion = TextView(requireContext()).apply {
+                text = suggestion
+                textSize = 13f
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+            }
+            column.addView(tvName)
+            column.addView(tvSuggestion)
+            binding.layoutStalled.addView(column)
+        }
     }
 
     private fun renderPRs(prs: List<ExercisePrWithDate>) {

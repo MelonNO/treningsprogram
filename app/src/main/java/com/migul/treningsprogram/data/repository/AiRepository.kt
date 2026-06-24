@@ -10,6 +10,7 @@ import com.migul.treningsprogram.data.api.ClaudeApiService
 import com.migul.treningsprogram.data.api.model.ClaudeRequest
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
+import com.migul.treningsprogram.domain.StallDetector
 import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import java.text.SimpleDateFormat
@@ -42,9 +43,79 @@ private data class DayJson(
     val exercises: List<ExJson> = emptyList()
 )
 
-private data class ProgramJson(val days: List<DayJson> = emptyList())
+// B2: `rationale` is a top-level sibling of `days` — the model's own plain-language reasoning
+// for the plan it just produced. Absent on old responses ⇒ defaults to "" (neutral state).
+private data class ProgramJson(val days: List<DayJson> = emptyList(), val rationale: String = "")
 
-data class GenerationResult(val exercises: List<PlannedExercise>, val attemptCount: Int, val rejectionReasons: List<String> = emptyList())
+data class GenerationResult(
+    val exercises: List<PlannedExercise>,
+    val attemptCount: Int,
+    val rejectionReasons: List<String> = emptyList(),
+    val rationale: String = ""
+)
+
+/**
+ * E2 (L1 + M2): mesocycle / deload position of the active program, conveyed to the generation
+ * prompt so the AI knows it is producing week N of a periodized block and whether THIS week is a
+ * stall-triggered deload. Progression itself stays the existing adaptive weekly generation (L1) —
+ * this only adds awareness, not a fixed ramp. The neutral default ([NONE]) reproduces the
+ * pre-E2 prompt exactly (plain program, no block, no deload), so non-block users are unaffected.
+ */
+data class MesocycleContext(
+    /** > 0 ⇒ periodized block of this many weeks; 0 ⇒ plain program (no block phrasing). */
+    val mesocycleWeeks: Int = 0,
+    /** 1-based week within the current block (1 if unknown / not a block). */
+    val weekInBlock: Int = 1,
+    /** True ⇒ this week is a stall/fatigue-triggered deload (M2). */
+    val isDeload: Boolean = false,
+    /** Names of currently stalled lifts driving the deload, for the prompt (may be empty). */
+    val stalledLifts: List<String> = emptyList()
+) {
+    /**
+     * The mesocycle / deload directive injected into the generation prompt. Pure (no instance / API),
+     * so the wording is unit-testable.
+     *
+     * - Plain program (no block, no deload) ⇒ "" so the prompt is byte-for-byte the pre-E2 prompt.
+     * - In a block ⇒ tells the model it is producing week N of an M-week mesocycle and to progress
+     *   week-to-week from the logged performance (adaptive, NOT a fixed ramp — decision L1).
+     * - Deload week ⇒ instructs a genuine deload (reduced volume/intensity) and names the stalled
+     *   lifts driving it (M2).
+     */
+    fun promptBlock(): String {
+        if (mesocycleWeeks <= 0 && !isDeload) return ""
+        return buildString {
+            appendLine()
+            appendLine("══════════════════════════════════════════")
+            appendLine("MESOCYCLE / PERIODIZATION")
+            appendLine("══════════════════════════════════════════")
+            if (mesocycleWeeks > 0) {
+                val week = weekInBlock.coerceAtLeast(1)
+                appendLine(
+                    "This program is a $week-of-$mesocycleWeeks-week mesocycle BLOCK. You are producing WEEK $week of $mesocycleWeeks."
+                )
+                appendLine(
+                    "Progress week-to-week from the user's ACTUAL logged performance below (progressive overload) — " +
+                        "this is adaptive weekly progression, NOT a fixed deterministic ramp. Build sensibly on last week's plan."
+                )
+            }
+            if (isDeload) {
+                appendLine(
+                    "THIS WEEK IS A DELOAD (triggered by detected plateaus/accumulated fatigue, NOT a fixed calendar week). " +
+                        "Reduce overall volume and intensity meaningfully: drop working sets ~30-50%, lower loads ~10-20% " +
+                        "(or take ~3-4 RIR), keep movement quality high, and avoid training to failure. The goal is recovery " +
+                        "and breaking the plateau, not new PRs."
+                )
+                if (stalledLifts.isNotEmpty()) {
+                    appendLine("Plateaued lifts driving this deload: ${stalledLifts.joinToString(", ")}.")
+                }
+            }
+        }.trimEnd()
+    }
+
+    companion object {
+        val NONE = MesocycleContext()
+    }
+}
 
 private data class ValidationResult(val accepted: Boolean, val reason: String = "")
 
@@ -138,6 +209,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         priorityMuscles: String = "",
         dislikedExercises: String = "",
         onboardingContext: String = "",
+        mesocycle: MesocycleContext = MesocycleContext.NONE,
         onProgress: (String) -> Unit = {}
     ): Result<GenerationResult> = runCatching {
         val sessions = workoutRepository.getRecentSessions(12)
@@ -159,7 +231,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 sessionDurationMinutes, equipment, equipmentNotes,
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
-                previousPlan, recentExercises, variationTheme, splitSuggestion
+                previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle
             )
             val responseText = claudeApi.sendMessage(
                 ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
@@ -192,7 +264,9 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                     RejectionLog.Attempt(i + 1, r, false)
                 }
                 rejectionLog.addSession(logAttempts, succeeded = true)
-                return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList())
+                // B2: extract the model's own rationale from the SAME accepted response.
+                val rationale = parseRationale(cleanJson)
+                return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
             }
             // Prefer the deterministic duration reason (it names the offending day(s));
             // fall back to the LLM validator reason when duration is in range.
@@ -209,6 +283,54 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             }
         }
         throw IllegalStateException("Unexpected state")
+    }
+
+    /**
+     * B1: a short natural-language WEEKLY COACHING SUMMARY grounded in the user's real logged data.
+     *
+     * This is a SEPARATE Claude call (not entangled with [generateAdaptedProgram]'s response shape).
+     * It REUSES the existing history-context machinery ([buildSessionHistory] over
+     * [WorkoutRepository.getRecentSessions], which folds in per-exercise trends, the STALLED-LIFTS
+     * signal, and weekly-volume context) so the readout is specific to the user. Returns the summary
+     * text; the caller persists it as a [com.migul.treningsprogram.data.db.entity.WeeklySummary] row.
+     *
+     * Caller is responsible for the "too little data" guard (skip when there are no completed
+     * sessions) — this method assumes there is something worth summarising.
+     */
+    suspend fun generateWeeklySummary(
+        goal: String,
+        experience: String,
+        daysPerWeek: Int
+    ): Result<String> = runCatching {
+        val sessions = workoutRepository.getRecentSessions(12)
+        val (history, _) = buildSessionHistory(sessions)
+        val prompt = """
+You are the user's personal strength coach writing their WEEKLY check-in. You have looked at their actual logged training below. Write a short, warm, plain-language summary (about 4–7 sentences, no markdown, no bullet lists, no headings) of how their PAST WEEK of training went.
+
+Ground EVERYTHING in the real data — name actual exercises and muscle groups and real changes. Cover, where the data supports it:
+- What progressed (lifts that went up, PRs, consistency / streak).
+- What slipped or stalled (plateaued lifts, under-trained muscle groups, skipped sessions).
+- Plan adherence at a high level.
+- One short, encouraging forward-looking note for next week.
+
+Be specific and personal — NOT generic motivation. If a lift is flagged as stalled or plateaued in the data, mention it by name and what you'd do about it. Speak directly to the user ("you").
+
+USER PROFILE
+Goal: $goal | Experience: $experience | Training days/week: $daysPerWeek
+
+WORKOUT HISTORY (most recent first)
+$history
+
+Respond with ONLY the summary text — no JSON, no markdown fences, no preamble like "Here is your summary".
+        """.trimIndent()
+
+        val responseText = claudeApi.sendMessage(
+            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+        ).text()
+        promptLog.add("weekly_summary", prompt, responseText)
+        val summary = responseText.trim()
+        if (summary.isBlank()) throw IllegalStateException("Empty weekly summary returned")
+        summary
     }
 
     private suspend fun validateProgram(
@@ -323,13 +445,34 @@ OR
                 }
         }
 
-        return Pair("$sessionDetails\n$trends", recentExercises)
+        // STALLED-LIFT signal (B3). Detected locally via StallDetector on the full per-exercise
+        // strength history (warm-ups already excluded by getStrengthHistory): a lift is stalled only
+        // when its estimated 1RM has not improved across the last StallDetector.STALL_WINDOW
+        // consecutive sessions. This is double-progression-aware — reps climbing at the same load
+        // raise e1RM and so do NOT flag — and uses the same Epley helper as the rest of the app.
+        // Surfaced to the AI so the new program addresses each plateau with a deload / rep-scheme
+        // change / variation.
+        val stalledLifts = exerciseTrends.keys.filter { exercise ->
+            StallDetector.isStalled(workoutRepository.getStrengthHistory(exercise))
+        }
+        val stallBlock = if (stalledLifts.isEmpty()) "" else buildString {
+            appendLine()
+            appendLine(
+                "STALLED LIFTS (no est-1RM improvement over the last " +
+                    "${StallDetector.STALL_WINDOW} sessions — address with a deload / rep-scheme " +
+                    "change / exercise variation):"
+            )
+            stalledLifts.forEach { appendLine("  $it") }
+        }.trimEnd()
+
+        return Pair("$sessionDetails\n$trends$stallBlock", recentExercises)
     }
 
     private suspend fun buildPreviousPlanContext(): String {
         val weekStart = workoutRepository.getLatestPlanWeekStart() ?: return ""
-        val all = workoutRepository.getAllPlannedOnce()
-        val forWeek = all.filter { it.weekStart == weekStart }
+        // E2: previous-plan context must come from the ACTIVE program only, so generation varies
+        // against the right program's last week (not another program's rows sharing the weekStart).
+        val forWeek = workoutRepository.getActiveProgramPlanForWeek(weekStart)
         if (forWeek.isEmpty()) return ""
         val dayNames = mapOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
         return buildString {
@@ -360,9 +503,13 @@ OR
         previousPlan: String = "",
         recentExercises: Set<String> = emptySet(),
         variationTheme: String = "",
-        splitSuggestion: String = ""
+        splitSuggestion: String = "",
+        mesocycle: MesocycleContext = MesocycleContext.NONE
     ): String {
         val goalLower = goal.lowercase()
+        // E2: mesocycle / deload awareness block (L1 + M2). Empty for plain programs (no block,
+        // no deload) so non-block users get the exact pre-E2 prompt.
+        val mesocycleBlock = buildMesocycleBlock(mesocycle)
         // Effective severity (only used when injuries non-blank). Legacy/unspecified ⇒ cautious Moderate.
         val sev = injurySeverity.ifBlank { "Moderate" }
 
@@ -499,7 +646,7 @@ CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilate
 You are an expert strength & conditioning coach. Design a $daysPerWeek-day weekly training program tailored to the user below.
 
 CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic. A good coach rotates exercises every single week — the same muscle can be trained with completely different exercises each week.
-$safetyBlock$injuryHardBlock$rejectionBlock$blacklistBlock$themeBlock
+$safetyBlock$injuryHardBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock
 ══════════════════════════════════════════
 WORKOUT HISTORY
 ══════════════════════════════════════════
@@ -652,7 +799,9 @@ SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
 OUTPUT — valid JSON only, no prose, no markdown fences
 ══════════════════════════════════════════
+ALSO include a top-level "rationale" string (a sibling of "days"): a concise, plain-language explanation (2–4 sentences) of WHAT changed in this plan versus the user's recent training / last week's plan and WHY — your own coaching reasoning, referencing the ACTUAL exercises and changes in the plan you just produced (e.g. "Added posterior-chain volume because your hamstrings lagged; swapped barbell bench for dumbbell to ease the flagged shoulder; bumped squat load after three progressing sessions."). Speak directly to the user, no jargon. If there is no meaningful history to compare against (new user), briefly explain how the plan was built for their goal instead.
 {
+  "rationale": "Short plain-language explanation of what changed in this plan and why.",
   "days": [
     {
       "dayOfWeek": 1,
@@ -817,6 +966,15 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             }
         }
     }
+
+    // B2: pull the top-level "rationale" string out of the generation response. Missing/blank ⇒ ""
+    // (neutral state). Kept separate from parseProgram so the single-day path is unaffected.
+    private fun parseRationale(cleanJson: String): String =
+        runCatching { gson.fromJson(cleanJson, ProgramJson::class.java).rationale.trim() }
+            .getOrDefault("")
+
+    /** E2 (L1 + M2): the mesocycle / deload directive injected into the generation prompt. */
+    private fun buildMesocycleBlock(m: MesocycleContext): String = m.promptBlock()
 
     private fun extractJson(text: String): String {
         val fenceMatch = Regex("```(?:json)?\\s*([\\s\\S]*?)```").find(text)

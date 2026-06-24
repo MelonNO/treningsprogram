@@ -44,9 +44,28 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v2 -> v3.
+     *
+     * v3 adds the E2 `programs` table (named saved programs + mesocycle/deload state). A v2 backup
+     * simply has no programs, so introduce the new (empty) `programs` array; on restore the merge
+     * engine will adopt the device's existing/default program. The planned_exercises.programId
+     * column rides through whole-entity Gson untouched (absent in v2 ⇒ deserializes as null, exactly
+     * like a pre-E2 row), so nothing else in the tree needs rewriting.
+     */
+    private val V2_TO_V3 = object : MigrationStep {
+        override val fromVersion = 2
+        override fun migrate(root: JsonObject): JsonObject {
+            if (!root.has("programs")) root.add("programs", com.google.gson.JsonArray())
+            root.addProperty("schema_version", 3)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
-        V1_TO_V2
+        V1_TO_V2,
+        V2_TO_V3
     ).associateBy { it.fromVersion }
 
     /**

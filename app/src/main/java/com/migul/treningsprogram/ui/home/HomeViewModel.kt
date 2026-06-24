@@ -16,6 +16,7 @@ import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.data.repository.thisMonday
+import com.migul.treningsprogram.domain.MuscleRecovery
 import com.migul.treningsprogram.domain.model.DailyChallenge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -73,6 +74,31 @@ class HomeViewModel @Inject constructor(
         bodyMeasurementDao.getAll()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    data class MuscleRecoveryItem(
+        val muscleGroup: String,
+        val state: MuscleRecovery.RecoveryState,
+        val lastTrainedMs: Long?  // null = never trained
+    )
+
+    /**
+     * Major muscle groups shown in the Home recovery view — the app's canonical strength
+     * groups (Cardio is excluded; it isn't a muscle-recovery target). Shown even when never
+     * trained so a fresh install renders a full, sensible list rather than nothing.
+     */
+    private val majorMuscleGroups = listOf("Chest", "Back", "Legs", "Shoulders", "Arms", "Core")
+
+    val muscleRecovery: StateFlow<List<MuscleRecoveryItem>> =
+        workoutRepository.observeLastTrainedPerMuscleGroup()
+            .map { rows ->
+                val lastByGroup = rows.associate { it.muscleGroup to it.lastTrainedMs }
+                val now = System.currentTimeMillis()
+                majorMuscleGroups.map { group ->
+                    val last = lastByGroup[group]
+                    MuscleRecoveryItem(group, MuscleRecovery.stateFor(last, now), last)
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun addBodyWeight(weightKg: Float) {
         viewModelScope.launch {
             bodyMeasurementDao.insert(BodyMeasurement(dateMs = System.currentTimeMillis(), weightKg = weightKg))
@@ -84,9 +110,28 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { bodyMeasurementDao.delete(m) }
     }
 
+    /**
+     * E2: live deload state of the active program. When true, Home shows a visible deload banner so
+     * the user can tell a stall/fatigue-triggered deload week is in effect (M2). Derived from the
+     * active program's isDeloadActive flag.
+     */
+    val deloadActive: StateFlow<Boolean> =
+        workoutRepository.observeActiveProgram()
+            .map { it?.isDeloadActive ?: false }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /** E2: active program name, shown on Home so the user knows which program is driving "today". */
+    val activeProgramName: StateFlow<String> =
+        workoutRepository.observeActiveProgram()
+            .map { it?.name ?: "" }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
     init {
         viewModelScope.launch { workoutRepository.ensureExercisesPopulated() }
         viewModelScope.launch { AppDatabase.seedPresets(gymPresetDao) }
+        // E2: guarantee an active program exists (fresh installs create the DB at v13 with no
+        // migration, so nothing seeds a program) before the plan flows resolve.
+        viewModelScope.launch { workoutRepository.ensureActiveProgramId() }
         viewModelScope.launch {
             workoutRepository.getPlannedForDay(thisMonday(), currentDayOfWeek())
                 .collect { _todayPlan.value = it }

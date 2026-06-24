@@ -14,6 +14,8 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.migul.treningsprogram.data.db.dao.StrengthPoint
 import com.migul.treningsprogram.databinding.FragmentRecapTrendsBinding
+import com.migul.treningsprogram.domain.Epley
+import com.migul.treningsprogram.domain.OneRmTrend
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -86,10 +88,22 @@ class RecapTrendsFragment : Fragment() {
             sessionDateMs
         )
 
-        // e1RM estimate (Epley) from the best low-rep set.
-        val best = windowed.filter { it.bestReps in 1 until 20 }.maxByOrNull { it.maxWeight }
+        // Estimated-1RM trend (Epley, per session) — its own chart on the windowed history.
+        val e1rmTrend = OneRmTrend.trendPoints(windowed)
+        binding.chartTrendE1rm.setData(
+            e1rmTrend.map { StrengthChartView.Entry(it.dateMs, it.e1rm.toFloat()) },
+            "kg",
+            sessionDateMs
+        )
+        // StrengthChartView needs >= 2 points to draw a line; below that, show the empty state.
+        binding.tvTrendE1rmEmpty.isVisible = e1rmTrend.size < 2
+        binding.chartTrendE1rm.isVisible = e1rmTrend.size >= 2
+
+        // e1RM estimate (Epley) from the best set in the window.
+        val best = windowed.filter { it.bestReps in 1 until 20 }
+            .maxByOrNull { Epley.estimate(it.maxWeight, it.bestReps) }
         if (best != null) {
-            val e1rm = best.maxWeight * (1 + best.bestReps / 30.0)
+            val e1rm = Epley.estimate(best.maxWeight, best.bestReps)
             binding.tvTrendE1rm.text = "Estimated 1RM: ~${e1rm.toInt()} kg (estimate, Epley formula)"
             binding.tvTrendE1rm.isVisible = true
         } else {
@@ -101,16 +115,9 @@ class RecapTrendsFragment : Fragment() {
 
     private fun renderPrHistory() {
         binding.layoutTrendPrHistory.removeAllViews()
-        // Walk chronologically; each new running-max is a PR.
-        val chrono = allHistory.sortedBy { it.dateMs }
-        var running = 0f
-        val prs = mutableListOf<StrengthPoint>()
-        for (p in chrono) {
-            if (p.maxWeight > running) {
-                running = p.maxWeight
-                prs.add(p)
-            }
-        }
+        // PRs tracked by estimated 1RM (Epley) across all sessions — a weight PR OR a rep-PR
+        // at equal weight both register. Warm-ups are already excluded upstream.
+        val prs = OneRmTrend.prTimeline(allHistory)
         if (prs.isEmpty()) {
             binding.layoutTrendPrHistory.addView(TextView(requireContext()).apply {
                 text = "No PR history yet — log a few sessions to build it."
@@ -120,20 +127,20 @@ class RecapTrendsFragment : Fragment() {
             return
         }
         // Most recent PR first.
-        prs.asReversed().forEach { p ->
+        prs.asReversed().forEach { pr ->
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 val pad = (4 * resources.displayMetrics.density).toInt()
                 setPadding(0, pad, 0, pad)
             }
             row.addView(TextView(requireContext()).apply {
-                text = dateFmt.format(Date(p.dateMs))
+                text = dateFmt.format(Date(pr.dateMs))
                 textSize = 13f
                 setTextColor(Color.parseColor("#9A9AB0"))
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
             row.addView(TextView(requireContext()).apply {
-                text = "${fmt(p.maxWeight)} kg"
+                text = "${fmt(pr.weightKg)} kg × ${pr.reps}"
                 textSize = 13f
                 setTypeface(null, Typeface.BOLD)
                 setTextColor(Color.parseColor("#7C67F5"))

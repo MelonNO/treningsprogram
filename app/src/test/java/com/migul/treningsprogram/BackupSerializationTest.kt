@@ -11,6 +11,7 @@ import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.Exercise
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
+import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
@@ -53,6 +54,9 @@ class BackupSerializationTest {
         gymPresets = listOf(
             GymPreset(id = 1, name = "Home Gym", equipmentJson = "[\"Barbell\"]", notes = "garage")
         ),
+        programs = listOf(
+            Program(id = 1, name = "My Program", createdAtMs = 100L, isActive = true)
+        ),
         preferences = BackupPreferences(
             daysPerWeek = 5, fitnessGoal = "Strength", experienceLevel = "Advanced",
             sessionDurationMinutes = 75, separateCardioDays = true, injuries = "knee",
@@ -76,6 +80,7 @@ class BackupSerializationTest {
         assertEquals(original.plannedExercises, restored.plannedExercises)
         assertEquals(original.exercises, restored.exercises)            // previously MISSING
         assertEquals(original.gymPresets, restored.gymPresets)          // previously MISSING
+        assertEquals(original.programs, restored.programs)              // E2 (v3)
         assertEquals(original.preferences, restored.preferences)        // incl. new prefs
     }
 

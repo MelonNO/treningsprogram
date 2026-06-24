@@ -10,7 +10,10 @@ import com.migul.treningsprogram.data.db.entity.*
 import com.migul.treningsprogram.domain.model.ExerciseRecap
 import com.migul.treningsprogram.domain.model.SessionPacing
 import com.migul.treningsprogram.domain.model.SessionRecap
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,9 +26,15 @@ class WorkoutRepository @Inject constructor(
     private val setDao: WorkoutSetDao,
     private val exerciseDao: ExerciseDao,
     private val plannedDao: PlannedExerciseDao,
+    private val programDao: ProgramDao,
     private val resolver: ExerciseDbResolver,
     private val backupScheduler: BackupScheduler
 ) {
+
+    companion object {
+        /** Name used for the auto-created default program on fresh installs. */
+        const val DEFAULT_PROGRAM_NAME = "My Program"
+    }
     val allSessions: Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
 
@@ -42,6 +51,10 @@ class WorkoutRepository @Inject constructor(
     suspend fun getWeeklyVolume(name: String): List<WeekVolume> = setDao.getWeeklyVolume(name)
 
     suspend fun getMuscleGroupVolume(): List<MuscleVolume> = setDao.getMuscleGroupVolume()
+
+    /** Last-trained timestamp per muscle group, live — drives the Home recovery view (C4). */
+    fun observeLastTrainedPerMuscleGroup(): Flow<List<MuscleLastTrained>> =
+        setDao.observeLastTrainedPerMuscleGroup()
 
     suspend fun getRepRangeDistribution(): List<RepRange> = setDao.getRepRangeDistribution()
 
@@ -144,31 +157,181 @@ class WorkoutRepository @Inject constructor(
     suspend fun getLastSetsForExercise(exerciseName: String, excludeSessionId: Long = -1): List<WorkoutSet> =
         setDao.getLastSetsForExercise(exerciseName, excludeSessionId)
 
-    fun getPlannedForDay(weekStart: Long, dayOfWeek: Int): Flow<List<PlannedExercise>> =
-        plannedDao.getForDay(weekStart, dayOfWeek)
+    // ── E2: program model ──────────────────────────────────────────────────────────────────────
 
+    /** Live list of all saved programs (oldest first), for the switcher UI. */
+    fun observePrograms(): Flow<List<Program>> = programDao.observeAll()
+
+    /** Live active program (drives Home + Program tab). null only transiently before bootstrap. */
+    fun observeActiveProgram(): Flow<Program?> = programDao.observeActive()
+
+    suspend fun getActiveProgramOnce(): Program? = programDao.getActiveOnce()
+
+    /**
+     * Returns the active program's id, creating a default active program on first use (covers fresh
+     * installs, where the DB is created at the current version and the v12→v13 migration never runs,
+     * so no program was seeded). Idempotent: once a program exists it is reused. If programs exist
+     * but none is flagged active (shouldn't happen), the oldest is promoted.
+     */
+    suspend fun ensureActiveProgramId(): Long = db.withTransaction {
+        programDao.getActiveOnce()?.let { return@withTransaction it.id }
+        val existing = programDao.getAllOnce()
+        if (existing.isNotEmpty()) {
+            val first = existing.first()
+            programDao.setActive(first.id)
+            return@withTransaction first.id
+        }
+        val id = programDao.insert(
+            Program(name = DEFAULT_PROGRAM_NAME, createdAtMs = System.currentTimeMillis(), isActive = true)
+        )
+        // Adopt any pre-existing unscoped plan rows (defensive; the migration normally backfills).
+        plannedDao.getAllOnce().filter { it.programId == null }.forEach {
+            plannedDao.update(it.copy(programId = id))
+        }
+        id
+    }
+
+    /** Save the CURRENT plan as a new named program and switch to it, copying this week's rows. */
+    suspend fun saveCurrentAsProgram(name: String): Long {
+        val sourceId = ensureActiveProgramId()
+        val newId = db.withTransaction {
+            val id = programDao.insert(
+                Program(name = name.trim().ifBlank { "Program" }, createdAtMs = System.currentTimeMillis())
+            )
+            // Copy every plan row of the source program into the new one (fresh ids via id = 0).
+            val rows = plannedDao.getAllOnce().filter { it.programId == sourceId }
+            if (rows.isNotEmpty()) {
+                plannedDao.insertAll(rows.map { it.copy(id = 0, programId = id) })
+            }
+            programDao.setActive(id)
+            id
+        }
+        backupScheduler.requestBackup()
+        return newId
+    }
+
+    /** Create a brand-new EMPTY program (no plan) and make it active. */
+    suspend fun createProgram(name: String): Long {
+        val id = programDao.insert(
+            Program(name = name.trim().ifBlank { "Program" }, createdAtMs = System.currentTimeMillis())
+        )
+        programDao.setActive(id)
+        backupScheduler.requestBackup()
+        return id
+    }
+
+    suspend fun switchActiveProgram(programId: Long) {
+        programDao.setActive(programId)
+        backupScheduler.requestBackup()
+    }
+
+    suspend fun renameProgram(programId: Long, name: String) {
+        val p = programDao.getById(programId) ?: return
+        programDao.update(p.copy(name = name.trim().ifBlank { p.name }))
+        backupScheduler.requestBackup()
+    }
+
+    suspend fun deleteProgram(programId: Long) {
+        db.withTransaction {
+            val all = programDao.getAllOnce()
+            // Never delete the last program — there must always be one active program.
+            if (all.size <= 1) return@withTransaction
+            val target = all.firstOrNull { it.id == programId } ?: return@withTransaction
+            plannedDao.deleteForProgram(programId)
+            programDao.delete(target)
+            if (target.isActive) {
+                programDao.getAllOnce().firstOrNull()?.let { programDao.setActive(it.id) }
+            }
+        }
+        backupScheduler.requestBackup()
+    }
+
+    suspend fun updateProgram(program: Program) {
+        programDao.update(program)
+        backupScheduler.requestBackup()
+    }
+
+    /** Set/clear the active program's stall-triggered deload flag (M2). */
+    suspend fun setActiveDeload(active: Boolean) {
+        val id = ensureActiveProgramId()
+        programDao.setDeload(id, active)
+    }
+
+    /**
+     * E2/M2: the lifts that are currently stalled per B3's [com.migul.treningsprogram.domain.StallDetector],
+     * computed over every logged exercise's strength history. Reused by the deload trigger so the
+     * deload decision is grounded in the same plateau detection B3 surfaces (no re-implementation).
+     */
+    suspend fun computeStalledLifts(): List<String> {
+        val histories = setDao.getDistinctExerciseNames().associateWith { name ->
+            setDao.getStrengthHistory(name)
+        }
+        return com.migul.treningsprogram.domain.DeloadPolicy.stalledFrom(histories)
+    }
+
+    /**
+     * 1-based week index within the active program's mesocycle block. Returns 1 when the program is
+     * not a block. Derived from [Program.blockStartWeek] vs the current Monday, counting elapsed
+     * calendar weeks (clamped to ≥1 and ≤ mesocycleWeeks so it never reports past the block end).
+     */
+    fun weekInBlock(program: Program, currentMonday: Long): Int =
+        Program.weekInBlock(program.mesocycleWeeks, program.blockStartWeek, currentMonday)
+
+    // ── Plan queries (program-scoped, defaulting to the active program) ──────────────────────────
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getPlannedForDay(weekStart: Long, dayOfWeek: Int): Flow<List<PlannedExercise>> =
+        programDao.observeActive().flatMapLatest { program ->
+            if (program == null) emptyFlow()
+            else plannedDao.getForDayInProgram(program.id, weekStart, dayOfWeek)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getPlannedForWeek(weekStart: Long): Flow<List<PlannedExercise>> =
-        plannedDao.getForWeek(weekStart)
+        programDao.observeActive().flatMapLatest { program ->
+            if (program == null) emptyFlow()
+            else plannedDao.getForWeekInProgram(program.id, weekStart)
+        }
 
     suspend fun savePlan(weekStart: Long, exercises: List<PlannedExercise>) {
-        plannedDao.deleteForWeek(weekStart)
-        plannedDao.insertAll(exercises)
+        val programId = ensureActiveProgramId()
+        db.withTransaction {
+            plannedDao.deleteForWeekInProgram(programId, weekStart)
+            plannedDao.insertAll(exercises.map { it.copy(programId = programId) })
+        }
         // A newly generated weekly plan is user data worth backing up.
         backupScheduler.requestBackup()
     }
 
     suspend fun saveDayPlan(weekStart: Long, dayOfWeek: Int, exercises: List<PlannedExercise>) {
+        val programId = ensureActiveProgramId()
         db.withTransaction {
-            plannedDao.deleteForDay(weekStart, dayOfWeek)
-            plannedDao.insertAll(exercises)
+            // B2: single-day regen must PRESERVE the week's rationale. The week's rationale is
+            // stamped on every row (see savePlan); read it off any OTHER row of the same week and
+            // carry it forward onto the new day's rows so the week stays consistent and the
+            // Program tab keeps showing the same "why your program changed" text.
+            val weekRationale = plannedDao.getForWeekInProgramOnce(programId, weekStart)
+                .firstOrNull { it.dayOfWeek != dayOfWeek && it.rationale.isNotBlank() }
+                ?.rationale ?: ""
+            plannedDao.deleteForDayInProgram(programId, weekStart, dayOfWeek)
+            plannedDao.insertAll(exercises.map { it.copy(rationale = weekRationale, programId = programId) })
         }
         // A regenerated/edited day plan is user data worth backing up.
         backupScheduler.requestBackup()
     }
 
-    suspend fun getLatestPlanWeekStart(): Long? = plannedDao.getLatestWeekStart()
+    suspend fun getLatestPlanWeekStart(): Long? {
+        val programId = programDao.getActiveOnce()?.id ?: return plannedDao.getLatestWeekStart()
+        return plannedDao.getLatestWeekStartInProgram(programId)
+    }
 
     suspend fun getAllPlannedOnce(): List<PlannedExercise> = plannedDao.getAllOnce()
+
+    /** Active program's plan for [weekStart] (E2-scoped; used by the generation "previous plan" context). */
+    suspend fun getActiveProgramPlanForWeek(weekStart: Long): List<PlannedExercise> {
+        val programId = programDao.getActiveOnce()?.id ?: return plannedDao.getForWeekOnce(weekStart)
+        return plannedDao.getForWeekInProgramOnce(programId, weekStart)
+    }
 
     suspend fun updatePlannedExercise(exercise: PlannedExercise) = plannedDao.update(exercise)
 
@@ -236,8 +399,13 @@ class WorkoutRepository @Inject constructor(
         val effort = listOf("Easy", "Moderate", "Hard")
             .mapNotNull { lbl -> effortCounts[lbl]?.let { lbl to it } }
 
-        // Adherence — match against the plan for this session's week + day, if any.
-        val planned = plannedDao.getForDayOnce(mondayOf(session.dateMs), dayOfWeekOf(session.dateMs))
+        // Adherence — match against the ACTIVE program's plan for this session's week + day, if any
+        // (E2: plans are program-scoped, so adherence must use the active program's plan, falling
+        // back to the legacy all-program query only when no program exists yet).
+        val recapProgramId = programDao.getActiveOnce()?.id
+        val planned = if (recapProgramId != null)
+            plannedDao.getForDayInProgramOnce(recapProgramId, mondayOf(session.dateMs), dayOfWeekOf(session.dateMs))
+        else plannedDao.getForDayOnce(mondayOf(session.dateMs), dayOfWeekOf(session.dateMs))
         val plannedSets = if (planned.isEmpty()) null else planned.sumOf { it.sets }
         val estimatedMinutes = if (planned.isEmpty()) null else {
             // ~40s of work per set + the prescribed rest after it.

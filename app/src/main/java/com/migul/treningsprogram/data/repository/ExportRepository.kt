@@ -33,6 +33,7 @@ class ExportRepository @Inject constructor(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val exerciseDao: ExerciseDao,
     private val gymPresetDao: GymPresetDao,
+    private val programDao: ProgramDao,
     private val gamificationRepository: GamificationRepository,
     private val prefs: PreferencesManager,
     private val gson: Gson
@@ -55,6 +56,7 @@ class ExportRepository @Inject constructor(
             plannedExercises = plannedExerciseDao.getAllOnce(),
             exercises = exerciseDao.getAllExercisesOnce(),
             gymPresets = gymPresetDao.getAllOnce(),
+            programs = programDao.getAllOnce(),
             preferences = snapshotPreferences()
         )
         return gson.toJson(envelope)
@@ -92,6 +94,7 @@ class ExportRepository @Inject constructor(
         val existingPlanned = plannedExerciseDao.getAllOnce()
         val existingExercises = exerciseDao.getAllExercisesOnce()
         val existingPresets = gymPresetDao.getAllOnce()
+        val existingPrograms = programDao.getAllOnce()
 
         // 2) Sessions + sets: id-collision-safe UNION (preserve session->sets linkage).
         val backupSetsBySession = backup.sets.groupBy { it.sessionId }
@@ -103,9 +106,17 @@ class ExportRepository @Inject constructor(
         // 3) Other unions / per-week / per-name merges.
         val mergedMeasurements = BackupMerger.mergeBodyMeasurements(existingMeasurements, backup.bodyMeasurements)
         val mergedAchievements = BackupMerger.mergeAchievements(existingAchievements, backup.achievements)
-        val mergedPlanned = BackupMerger.mergePlannedExercises(existingPlanned, backup.plannedExercises)
         val mergedExercises = BackupMerger.mergeExercises(existingExercises, backup.exercises)
         val mergedPresets = BackupMerger.mergeGymPresets(existingPresets, backup.gymPresets)
+
+        // E2: merge programs first, then repoint backup plan rows at the program they landed on
+        // (via the backup-id remap) BEFORE merging plans, so program scoping survives the restore.
+        val mergedPrograms = BackupMerger.mergePrograms(existingPrograms, backup.programs)
+        val remappedBackupPlanned = backup.plannedExercises.map { row ->
+            val pid = row.programId
+            if (pid != null) row.copy(programId = mergedPrograms.backupIdRemap[pid] ?: pid) else row
+        }
+        val mergedPlanned = BackupMerger.mergePlannedExercises(existingPlanned, remappedBackupPlanned)
 
         // 4) Persist merged workout history (replace whole table with the merged superset).
         //    Sets are deleted via session CASCADE; rebuild both from the merged result.
@@ -117,6 +128,10 @@ class ExportRepository @Inject constructor(
         bodyMeasurementDao.insertAll(mergedMeasurements)
 
         achievementDao.insertAllReplace(mergedAchievements)
+
+        // E2: programs before plans (plan rows reference a program id).
+        programDao.deleteAll()
+        mergedPrograms.programs.forEach { programDao.insertWithId(it) }
 
         plannedExerciseDao.deleteAll()
         plannedExerciseDao.insertAll(mergedPlanned)

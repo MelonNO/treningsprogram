@@ -26,9 +26,15 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
+import com.migul.treningsprogram.data.db.dao.WeeklySummaryDao
+import com.migul.treningsprogram.data.db.entity.WeeklySummary
 import com.migul.treningsprogram.data.preferences.PreferencesManager
+import com.migul.treningsprogram.data.preferences.isoWeekKey
+import com.migul.treningsprogram.domain.DeloadPolicy
+import com.migul.treningsprogram.domain.WeeklySummaryTrigger
 import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
+import com.migul.treningsprogram.data.repository.MesocycleContext
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
@@ -56,6 +62,7 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var aiRepository: AiRepository
     @Inject lateinit var gamificationRepository: GamificationRepository
     @Inject lateinit var gymPresetDao: GymPresetDao
+    @Inject lateinit var weeklySummaryDao: WeeklySummaryDao
     @Inject lateinit var gson: Gson
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,6 +97,7 @@ class MainActivity : AppCompatActivity() {
             R.id.settingsUnrecognizedFragment to R.id.profileFragment,
             R.id.settingsAboutFragment       to R.id.profileFragment,
             R.id.gymPresetsFragment          to R.id.profileFragment,
+            R.id.weeklySummaryFragment       to R.id.profileFragment,
             R.id.recapTrendsFragment         to R.id.historyFragment,
         )
 
@@ -132,6 +140,9 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             gamificationRepository.ensureAchievementsSeeded()
             checkAndAutoGenerateWeeklyPlan()
+            // B1: weekly coach summary — independent of and after plan gen, in the background so
+            // it never blocks UI. Its own guards (API key / onboarding / once-per-week / data) apply.
+            checkAndGenerateWeeklySummary()
         }
 
         lifecycleScope.launch {
@@ -229,6 +240,12 @@ class MainActivity : AppCompatActivity() {
         if (prefsManager.lastAutoGenerateWeek == thisWeek) return
         if (prefsManager.apiKey.isBlank()) return
         if (!prefsManager.hasCompletedOnboarding) return  // wait until user completes onboarding
+        // E2: assumption N — a FROZEN program opts out of automatic weekly AI re-adaptation. Skip
+        // generation (and do not mark the week done) so its plan stays as-is until the user acts.
+        val activeProgram = workoutRepository.ensureActiveProgramId().let {
+            workoutRepository.getActiveProgramOnce()
+        }
+        if (activeProgram?.isFrozen == true) return
         val monday = thisMonday()
         val existing = workoutRepository.getPlannedForWeek(monday).first()
         if (existing.isEmpty()) {
@@ -239,6 +256,25 @@ class MainActivity : AppCompatActivity() {
                     gson.fromJson<List<String>>(it.equipmentJson, type)
                 }.getOrElse { emptyList() }
             } ?: prefsManager.wizardEquipment.split(",").map { it.trim() }.filter { it.isNotBlank() }
+
+            // E2 (M2): stall/fatigue-triggered deload decision, reusing B3's StallDetector via the
+            // repository. If we were already deloading last week, the recovery week is done (exit);
+            // otherwise enter a deload iff enough lifts are concurrently stalled.
+            val stalledLifts = workoutRepository.computeStalledLifts()
+            val isDeload = DeloadPolicy.nextDeloadState(
+                currentlyDeloading = activeProgram?.isDeloadActive ?: false,
+                stalledCount = stalledLifts.size
+            )
+            // E2 (L1): mesocycle position so the model knows it is producing week N of a block.
+            val mesocycle = activeProgram?.let { p ->
+                MesocycleContext(
+                    mesocycleWeeks = p.mesocycleWeeks,
+                    weekInBlock = workoutRepository.weekInBlock(p, monday),
+                    isDeload = isDeload,
+                    stalledLifts = stalledLifts
+                )
+            } ?: MesocycleContext(isDeload = isDeload, stalledLifts = stalledLifts)
+
             val result = aiRepository.generateAdaptedProgram(
                 daysPerWeek = prefsManager.daysPerWeek,
                 goal = prefsManager.fitnessGoal,
@@ -251,14 +287,64 @@ class MainActivity : AppCompatActivity() {
                 injurySeverity = prefsManager.injurySeverity,
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
-                onboardingContext = prefsManager.onboardingContext
+                onboardingContext = prefsManager.onboardingContext,
+                mesocycle = mesocycle
             )
             result.onSuccess { generationResult ->
-                workoutRepository.savePlan(monday, generationResult.exercises)
+                // B2: stamp the week's rationale onto every row so any row of the week carries it.
+                workoutRepository.savePlan(
+                    monday,
+                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
+                )
                 prefsManager.lastGenerationAttemptCount = generationResult.attemptCount
+                // E2: persist the deload flag the generated week was built for, so Home/Program show
+                // (or clear) the deload indicator coherently with the plan that was just saved.
+                workoutRepository.setActiveDeload(isDeload)
             }
         }
         prefsManager.lastAutoGenerateWeek = thisWeek
+    }
+
+    /**
+     * B1: automatic, non-blocking weekly coach summary. Mirrors [checkAndAutoGenerateWeeklyPlan]'s
+     * once-per-week guard but keyed by [isoWeekKey] and persisted as its own [WeeklySummary] row.
+     * Guards (skip → no-op, no broken row written): API key blank, onboarding incomplete, already
+     * generated this ISO week, or too little data (no completed sessions in the lookback).
+     */
+    private suspend fun checkAndGenerateWeeklySummary() {
+        val thisWeek = isoWeekKey()
+        // Belt-and-suspenders: the prefs guard AND the table count both pin the once-per-week boundary.
+        if (prefsManager.lastWeeklySummaryWeek == thisWeek) return
+        if (weeklySummaryDao.countForWeek(thisWeek) > 0) {
+            prefsManager.lastWeeklySummaryWeek = thisWeek
+            return
+        }
+        val completedSessions = workoutRepository.getRecentSessions(12)
+        if (!WeeklySummaryTrigger.shouldGenerate(
+                lastSummaryWeek = prefsManager.lastWeeklySummaryWeek,
+                currentWeekKey = thisWeek,
+                hasApiKey = prefsManager.apiKey.isNotBlank(),
+                onboardingComplete = prefsManager.hasCompletedOnboarding,
+                completedSessionCount = completedSessions.size
+            )
+        ) return
+
+        aiRepository.generateWeeklySummary(
+            goal = prefsManager.fitnessGoal,
+            experience = prefsManager.experienceLevel,
+            daysPerWeek = prefsManager.daysPerWeek
+        ).onSuccess { summary ->
+            weeklySummaryDao.insert(
+                WeeklySummary(
+                    weekKey = thisWeek,
+                    createdAtMs = System.currentTimeMillis(),
+                    summaryText = summary
+                )
+            )
+            // Only mark the week done on success, so a transient API failure retries next launch.
+            prefsManager.lastWeeklySummaryWeek = thisWeek
+        }
+        // On failure: leave the guard unset → it retries on a later launch this week. No broken row.
     }
 
 }

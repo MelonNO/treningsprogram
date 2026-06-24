@@ -102,7 +102,11 @@ class SetupWizardViewModel @Inject constructor(
                 dislikedExercises = prefs.dislikedExercises,
                 onProgress = { _generationStatus.value = it }
             ).onSuccess { result ->
-                workoutRepository.savePlan(thisMonday(), result.exercises)
+                // B2: stamp the week's rationale onto every row so any row of the week carries it.
+                workoutRepository.savePlan(
+                    thisMonday(),
+                    result.exercises.map { it.copy(rationale = result.rationale) }
+                )
                 prefs.lastAutoGenerateWeek = autoGenWeekKey()
                 prefs.lastGenerationAttemptCount = result.attemptCount
                 prefs.hasCompletedOnboarding = true

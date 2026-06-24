@@ -130,6 +130,80 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- E2: deload banner. Shown only while the active program is in a stall/fatigue-
+                 triggered deload week (M2), so the user can tell a deload is happening. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_deload"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="#FFB347"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/tv_deload_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="&#127807; Deload week in effect"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="#FFB347"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:id="@+id/tv_deload_body"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Some lifts have plateaued, so this week is a lighter deload to let you recover and break the plateau."
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:lineSpacingMultiplier="1.15" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Muscle recovery / freshness card (C4) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_recovery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Muscle Recovery"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="?attr/colorOnSurface"
+                        android:layout_marginBottom="10dp" />
+
+                    <LinearLayout
+                        android:id="@+id/layout_home_recovery"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Daily challenges card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

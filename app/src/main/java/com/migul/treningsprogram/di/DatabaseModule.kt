@@ -28,7 +28,10 @@ object DatabaseModule {
                 AppDatabase.MIGRATION_6_7,
                 AppDatabase.MIGRATION_7_8,
                 AppDatabase.MIGRATION_8_9,
-                AppDatabase.MIGRATION_9_10
+                AppDatabase.MIGRATION_9_10,
+                AppDatabase.MIGRATION_10_11,
+                AppDatabase.MIGRATION_11_12,
+                AppDatabase.MIGRATION_12_13
             )
             .build()
 
@@ -40,4 +43,6 @@ object DatabaseModule {
     @Provides fun provideAchievementDao(db: AppDatabase) = db.achievementDao()
     @Provides fun provideGymPresetDao(db: AppDatabase) = db.gymPresetDao()
     @Provides fun provideBodyMeasurementDao(db: AppDatabase): BodyMeasurementDao = db.bodyMeasurementDao()
+    @Provides fun provideWeeklySummaryDao(db: AppDatabase) = db.weeklySummaryDao()
+    @Provides fun provideProgramDao(db: AppDatabase) = db.programDao()
 }

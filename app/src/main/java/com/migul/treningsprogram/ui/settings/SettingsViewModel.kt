@@ -336,7 +336,11 @@ class SettingsViewModel @Inject constructor(
                 }
             )
             result.onSuccess { generationResult ->
-                workoutRepository.savePlan(thisMonday(), generationResult.exercises)
+                // B2: stamp the week's rationale onto every row so any row of the week carries it.
+                workoutRepository.savePlan(
+                    thisMonday(),
+                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
+                )
                 prefs.lastAutoGenerateWeek = autoGenWeekKey()
                 prefs.lastGenerationAttemptCount = generationResult.attemptCount
                 _lastAttemptCount.value = generationResult.attemptCount

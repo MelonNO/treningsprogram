@@ -65,6 +65,12 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_SEPARATE_CARDIO_DAYS, false)
         set(value) { prefs.edit().putBoolean(KEY_SEPARATE_CARDIO_DAYS, value).apply() }
 
+    // B1: ISO-week key of the last week an automatic weekly coach summary was generated.
+    // Guards the once-per-week trigger (mirrors lastAutoGenerateWeek for plan generation).
+    var lastWeeklySummaryWeek: String
+        get() = prefs.getString(KEY_LAST_WEEKLY_SUMMARY_WEEK, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_LAST_WEEKLY_SUMMARY_WEEK, value).apply() }
+
     var lastGenerationAttemptCount: Int
         get() = prefs.getInt(KEY_LAST_GEN_ATTEMPTS, 0)
         set(value) { prefs.edit().putInt(KEY_LAST_GEN_ATTEMPTS, value).apply() }
@@ -132,6 +138,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_GYM_PRESET = "selected_gym_preset_id"
         private const val KEY_LAST_AUTO_GENERATE_WEEK = "last_auto_generate_week"
         private const val KEY_SEPARATE_CARDIO_DAYS = "separate_cardio_days"
+        private const val KEY_LAST_WEEKLY_SUMMARY_WEEK = "last_weekly_summary_week"
         private const val KEY_LAST_GEN_ATTEMPTS = "last_generation_attempt_count"
         private const val KEY_ONBOARDING_DONE = "onboarding_completed"
         private const val KEY_ONBOARDING_CONTEXT = "onboarding_context"

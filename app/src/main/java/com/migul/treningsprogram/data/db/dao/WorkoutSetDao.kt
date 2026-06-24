@@ -12,6 +12,9 @@ data class WeekVolume(val weekStart: Long, val totalSets: Int)
 
 data class MuscleVolume(val muscleGroup: String, val totalSets: Int)
 
+/** Most recent completed working-set timestamp for one muscle group (recovery view, C4). */
+data class MuscleLastTrained(val muscleGroup: String, val lastTrainedMs: Long)
+
 data class RepRange(val label: String, val setCount: Int)
 
 data class ExercisePrWithDate(val exerciseName: String, val maxWeight: Float, val dateMs: Long)
@@ -122,6 +125,29 @@ interface WorkoutSetDao {
         WHERE muscleGroup != '' AND isWarmup = 0 GROUP BY muscleGroup ORDER BY totalSets DESC
     """)
     suspend fun getMuscleGroupVolume(): List<MuscleVolume>
+
+    /**
+     * Most recent completed working-set timestamp per muscle group — drives the Home
+     * recovery/freshness view (C4). Read-only; mirrors the join/filter style of
+     * [getMuscleGroupVolume] / [getStrengthHistory] (warm-ups excluded, completed
+     * sessions only, non-blank group). Groups never trained simply don't appear in the
+     * result; the ViewModel fills those in as "untrained".
+     */
+    @Query("""
+        SELECT ws.muscleGroup AS muscleGroup, MAX(s.dateMs) AS lastTrainedMs
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND ws.muscleGroup != ''
+        GROUP BY ws.muscleGroup
+    """)
+    suspend fun getLastTrainedPerMuscleGroup(): List<MuscleLastTrained>
+
+    @Query("""
+        SELECT ws.muscleGroup AS muscleGroup, MAX(s.dateMs) AS lastTrainedMs
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND ws.muscleGroup != ''
+        GROUP BY ws.muscleGroup
+    """)
+    fun observeLastTrainedPerMuscleGroup(): Flow<List<MuscleLastTrained>>
 
     @Query("""
         SELECT CASE WHEN CAST(reps AS INTEGER) <= 5 THEN 'Heavy (1-5)'

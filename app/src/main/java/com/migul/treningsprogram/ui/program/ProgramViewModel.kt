@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
+import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
@@ -28,11 +29,69 @@ class ProgramViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { workoutRepository.backfillPlannedExercises() }
+        // E2: ensure an active program exists so the switcher + plan flows have a target.
+        viewModelScope.launch { workoutRepository.ensureActiveProgramId() }
+    }
+
+    // ── E2: program switcher state ───────────────────────────────────────────────────────────────
+
+    val programs: StateFlow<List<Program>> = workoutRepository.observePrograms()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeProgram: StateFlow<Program?> = workoutRepository.observeActiveProgram()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** E2: true while the active program is in a stall/fatigue-triggered deload week (M2). */
+    val deloadActive: StateFlow<Boolean> = activeProgram.map { it?.isDeloadActive ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun switchProgram(programId: Long) {
+        viewModelScope.launch { workoutRepository.switchActiveProgram(programId) }
+    }
+
+    /** Save the current week's plan under a new name and switch to that program. */
+    fun saveCurrentAsProgram(name: String) {
+        viewModelScope.launch { workoutRepository.saveCurrentAsProgram(name) }
+    }
+
+    fun renameActiveProgram(name: String) {
+        val id = activeProgram.value?.id ?: return
+        viewModelScope.launch { workoutRepository.renameProgram(id, name) }
+    }
+
+    fun deleteProgram(programId: Long) {
+        viewModelScope.launch { workoutRepository.deleteProgram(programId) }
+    }
+
+    /** Toggle whether the active program is a periodized mesocycle block of [weeks] weeks. */
+    fun setMesocycle(weeks: Int) {
+        val p = activeProgram.value ?: return
+        viewModelScope.launch {
+            workoutRepository.updateProgram(
+                p.copy(
+                    mesocycleWeeks = weeks,
+                    blockStartWeek = if (weeks > 0 && p.blockStartWeek == 0L) thisMonday() else p.blockStartWeek
+                )
+            )
+        }
+    }
+
+    /** Assumption N: toggle whether automatic weekly AI re-adaptation is frozen for this program. */
+    fun setFrozen(frozen: Boolean) {
+        val p = activeProgram.value ?: return
+        viewModelScope.launch { workoutRepository.updateProgram(p.copy(isFrozen = frozen)) }
     }
 
     val weekPlan: StateFlow<List<PlannedExercise>> =
         workoutRepository.getPlannedForWeek(thisMonday())
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // B2: the current week's "why did the program change?" rationale. It is stamped onto every
+    // row of the week, so the first non-blank row carries it. Blank for old plans (pre-feature)
+    // and when the model returned none → the Program tab hides the card (neutral state).
+    val weekRationale: StateFlow<String> =
+        weekPlan.map { plan -> plan.firstOrNull { it.rationale.isNotBlank() }?.rationale ?: "" }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     private val _selectedDay = MutableStateFlow(currentDayOfWeek())
     val selectedDay: StateFlow<Int> = _selectedDay.asStateFlow()
@@ -94,6 +153,64 @@ class ProgramViewModel @Inject constructor(
         }
     }
 
+    // ── E1: manual program editing (edit / delete / add / reorder a day's exercises) ────────────────
+    // All edits go through the program-scoped repository so they persist and reflect everywhere the
+    // plan is shown (Program tab, Home today-view, guided logging) and survive app restart. It is
+    // ACCEPTED that the next regeneration replaces these manual edits.
+
+    /**
+     * Edit a planned exercise's TARGET (sets/reps/weight/notes) in place. This is an edit of the
+     * plan target only; it intentionally does NOT touch isLogged/actuals — unlike swapExercise (which
+     * replaces the exercise entirely), changing the target of the SAME exercise should not silently
+     * un-log an already-logged set. Mirrors the in-place updatePlannedExercise pattern of logExercise.
+     */
+    fun editExercise(exercise: PlannedExercise, sets: Int, reps: String, weight: Float, notes: String) {
+        viewModelScope.launch {
+            workoutRepository.updatePlannedExercise(
+                exercise.copy(sets = sets, targetReps = reps, targetWeightKg = weight, notes = notes)
+            )
+        }
+    }
+
+    /** Delete a planned exercise from its day, re-indexing the remaining rows by list position. */
+    fun deleteExercise(exercise: PlannedExercise) {
+        viewModelScope.launch {
+            val newList = com.migul.treningsprogram.domain.DayPlanEditor.remove(
+                selectedDayExercises.value, exercise
+            )
+            workoutRepository.saveDayPlan(thisMonday(), exercise.dayOfWeek, newList)
+        }
+    }
+
+    /** Add a new exercise to the end of [day]'s plan, re-indexing so orderInDay = list position. */
+    fun addExercise(day: Int, name: String, sets: Int, reps: String, weight: Float, notes: String) {
+        viewModelScope.launch {
+            val current = weekPlan.value.filter { it.dayOfWeek == day }
+            val newRow = PlannedExercise(
+                weekStart = thisMonday(),
+                dayOfWeek = day,
+                orderInDay = current.size,
+                exerciseName = name,
+                sets = sets,
+                targetReps = reps,
+                targetWeightKg = weight,
+                notes = notes
+            )
+            val newList = com.migul.treningsprogram.domain.DayPlanEditor.add(current, newRow)
+            workoutRepository.saveDayPlan(thisMonday(), day, newList)
+        }
+    }
+
+    /** Move an exercise up or down within its day, re-indexing orderInDay by new list position. */
+    fun moveExercise(exercise: PlannedExercise, up: Boolean) {
+        viewModelScope.launch {
+            val newList = com.migul.treningsprogram.domain.DayPlanEditor.move(
+                selectedDayExercises.value, exercise, up
+            )
+            workoutRepository.saveDayPlan(thisMonday(), exercise.dayOfWeek, newList)
+        }
+    }
+
     private val _isDayGenerating = MutableStateFlow(false)
     val isDayGenerating: StateFlow<Boolean> = _isDayGenerating.asStateFlow()
 
@@ -132,6 +249,71 @@ class ProgramViewModel @Inject constructor(
                 onProgress = { _dayGenerationStatus.value = it }
             ).onSuccess { exercises ->
                 workoutRepository.saveDayPlan(weekStart, dayOfWeek, exercises)
+                _dayGenerationStatus.value = ""
+            }.onFailure { e ->
+                _dayGenerationError.value = e.message ?: "Generation failed"
+                _dayGenerationStatus.value = ""
+            }
+            _isDayGenerating.value = false
+        }
+    }
+
+    /**
+     * E2: regenerate the ENTIRE active program for this week through the deload-aware generation
+     * path (L1 + M2). This is the reachable on-demand trigger: it computes the stall-triggered
+     * deload decision (reusing B3's StallDetector via the repository), conveys the mesocycle /
+     * deload context to the model, replaces this week's plan, and persists the deload flag so the
+     * Home/Program deload indicators update. Mirrors MainActivity's weekly auto-generation.
+     */
+    fun regenerateFullProgram(equipment: List<String>, equipmentNotes: String) {
+        if (prefsManager.apiKey.isBlank()) {
+            _dayGenerationError.value = "Set your API key in Profile → Settings first."
+            return
+        }
+        viewModelScope.launch {
+            _isDayGenerating.value = true
+            _dayGenerationError.value = null
+            val monday = thisMonday()
+            val active = workoutRepository.ensureActiveProgramId().let {
+                workoutRepository.getActiveProgramOnce()
+            }
+            val stalledLifts = workoutRepository.computeStalledLifts()
+            val isDeload = com.migul.treningsprogram.domain.DeloadPolicy.nextDeloadState(
+                currentlyDeloading = active?.isDeloadActive ?: false,
+                stalledCount = stalledLifts.size
+            )
+            val mesocycle = active?.let { p ->
+                com.migul.treningsprogram.data.repository.MesocycleContext(
+                    mesocycleWeeks = p.mesocycleWeeks,
+                    weekInBlock = workoutRepository.weekInBlock(p, monday),
+                    isDeload = isDeload,
+                    stalledLifts = stalledLifts
+                )
+            } ?: com.migul.treningsprogram.data.repository.MesocycleContext(
+                isDeload = isDeload, stalledLifts = stalledLifts
+            )
+
+            aiRepository.generateAdaptedProgram(
+                daysPerWeek = prefsManager.daysPerWeek,
+                goal = prefsManager.fitnessGoal,
+                experience = prefsManager.experienceLevel,
+                sessionDurationMinutes = prefsManager.sessionDurationMinutes,
+                equipment = equipment,
+                equipmentNotes = equipmentNotes,
+                separateCardioDays = prefsManager.separateCardioDays,
+                injuries = prefsManager.injuries,
+                injurySeverity = prefsManager.injurySeverity,
+                priorityMuscles = prefsManager.priorityMuscles,
+                dislikedExercises = prefsManager.dislikedExercises,
+                onboardingContext = prefsManager.onboardingContext,
+                mesocycle = mesocycle,
+                onProgress = { _dayGenerationStatus.value = it }
+            ).onSuccess { generationResult ->
+                workoutRepository.savePlan(
+                    monday,
+                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
+                )
+                workoutRepository.setActiveDeload(isDeload)
                 _dayGenerationStatus.value = ""
             }.onFailure { e ->
                 _dayGenerationError.value = e.message ?: "Generation failed"

@@ -6,6 +6,7 @@ import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.Exercise
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
+import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
@@ -15,14 +16,17 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  *
  * v1 — the original manual export ([ExportRepository] schema_version = 1): wipe-and-replace.
  *      Missing the Exercise (custom library) and GymPreset tables and several preferences.
- * v2 — the current cloud-backup shape: all 8 entity tables + all backup-eligible prefs,
+ * v2 — the cloud-backup shape: all 8 entity tables + all backup-eligible prefs,
  *      restored via MERGE (never wipe). See [BackupMigrations] for v1 -> v2.
+ * v3 — adds the E2 `programs` table (named saved programs + mesocycle/deload state). The
+ *      planned_exercises.programId column rides through whole-entity Gson automatically (like B2's
+ *      rationale column did); v3 only adds the new top-level `programs` list. See v2 -> v3.
  *
  * To add a future version, bump [CURRENT_BACKUP_VERSION] and register a step in
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 2
+const val CURRENT_BACKUP_VERSION = 3
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.
@@ -75,5 +79,7 @@ data class BackupEnvelope(
     @SerializedName("planned_exercises") val plannedExercises: List<PlannedExercise> = emptyList(),
     val exercises: List<Exercise> = emptyList(),
     @SerializedName("gym_presets") val gymPresets: List<GymPreset> = emptyList(),
+    // E2 (v3): named saved programs. Empty for v1/v2 backups (the migration adds an empty list).
+    val programs: List<Program> = emptyList(),
     val preferences: BackupPreferences = BackupPreferences()
 )

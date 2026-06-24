@@ -15,6 +15,35 @@ interface PlannedExerciseDao {
     @Query("SELECT * FROM planned_exercises WHERE weekStart = :weekStart AND dayOfWeek = :day ORDER BY orderInDay")
     suspend fun getForDayOnce(weekStart: Long, day: Int): List<PlannedExercise>
 
+    @Query("SELECT * FROM planned_exercises WHERE weekStart = :weekStart ORDER BY dayOfWeek, orderInDay")
+    suspend fun getForWeekOnce(weekStart: Long): List<PlannedExercise>
+
+    // ── E2: program-scoped variants. The active program's id is threaded through by the repository
+    //    so Home's today-view and the Program tab only ever see the active program's plan. ──────
+    @Query("SELECT * FROM planned_exercises WHERE programId = :programId AND weekStart = :weekStart ORDER BY dayOfWeek, orderInDay")
+    fun getForWeekInProgram(programId: Long, weekStart: Long): Flow<List<PlannedExercise>>
+
+    @Query("SELECT * FROM planned_exercises WHERE programId = :programId AND weekStart = :weekStart AND dayOfWeek = :day ORDER BY orderInDay")
+    fun getForDayInProgram(programId: Long, weekStart: Long, day: Int): Flow<List<PlannedExercise>>
+
+    @Query("SELECT * FROM planned_exercises WHERE programId = :programId AND weekStart = :weekStart ORDER BY dayOfWeek, orderInDay")
+    suspend fun getForWeekInProgramOnce(programId: Long, weekStart: Long): List<PlannedExercise>
+
+    @Query("SELECT * FROM planned_exercises WHERE programId = :programId AND weekStart = :weekStart AND dayOfWeek = :day ORDER BY orderInDay")
+    suspend fun getForDayInProgramOnce(programId: Long, weekStart: Long, day: Int): List<PlannedExercise>
+
+    @Query("SELECT MAX(weekStart) FROM planned_exercises WHERE programId = :programId")
+    suspend fun getLatestWeekStartInProgram(programId: Long): Long?
+
+    @Query("DELETE FROM planned_exercises WHERE programId = :programId AND weekStart = :weekStart")
+    suspend fun deleteForWeekInProgram(programId: Long, weekStart: Long)
+
+    @Query("DELETE FROM planned_exercises WHERE programId = :programId AND weekStart = :weekStart AND dayOfWeek = :day")
+    suspend fun deleteForDayInProgram(programId: Long, weekStart: Long, day: Int)
+
+    @Query("DELETE FROM planned_exercises WHERE programId = :programId")
+    suspend fun deleteForProgram(programId: Long)
+
     @Insert
     suspend fun insertAll(exercises: List<PlannedExercise>)
 

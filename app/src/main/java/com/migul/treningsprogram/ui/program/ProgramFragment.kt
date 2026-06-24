@@ -8,10 +8,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import com.migul.treningsprogram.data.db.entity.Program
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -49,6 +52,11 @@ class ProgramFragment : Fragment() {
     private val dayChipViews = mutableListOf<View>()
     private var progressAnimating = false
 
+    // E2: current program list + the spinner-suppression guard so programmatic selection updates
+    // don't fire the "user switched program" callback.
+    private var programList: List<Program> = emptyList()
+    private var suppressProgramSpinner = false
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentProgramBinding.inflate(inflater, container, false)
         return binding.root
@@ -72,8 +80,37 @@ class ProgramFragment : Fragment() {
                 ?.selectedItemId = R.id.profileFragment
         }
 
+        // E2: program switcher wiring.
+        binding.spinnerProgram.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (suppressProgramSpinner) return
+                val selected = programList.getOrNull(position) ?: return
+                if (!selected.isActive) viewModel.switchProgram(selected.id)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        binding.btnSaveProgram.setOnClickListener { showSaveProgramDialog() }
+        binding.btnProgramOptions.setOnClickListener { showProgramOptionsDialog() }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    // E2: keep the program switcher + deload chip in sync with the active program.
+                    viewModel.programs.collect { programs ->
+                        programList = programs
+                        renderProgramSwitcher(programs, viewModel.activeProgram.value)
+                    }
+                }
+                launch {
+                    viewModel.activeProgram.collect { active ->
+                        renderProgramSwitcher(programList, active)
+                    }
+                }
+                launch {
+                    viewModel.deloadActive.collect { deload ->
+                        binding.tvProgramDeloadChip.visibility = if (deload) View.VISIBLE else View.GONE
+                    }
+                }
                 launch {
                     viewModel.weekPlan.collect { plan ->
                         val hasPlan = plan.isNotEmpty()
@@ -92,6 +129,17 @@ class ProgramFragment : Fragment() {
                 launch {
                     viewModel.selectedDayExercises.collect { exercises ->
                         updateDaySection(viewModel.selectedDay.value, exercises)
+                    }
+                }
+                launch {
+                    // B2: show the "why your program changed" card only when a non-blank rationale exists.
+                    viewModel.weekRationale.collect { rationale ->
+                        if (rationale.isNotBlank()) {
+                            binding.tvRationale.text = rationale
+                            binding.cardRationale.visibility = View.VISIBLE
+                        } else {
+                            binding.cardRationale.visibility = View.GONE
+                        }
                     }
                 }
                 launch {
@@ -334,13 +382,21 @@ class ProgramFragment : Fragment() {
         binding.btnRegenerateDay.visibility = View.VISIBLE
         binding.btnRegenerateDay.setOnClickListener { showRegenerateDayDialog(day) }
 
+        // E1: "Add exercise" is available on any non-rest day (and we still allow adding to a
+        // currently-empty/rest day via the same control once it is shown — it stays hidden only
+        // when the whole week has no plan, since the day section itself is hidden then).
+        binding.btnAddExercise.visibility = if (isRestDay) View.GONE else View.VISIBLE
+        binding.btnAddExercise.setOnClickListener { showAddExerciseDialog(day) }
+
         binding.layoutExercises.removeAllViews()
-        exercises.forEach { ex ->
-            binding.layoutExercises.addView(inflateDayOverviewCard(ex))
+        exercises.forEachIndexed { index, ex ->
+            binding.layoutExercises.addView(
+                inflateDayOverviewCard(ex, index, exercises.size)
+            )
         }
     }
 
-    private fun inflateDayOverviewCard(exercise: PlannedExercise): View {
+    private fun inflateDayOverviewCard(exercise: PlannedExercise, index: Int, count: Int): View {
         val card = layoutInflater.inflate(R.layout.item_day_overview, binding.layoutExercises, false)
 
         val muscleBadge = card.findViewById<TextView>(R.id.tv_muscle_badge)
@@ -386,6 +442,23 @@ class ProgramFragment : Fragment() {
                     .show(childFragmentManager, "exercise_info")
             }
         }
+
+        // E1: per-exercise edit controls. Move buttons are disabled at the list edges.
+        val btnEdit = card.findViewById<View>(R.id.btn_edit_exercise)
+        val btnMoveUp = card.findViewById<View>(R.id.btn_move_up)
+        val btnMoveDown = card.findViewById<View>(R.id.btn_move_down)
+        val btnDelete = card.findViewById<View>(R.id.btn_delete_exercise)
+
+        btnEdit.setOnClickListener { showEditExerciseDialog(exercise) }
+        btnDelete.setOnClickListener { confirmDeleteExercise(exercise) }
+
+        btnMoveUp.isEnabled = index > 0
+        btnMoveUp.alpha = if (index > 0) 1f else 0.35f
+        btnMoveUp.setOnClickListener { viewModel.moveExercise(exercise, up = true) }
+
+        btnMoveDown.isEnabled = index < count - 1
+        btnMoveDown.alpha = if (index < count - 1) 1f else 0.35f
+        btnMoveDown.setOnClickListener { viewModel.moveExercise(exercise, up = false) }
 
         return card
     }
@@ -474,6 +547,126 @@ class ProgramFragment : Fragment() {
             .show()
     }
 
+    // ── E1: manual program editing dialogs ─────────────────────────────────────────────────────────
+
+    /** Build a vertically-stacked container of labelled inputs, mirroring the dialog look on this screen. */
+    private fun editFieldsContainer(
+        ctx: android.content.Context,
+        nameView: View?,
+        setsInput: EditText,
+        repsInput: EditText,
+        weightInput: EditText,
+        notesInput: EditText
+    ): LinearLayout {
+        val dp = resources.displayMetrics.density
+        fun dpI(n: Int) = (n * dp).toInt()
+        fun label(text: String) = TextView(ctx).apply {
+            this.text = text
+            textSize = 12f
+            setTextColor(Color.parseColor("#8888A8"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = dpI(10); it.bottomMargin = dpI(2) }
+        }
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpI(20), dpI(4), dpI(20), dpI(4))
+            if (nameView != null) { addView(label("Exercise")); addView(nameView) }
+            addView(label("Sets")); addView(setsInput)
+            addView(label("Reps (e.g. 8-12 or 30 min)")); addView(repsInput)
+            addView(label("Target weight (kg, 0 = bodyweight)")); addView(weightInput)
+            addView(label("Notes (optional)")); addView(notesInput)
+        }
+    }
+
+    private fun showEditExerciseDialog(exercise: PlannedExercise) {
+        val ctx = requireContext()
+        val setsInput = EditText(ctx).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(exercise.sets.toString())
+        }
+        val repsInput = EditText(ctx).apply {
+            setSingleLine(); setText(exercise.targetReps)
+        }
+        val weightInput = EditText(ctx).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(formatWeight(exercise.targetWeightKg))
+        }
+        val notesInput = EditText(ctx).apply { setText(exercise.notes) }
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Edit ${exercise.exerciseName}")
+            .setView(editFieldsContainer(ctx, null, setsInput, repsInput, weightInput, notesInput))
+            .setPositiveButton("Save") { _, _ ->
+                viewModel.editExercise(
+                    exercise,
+                    sets = setsInput.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(1) ?: exercise.sets,
+                    reps = repsInput.text?.toString()?.trim().orEmpty().ifBlank { exercise.targetReps },
+                    weight = weightInput.text?.toString()?.trim()?.replace(',', '.')?.toFloatOrNull()
+                        ?.coerceAtLeast(0f) ?: exercise.targetWeightKg,
+                    notes = notesInput.text?.toString()?.trim().orEmpty()
+                )
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun confirmDeleteExercise(exercise: PlannedExercise) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Remove ${exercise.exerciseName}?")
+            .setMessage("This removes it from this day's plan.")
+            .setPositiveButton("Remove") { _, _ -> viewModel.deleteExercise(exercise) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showAddExerciseDialog(day: Int) {
+        val ctx = requireContext()
+        // Exercise-name picker sourced from the bundled catalog (same source E3's library uses),
+        // de-duplicated and sorted; users can also type a custom name.
+        val names = com.migul.treningsprogram.data.ExerciseCatalog.entries
+            .map { it.name }
+            .distinct()
+            .sorted()
+        val nameInput = android.widget.AutoCompleteTextView(ctx).apply {
+            hint = "Start typing an exercise…"
+            setSingleLine()
+            setAdapter(ArrayAdapter(ctx, android.R.layout.simple_dropdown_item_1line, names))
+            threshold = 1
+        }
+        val setsInput = EditText(ctx).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText("3")
+        }
+        val repsInput = EditText(ctx).apply { setSingleLine(); setText("8-12") }
+        val weightInput = EditText(ctx).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText("0")
+        }
+        val notesInput = EditText(ctx).apply { hint = "Notes (optional)" }
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Add exercise")
+            .setView(editFieldsContainer(ctx, nameInput, setsInput, repsInput, weightInput, notesInput))
+            .setPositiveButton("Add") { _, _ ->
+                val name = nameInput.text?.toString()?.trim().orEmpty()
+                if (name.isBlank()) {
+                    Snackbar.make(binding.root, "Enter an exercise name.", Snackbar.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                viewModel.addExercise(
+                    day = day,
+                    name = name,
+                    sets = setsInput.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(1) ?: 3,
+                    reps = repsInput.text?.toString()?.trim().orEmpty().ifBlank { "8-12" },
+                    weight = weightInput.text?.toString()?.trim()?.replace(',', '.')?.toFloatOrNull()
+                        ?.coerceAtLeast(0f) ?: 0f,
+                    notes = notesInput.text?.toString()?.trim().orEmpty()
+                )
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun dominantMuscleGroup(exercises: List<PlannedExercise>): String {
         if (exercises.isEmpty()) return "AI decides"
         val dominant = exercises.map { getMuscleGroup(it.exerciseName) }
@@ -481,6 +674,132 @@ class ProgramFragment : Fragment() {
             .maxByOrNull { it.value.size }
             ?.key ?: return "AI decides"
         return if (dominant == "Training") "AI decides" else dominant
+    }
+
+    // ── E2: program switcher ─────────────────────────────────────────────────────────────────────
+
+    private fun renderProgramSwitcher(programs: List<Program>, active: Program?) {
+        if (_binding == null) return
+        if (programs.isEmpty()) {
+            binding.cardProgramSwitcher.visibility = View.GONE
+            return
+        }
+        binding.cardProgramSwitcher.visibility = View.VISIBLE
+        val labels = programs.map { p ->
+            buildString {
+                append(p.name)
+                if (p.mesocycleWeeks > 0) append("  •  ${p.mesocycleWeeks}-wk block")
+                if (p.isFrozen) append("  •  frozen")
+            }
+        }
+        suppressProgramSpinner = true
+        binding.spinnerProgram.adapter = ArrayAdapter(
+            requireContext(), android.R.layout.simple_spinner_item, labels
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        val activeIdx = programs.indexOfFirst { it.id == active?.id }.coerceAtLeast(0)
+        binding.spinnerProgram.setSelection(activeIdx)
+        // Reset the guard after the pending selection callback has been dispatched.
+        binding.spinnerProgram.post { suppressProgramSpinner = false }
+    }
+
+    private fun showSaveProgramDialog() {
+        val ctx = requireContext()
+        val dp = resources.displayMetrics.density
+        val input = EditText(ctx).apply {
+            hint = "Program name"
+            setSingleLine()
+        }
+        val container = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((20 * dp).toInt(), (8 * dp).toInt(), (20 * dp).toInt(), 0)
+            addView(input)
+        }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Save as new program")
+            .setMessage("Saves the current week's plan as a new program and switches to it.")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                val name = input.text?.toString()?.trim().orEmpty()
+                if (name.isNotBlank()) viewModel.saveCurrentAsProgram(name)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showProgramOptionsDialog() {
+        val active = viewModel.activeProgram.value ?: return
+        val options = mutableListOf<String>()
+        options.add("Rename")
+        // E2: full deload-aware regeneration (the reachable stall→deload trigger).
+        options.add("Regenerate program now")
+        // Mesocycle toggle.
+        options.add(if (active.mesocycleWeeks > 0) "Turn off mesocycle block" else "Make a mesocycle block")
+        // Frozen toggle (assumption N).
+        options.add(if (active.isFrozen) "Unfreeze (resume weekly AI adaptation)" else "Freeze (stop weekly AI adaptation)")
+        if (viewModel.programs.value.size > 1) options.add("Delete this program")
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(active.name)
+            .setItems(options.toTypedArray()) { _, which ->
+                when (options[which]) {
+                    "Rename" -> showRenameProgramDialog(active)
+                    "Regenerate program now" -> {
+                        val presetId = viewModel.currentPresetId
+                        viewModel.regenerateFullProgram(
+                            equipment = viewModel.getEquipmentForPreset(presetId),
+                            equipmentNotes = viewModel.getNotesForPreset(presetId)
+                        )
+                    }
+                    "Make a mesocycle block" -> showMesocycleDialog()
+                    "Turn off mesocycle block" -> viewModel.setMesocycle(0)
+                    "Freeze (stop weekly AI adaptation)" -> viewModel.setFrozen(true)
+                    "Unfreeze (resume weekly AI adaptation)" -> viewModel.setFrozen(false)
+                    "Delete this program" -> confirmDeleteProgram(active)
+                }
+            }
+            .show()
+    }
+
+    private fun showRenameProgramDialog(program: Program) {
+        val ctx = requireContext()
+        val dp = resources.displayMetrics.density
+        val input = EditText(ctx).apply {
+            setText(program.name)
+            setSingleLine()
+            setSelection(text.length)
+        }
+        val container = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((20 * dp).toInt(), (8 * dp).toInt(), (20 * dp).toInt(), 0)
+            addView(input)
+        }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Rename program")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                val name = input.text?.toString()?.trim().orEmpty()
+                if (name.isNotBlank()) viewModel.renameActiveProgram(name)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showMesocycleDialog() {
+        val weeks = listOf(4, 5, 6, 8)
+        val labels = weeks.map { "$it-week block" }.toTypedArray()
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Mesocycle block length")
+            .setItems(labels) { _, which -> viewModel.setMesocycle(weeks[which]) }
+            .show()
+    }
+
+    private fun confirmDeleteProgram(program: Program) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Delete \"${program.name}\"?")
+            .setMessage("This removes the program and its plan. Your logged workout history is kept.")
+            .setPositiveButton("Delete") { _, _ -> viewModel.deleteProgram(program.id) }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onDestroyView() {

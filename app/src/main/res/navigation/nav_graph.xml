@@ -102,6 +102,18 @@
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_to_library"
+            app:destination="@id/exerciseLibraryFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action android:id="@+id/action_settings_to_weekly_summary"
+            app:destination="@id/weeklySummaryFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
     <fragment
@@ -224,5 +236,36 @@
             app:argType="long"
             android:defaultValue="0L" />
     </fragment>
+
+    <fragment
+        android:id="@+id/exerciseLibraryFragment"
+        android:name="com.migul.treningsprogram.ui.library.ExerciseLibraryFragment"
+        android:label="Exercise Library"
+        tools:layout="@layout/fragment_exercise_library">
+        <action
+            android:id="@+id/action_library_to_detail"
+            app:destination="@id/exerciseDetailFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/exerciseDetailFragment"
+        android:name="com.migul.treningsprogram.ui.library.ExerciseDetailFragment"
+        android:label="Exercise"
+        tools:layout="@layout/fragment_exercise_detail">
+        <argument
+            android:name="exerciseId"
+            app:argType="string"
+            android:defaultValue="" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/weeklySummaryFragment"
+        android:name="com.migul.treningsprogram.ui.summary.WeeklySummaryFragment"
+        android:label="Coach Summary"
+        tools:layout="@layout/fragment_weekly_summary" />
 
 </navigation>

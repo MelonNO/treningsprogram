@@ -5,6 +5,7 @@ import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.Exercise
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
+import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 
@@ -190,14 +191,17 @@ object BackupMerger {
         existing: List<PlannedExercise>,
         backup: List<PlannedExercise>
     ): List<PlannedExercise> {
-        val existingByWeek = existing.groupBy { it.weekStart }
-        val backupByWeek = backup.groupBy { it.weekStart }
-        val allWeeks = (existingByWeek.keys + backupByWeek.keys)
+        // E2: plans are scoped to a program, so group by (programId, weekStart) — a week's plan in
+        // program A must not replace the same week in program B. Pre-E2 / single-program data all
+        // shares programId=null, so this reduces to the original per-week behaviour for them.
+        val existingByKey = existing.groupBy { it.programId to it.weekStart }
+        val backupByKey = backup.groupBy { it.programId to it.weekStart }
+        val allKeys = (existingByKey.keys + backupByKey.keys)
 
         val result = mutableListOf<PlannedExercise>()
-        for (week in allWeeks) {
-            val e = existingByWeek[week].orEmpty()
-            val b = backupByWeek[week].orEmpty()
+        for (key in allKeys) {
+            val e = existingByKey[key].orEmpty()
+            val b = backupByKey[key].orEmpty()
             when {
                 e.isEmpty() -> result += b
                 b.isEmpty() -> result += e
@@ -282,4 +286,71 @@ object BackupMerger {
     }
 
     private fun presetContentKey(p: GymPreset): String = "${p.name}|${p.equipmentJson}|${p.notes}"
+
+    // ---------------------------------------------------------------------------------------------
+    // Program (E2): UNION by name (case-insensitive), existing wins on clash. Returns the merged
+    // list AND a backup-id -> merged-id remap so backup plan rows can be repointed at the program
+    // they landed on. Preserves the "exactly one active program" invariant.
+    // ---------------------------------------------------------------------------------------------
+
+    data class MergedPrograms(
+        val programs: List<Program>,
+        /** backup program id -> id it occupies in the merged set (for planned_exercises.programId). */
+        val backupIdRemap: Map<Long, Long>
+    )
+
+    /**
+     * Programs are identified by NAME (the user-facing handle; ids are surrogate). Union by lowercased
+     * name. If both sides have the same name, keep the EXISTING program (its id is what local plan
+     * rows already reference, and it reflects the active device). Backup-only programs are added with
+     * re-keyed ids (and forced inactive, since the device already has an active program), so a restore
+     * never overwrites a different existing program nor introduces a second active one.
+     *
+     * The remap lets the caller repoint backup-only plan rows: a backup plan row with
+     * `programId = X` should become `programId = backupIdRemap[X]`.
+     */
+    fun mergePrograms(
+        existing: List<Program>,
+        backup: List<Program>
+    ): MergedPrograms {
+        val result = existing.toMutableList()
+        val seenNames = existing.map { it.name.lowercase() }.toMutableSet()
+        val usedIds = existing.map { it.id }.toMutableSet()
+        var nextId = ((existing.maxOfOrNull { it.id } ?: 0L) + 1L)
+        val remap = HashMap<Long, Long>()
+        val deviceHasActive = existing.any { it.isActive }
+
+        for (p in backup) {
+            val nameDup = existing.firstOrNull { it.name.equals(p.name, ignoreCase = true) }
+            if (nameDup != null) {
+                // Same-named program already on device -> existing wins; repoint to its id.
+                remap[p.id] = nameDup.id
+                continue
+            }
+            if (!seenNames.add(p.name.lowercase())) {
+                // Two backup programs share a name -> route the second onto whatever the first got.
+                val firstId = result.firstOrNull { it.name.equals(p.name, ignoreCase = true) }?.id
+                if (firstId != null) { remap[p.id] = firstId; continue }
+            }
+            val finalId = if (p.id != 0L && usedIds.add(p.id)) p.id else nextId++
+            usedIds.add(finalId)
+            // A backup-only program is never made active if the device already has one active.
+            result.add(p.copy(id = finalId, isActive = if (deviceHasActive) false else p.isActive))
+            remap[p.id] = finalId
+        }
+
+        // Invariant: exactly one active program. If none ended up active (e.g. device had none and
+        // no backup program was active), promote the first; if several, keep the first active only.
+        val activeCount = result.count { it.isActive }
+        val normalized = when {
+            activeCount == 1 -> result
+            result.isEmpty() -> result
+            else -> {
+                val firstActiveIdx = result.indexOfFirst { it.isActive }
+                    .let { if (it >= 0) it else 0 }
+                result.mapIndexed { i, prog -> prog.copy(isActive = i == firstActiveIdx) }
+            }
+        }
+        return MergedPrograms(normalized, remap)
+    }
 }

@@ -28,6 +28,7 @@ import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.databinding.FragmentHomeBinding
+import com.migul.treningsprogram.domain.MuscleRecovery
 import com.migul.treningsprogram.ui.history.RecapTargetViewModel
 import com.migul.treningsprogram.domain.model.DailyChallenge
 import com.migul.treningsprogram.domain.model.WorkoutResult
@@ -197,8 +198,20 @@ class HomeFragment : Fragment() {
                     }
                 }
                 launch {
+                    viewModel.muscleRecovery.collect { items ->
+                        renderRecovery(items)
+                    }
+                }
+                launch {
                     viewModel.bodyMeasurements.collect { measurements ->
                         renderBodyWeightEntries(measurements.take(5))
+                    }
+                }
+                launch {
+                    // E2: surface the active program's deload state so the user can tell a
+                    // stall/fatigue-triggered deload week is in effect (M2).
+                    viewModel.deloadActive.collect { active ->
+                        binding.cardDeload.visibility = if (active) View.VISIBLE else View.GONE
                     }
                 }
             }
@@ -340,6 +353,89 @@ class HomeFragment : Fragment() {
         if (!isAdded || _binding == null) return
         result.completedChallenges.forEach { ch ->
             Snackbar.make(binding.root, "Challenge complete: ${ch.name}  +${ch.bonusXp} XP", Snackbar.LENGTH_LONG).show()
+        }
+    }
+
+    /** Fixed-window recovery colours (matches the three documented states + untrained). */
+    private fun recoveryColor(state: MuscleRecovery.RecoveryState): Int = when (state) {
+        MuscleRecovery.RecoveryState.RECOVERING -> android.graphics.Color.parseColor("#FF9800") // amber
+        MuscleRecovery.RecoveryState.READY      -> android.graphics.Color.parseColor("#4CAF50") // green
+        MuscleRecovery.RecoveryState.OVERDUE    -> android.graphics.Color.parseColor("#E53935") // red
+        MuscleRecovery.RecoveryState.UNTRAINED  -> android.graphics.Color.parseColor("#9E9E9E") // grey
+    }
+
+    private fun recoveryLabel(state: MuscleRecovery.RecoveryState): String = when (state) {
+        MuscleRecovery.RecoveryState.RECOVERING -> "Recovering"
+        MuscleRecovery.RecoveryState.READY      -> "Ready"
+        MuscleRecovery.RecoveryState.OVERDUE    -> "Overdue"
+        MuscleRecovery.RecoveryState.UNTRAINED  -> "Untrained"
+    }
+
+    private fun recoverySubtitle(item: HomeViewModel.MuscleRecoveryItem): String {
+        val last = item.lastTrainedMs ?: return "never trained"
+        val hours = ((System.currentTimeMillis() - last).coerceAtLeast(0L)) / (60L * 60L * 1000L)
+        return when {
+            hours < 1L  -> "trained just now"
+            hours < 24L -> "trained ${hours}h ago"
+            else        -> {
+                val days = hours / 24L
+                "trained ${days}d ago"
+            }
+        }
+    }
+
+    private fun renderRecovery(items: List<HomeViewModel.MuscleRecoveryItem>) {
+        if (_binding == null) return
+        val container = binding.layoutHomeRecovery
+        container.removeAllViews()
+        val density = resources.displayMetrics.density
+        items.forEach { item ->
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val vp = (6 * density).toInt()
+                setPadding(0, vp, 0, vp)
+            }
+            // Colored status dot
+            val dotSize = (12 * density).toInt()
+            val dot = View(requireContext()).apply {
+                val bg = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(recoveryColor(item.state))
+                }
+                background = bg
+                layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply {
+                    marginEnd = (12 * density).toInt()
+                }
+            }
+            // Group name + subtitle
+            val textCol = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val tvName = TextView(requireContext()).apply {
+                text = item.muscleGroup
+                textSize = 14f
+                setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_surface_emphasis_high_type))
+            }
+            val tvSub = TextView(requireContext()).apply {
+                text = recoverySubtitle(item)
+                textSize = 12f
+                setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_surface_emphasis_medium))
+            }
+            textCol.addView(tvName)
+            textCol.addView(tvSub)
+            // State label, colored
+            val tvState = TextView(requireContext()).apply {
+                text = recoveryLabel(item.state)
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(recoveryColor(item.state))
+            }
+            row.addView(dot)
+            row.addView(textCol)
+            row.addView(tvState)
+            container.addView(row)
         }
     }
 
