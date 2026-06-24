@@ -29,6 +29,29 @@ class GamificationRepository @Inject constructor(
         achievementDao.resetAll()
     }
 
+    /**
+     * From-scratch recompute of [UserStats] after a backup MERGE.
+     *
+     * Unlike [processWorkoutCompletion] (which is INCREMENTAL — it adds XP for a single new
+     * session) and [resetAll] (which only zeroes), this replays the ENTIRE merged history
+     * deterministically and overwrites UserStats. It must be used after a merge so XP/level/streak
+     * are NOT double-counted by copying a UserStats row from either backup side.
+     *
+     * Delegates the math to [com.migul.treningsprogram.data.backup.StatsRecomputer], which mirrors
+     * the live formulas (baseXp=50, setXp=5/working-set, prXp=30/PR, level via [xpToLevel], streak
+     * from consecutive training days). The merged achievement set is passed for completeness; it
+     * does not drive UserStats numbers.
+     */
+    suspend fun recomputeStatsFromHistory(
+        sessions: List<com.migul.treningsprogram.data.db.entity.WorkoutSession>,
+        sets: List<WorkoutSet>,
+        achievements: List<Achievement> = emptyList()
+    ) {
+        val recomputed = com.migul.treningsprogram.data.backup.StatsRecomputer
+            .recompute(sessions, sets, achievements)
+        userStatsDao.upsert(recomputed)
+    }
+
     suspend fun processWorkoutCompletion(sessionId: Long): WorkoutResult {
         ensureAchievementsSeeded()
 

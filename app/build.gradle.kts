@@ -21,8 +21,8 @@ android {
         applicationId = "com.migul.treningsprogram"
         minSdk = 26
         targetSdk = 34
-        versionCode = 34
-        versionName = "1.6.3"
+        versionCode = 35
+        versionName = "1.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -51,6 +51,22 @@ android {
     }
     buildFeatures {
         viewBinding = true
+    }
+    packaging {
+        resources {
+            // The Google API client jars ship duplicate META-INF text files that collide
+            // when merged into the APK; drop them.
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/INDEX.LIST"
+            )
+        }
     }
     testOptions {
         unitTests {
@@ -86,6 +102,17 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.security.crypto)
     implementation(libs.coil)
+
+    // Cloud backup: Google Sign-In + Google Drive REST API (appDataFolder, app-private)
+    implementation(libs.play.services.auth)
+    implementation(libs.google.api.services.drive) {
+        // Avoid pulling the legacy org.apache.httpcomponents transport (conflicts on Android).
+        exclude(group = "org.apache.httpcomponents")
+    }
+    implementation(libs.google.api.client.android) {
+        exclude(group = "org.apache.httpcomponents")
+    }
+    implementation(libs.google.http.client.gson)
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.13")

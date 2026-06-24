@@ -27,4 +27,10 @@ interface ExerciseDao {
 
     @Query("UPDATE exercises SET exerciseDbId = :dbId, matchConfidence = :confidence, matchSource = :source, resolvedAt = :resolvedAt WHERE name = :name")
     suspend fun bindByName(name: String, dbId: String?, confidence: Float, source: String, resolvedAt: Long)
+
+    @Query("SELECT * FROM exercises ORDER BY id ASC")
+    suspend fun getAllExercisesOnce(): List<Exercise>
+
+    @Query("DELETE FROM exercises")
+    suspend fun deleteAll()
 }

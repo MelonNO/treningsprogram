@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        ====================================================================================
+        CLOUD BACKUP CONFIGURATION — USER ACTION REQUIRED
+        ====================================================================================
+        Google Sign-In (for the Drive appDataFolder backup) needs a *Web* OAuth 2.0 client
+        ID. Replace the placeholder below with the "Web application" client ID from your
+        Google Cloud project (NOT the Android client ID — Google Sign-In requests an ID
+        token against the Web client, but you must ALSO register an Android OAuth client
+        with this app's package name + signing SHA-1 for Drive access to work).
+
+        See the setup checklist in DriveBackupClient.kt / GoogleDriveAuth.kt.
+
+        Until this is replaced, the "Connect cloud backup" button will show a clear
+        "cloud backup not configured" message instead of attempting (and failing) sign-in.
+        ====================================================================================
+    -->
+    <string name="default_web_client_id" translatable="false">REPLACE_WITH_WEB_CLIENT_ID</string>
+</resources>

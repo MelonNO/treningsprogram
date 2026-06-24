@@ -16,6 +16,9 @@ import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.ExportRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
+import com.migul.treningsprogram.data.cloud.DriveBackupUploader
+import com.migul.treningsprogram.data.cloud.GoogleDriveAuth
+import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
@@ -38,6 +41,9 @@ class SettingsViewModel @Inject constructor(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val gson: Gson,
     private val exportRepository: ExportRepository,
+    val googleDriveAuth: GoogleDriveAuth,
+    private val driveBackupUploader: DriveBackupUploader,
+    private val backupScheduler: BackupScheduler,
     private val resolutionLog: ExerciseResolutionLog,
     val promptLog: PromptLog,
     val rejectionLog: RejectionLog,
@@ -82,6 +88,97 @@ class SettingsViewModel @Inject constructor(
 
     private val _importResult = MutableStateFlow<String?>(null)
     val importResult = _importResult.asStateFlow()
+
+    // ---- Cloud backup (Google Drive appDataFolder) ----------------------------------------------
+
+    /** Whether a real Web client ID has been configured (placeholder => false). */
+    val cloudConfigured: Boolean get() = googleDriveAuth.isConfigured
+
+    /** Display name/email of the signed-in Google account, or null. */
+    private val _cloudAccount = MutableStateFlow<String?>(null)
+    val cloudAccount = _cloudAccount.asStateFlow()
+
+    /** Last cloud-backup timestamp (RFC 3339), or null if none / not signed in. */
+    private val _cloudLastBackup = MutableStateFlow<String?>(null)
+    val cloudLastBackup = _cloudLastBackup.asStateFlow()
+
+    /** True while a cloud upload/download is in flight. */
+    private val _cloudBusy = MutableStateFlow(false)
+    val cloudBusy = _cloudBusy.asStateFlow()
+
+    /** One-shot user-facing message for cloud operations. */
+    private val _cloudMessage = MutableStateFlow<String?>(null)
+    val cloudMessage = _cloudMessage.asStateFlow()
+
+    /** Re-read the signed-in account and refresh the last-backup time. */
+    fun refreshCloudStatus() {
+        val account = googleDriveAuth.lastSignedInAccount()
+        _cloudAccount.value = account?.email ?: account?.displayName
+        if (account != null && googleDriveAuth.isConfigured) {
+            viewModelScope.launch {
+                runCatching { driveBackupUploader.lastBackupTime() }
+                    .onSuccess { _cloudLastBackup.value = it }
+                    .onFailure { _cloudLastBackup.value = null }
+            }
+        } else {
+            _cloudLastBackup.value = null
+        }
+    }
+
+    /** Call after a successful sign-in ActivityResult to update status. */
+    fun onSignedIn() {
+        refreshCloudStatus()
+        _cloudMessage.value = "Connected to Google Drive."
+        _cloudMessage.value = null
+    }
+
+    fun onSignInFailed(reason: String?) {
+        _cloudMessage.value = "Google sign-in failed${if (reason != null) ": $reason" else "."}"
+        _cloudMessage.value = null
+    }
+
+    fun signOutCloud() {
+        googleDriveAuth.signOut {
+            _cloudAccount.value = null
+            _cloudLastBackup.value = null
+            _cloudMessage.value = "Disconnected from Google Drive."
+            _cloudMessage.value = null
+        }
+    }
+
+    /** Export the current data and upload it to Drive appDataFolder. */
+    fun backupToCloud() {
+        viewModelScope.launch {
+            _cloudBusy.value = true
+            runCatching {
+                val json = exportRepository.exportToJson()
+                driveBackupUploader.upload(json)
+            }.onSuccess {
+                refreshCloudStatus()
+                _cloudMessage.value = "Backed up to cloud."; _cloudMessage.value = null
+            }.onFailure {
+                _cloudMessage.value = "Cloud backup failed: ${it.message}"; _cloudMessage.value = null
+            }
+            _cloudBusy.value = false
+        }
+    }
+
+    /** Download the latest cloud backup and MERGE it into local data. */
+    fun restoreFromCloud() {
+        viewModelScope.launch {
+            _cloudBusy.value = true
+            runCatching {
+                val json = driveBackupUploader.downloadLatest()
+                    ?: throw IllegalStateException("No cloud backup found.")
+                exportRepository.importFromJson(json)
+            }.onSuccess {
+                _cloudMessage.value = "Restored from cloud."; _cloudMessage.value = null
+            }.onFailure {
+                _cloudMessage.value = "Cloud restore failed: ${it.message}"; _cloudMessage.value = null
+            }
+            _cloudBusy.value = false
+        }
+    }
 
     private val _lastAttemptCount = MutableStateFlow(prefs.lastGenerationAttemptCount)
     val lastAttemptCount = _lastAttemptCount.asStateFlow()
@@ -129,6 +226,9 @@ class SettingsViewModel @Inject constructor(
         prefs.injurySeverity = injurySeverity
         prefs.priorityMuscles = priorityMuscles
         prefs.dislikedExercises = dislikedExercises
+        // Profile/settings changes are backup-eligible preferences (the API key is excluded by the
+        // export engine). Request a coalesced backup; the apiKey write above is not what triggers it.
+        backupScheduler.requestBackup()
         _saved.value = true
         _saved.value = false
     }

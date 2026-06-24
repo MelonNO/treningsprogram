@@ -2,6 +2,7 @@ package com.migul.treningsprogram.ui.history
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
 import com.migul.treningsprogram.data.repository.WorkoutRepository
@@ -16,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
-    private val bodyMeasurementDao: BodyMeasurementDao
+    private val bodyMeasurementDao: BodyMeasurementDao,
+    private val backupScheduler: BackupScheduler
 ) : ViewModel() {
 
     // ── Log tab ──────────────────────────────────────────────────────────
@@ -100,6 +102,7 @@ class HistoryViewModel @Inject constructor(
     fun addBodyWeight(weightKg: Float) {
         viewModelScope.launch {
             bodyMeasurementDao.insert(BodyMeasurement(dateMs = System.currentTimeMillis(), weightKg = weightKg))
+            backupScheduler.requestBackup()
         }
     }
 

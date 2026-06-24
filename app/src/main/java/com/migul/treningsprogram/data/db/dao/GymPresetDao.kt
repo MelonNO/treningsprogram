@@ -26,4 +26,11 @@ interface GymPresetDao {
 
     @Query("DELETE FROM gym_presets")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM gym_presets ORDER BY id ASC")
+    suspend fun getAllOnce(): List<GymPreset>
+
+    /** Insert preserving the provided id (used by backup restore to keep preset id stability). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithId(preset: GymPreset)
 }

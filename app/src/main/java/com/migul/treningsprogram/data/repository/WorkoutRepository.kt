@@ -3,6 +3,7 @@ package com.migul.treningsprogram.data.repository
 import androidx.room.withTransaction
 import com.migul.treningsprogram.data.ExerciseDbResolver
 import com.migul.treningsprogram.data.ResolveHints
+import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
@@ -22,7 +23,8 @@ class WorkoutRepository @Inject constructor(
     private val setDao: WorkoutSetDao,
     private val exerciseDao: ExerciseDao,
     private val plannedDao: PlannedExerciseDao,
-    private val resolver: ExerciseDbResolver
+    private val resolver: ExerciseDbResolver,
+    private val backupScheduler: BackupScheduler
 ) {
     val allSessions: Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
@@ -104,6 +106,9 @@ class WorkoutRepository @Inject constructor(
             return false
         }
         sessionDao.update(session.copy(isCompleted = true, durationMinutes = durationMinutes))
+        // Completing a workout (and the achievement/XP unlock that immediately follows it) is the
+        // single biggest user-data change — request a coalesced backup.
+        backupScheduler.requestBackup()
         return true
     }
 
@@ -126,7 +131,12 @@ class WorkoutRepository @Inject constructor(
     suspend fun getSetsForSessionOnce(sessionId: Long): List<WorkoutSet> =
         setDao.getSetsForSessionOnce(sessionId)
 
-    suspend fun addSet(set: WorkoutSet): Long = setDao.insert(set)
+    suspend fun addSet(set: WorkoutSet): Long {
+        val id = setDao.insert(set)
+        // Each logged set is user data; debounce collapses a rapid flurry of set logs into one push.
+        backupScheduler.requestBackup()
+        return id
+    }
 
     suspend fun getRecentSessions(count: Int = 20): List<WorkoutSession> =
         sessionDao.getRecentCompleted(count)
@@ -143,6 +153,8 @@ class WorkoutRepository @Inject constructor(
     suspend fun savePlan(weekStart: Long, exercises: List<PlannedExercise>) {
         plannedDao.deleteForWeek(weekStart)
         plannedDao.insertAll(exercises)
+        // A newly generated weekly plan is user data worth backing up.
+        backupScheduler.requestBackup()
     }
 
     suspend fun saveDayPlan(weekStart: Long, dayOfWeek: Int, exercises: List<PlannedExercise>) {
@@ -150,6 +162,8 @@ class WorkoutRepository @Inject constructor(
             plannedDao.deleteForDay(weekStart, dayOfWeek)
             plannedDao.insertAll(exercises)
         }
+        // A regenerated/edited day plan is user data worth backing up.
+        backupScheduler.requestBackup()
     }
 
     suspend fun getLatestPlanWeekStart(): Long? = plannedDao.getLatestWeekStart()

@@ -1,0 +1,285 @@
+package com.migul.treningsprogram.data.backup
+
+import com.migul.treningsprogram.data.db.entity.Achievement
+import com.migul.treningsprogram.data.db.entity.BodyMeasurement
+import com.migul.treningsprogram.data.db.entity.Exercise
+import com.migul.treningsprogram.data.db.entity.GymPreset
+import com.migul.treningsprogram.data.db.entity.PlannedExercise
+import com.migul.treningsprogram.data.db.entity.WorkoutSession
+import com.migul.treningsprogram.data.db.entity.WorkoutSet
+
+/**
+ * Pure, Room-free merge engine. Restore = MERGE into existing on-device data, never wipe.
+ *
+ * Every function takes the EXISTING (on-device) data plus the BACKUP data as plain lists and
+ * returns the merged result, so the merge rules are unit-testable without a database. The
+ * repository is responsible only for loading these lists, calling these functions, and persisting
+ * the result.
+ */
+object BackupMerger {
+
+    // ---------------------------------------------------------------------------------------------
+    // Sessions + Sets: UNION, id-collision-safe, session->sets linkage preserved.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A backup session paired with the backup sets that belong to it. */
+    data class SessionWithSets(val session: WorkoutSession, val sets: List<WorkoutSet>)
+
+    data class MergedWorkouts(
+        val sessions: List<WorkoutSession>,
+        val sets: List<WorkoutSet>
+    )
+
+    /**
+     * Union existing + backup workout history.
+     *
+     * Rules:
+     *  - Same CONTENT = same row -> skip the duplicate (de-dup by value, ignoring the surrogate id).
+     *  - A backup row's `id` may collide with a DIFFERENT existing row. We must NOT let the backup
+     *    overwrite that existing entity. Colliding-but-different backup sessions are re-keyed to a
+     *    fresh id beyond every existing id, and their sets follow the remap so the session->sets
+     *    link survives.
+     *  - Sets are likewise de-duped by value and re-keyed when their id collides with a different
+     *    existing set.
+     *
+     * @param existingSessions on-device sessions.
+     * @param existingSets on-device sets.
+     * @param backup backup sessions each bundled with their own sets (linked in the backup's id space).
+     */
+    fun mergeWorkouts(
+        existingSessions: List<WorkoutSession>,
+        existingSets: List<WorkoutSet>,
+        backup: List<SessionWithSets>
+    ): MergedWorkouts {
+        val resultSessions = existingSessions.toMutableList()
+        val resultSets = existingSets.toMutableList()
+
+        val existingSessionById = existingSessions.associateBy { it.id }
+        val existingSessionByContent = existingSessions
+            .groupBy { sessionContentKey(it) }
+        // Content keys of every set already in the merged result (existing + accepted backup),
+        // used to de-dup by value as we go.
+        val seenSetContent = existingSets.map { setContentKey(it) }.toMutableSet()
+
+        var nextSessionId = ((existingSessions.maxOfOrNull { it.id } ?: 0L) + 1L)
+        var nextSetId = ((existingSets.maxOfOrNull { it.id } ?: 0L) + 1L)
+
+        for ((backupSession, backupSets) in backup) {
+            // Resolve the session into the merged id space.
+            val contentDup = existingSessionByContent[sessionContentKey(backupSession)]
+                ?.firstOrNull()
+            val finalSessionId: Long
+            if (contentDup != null) {
+                // Identical session already present -> reuse its id, do not add a duplicate row.
+                finalSessionId = contentDup.id
+            } else {
+                val collidingDifferent = existingSessionById[backupSession.id]
+                if (collidingDifferent == null) {
+                    // Id free -> keep the backup's own id.
+                    finalSessionId = backupSession.id
+                    resultSessions.add(backupSession)
+                } else {
+                    // Id taken by a DIFFERENT session -> re-key to a fresh id.
+                    finalSessionId = nextSessionId++
+                    resultSessions.add(backupSession.copy(id = finalSessionId))
+                }
+            }
+
+            // Bring the backup's sets across, re-pointed at finalSessionId.
+            for (set in backupSets) {
+                val relinked = set.copy(sessionId = finalSessionId)
+                val key = setContentKey(relinked)
+                // Identical set already present (after relinking) -> skip (de-dup by value).
+                if (!seenSetContent.add(key)) continue
+                // Assign an id that does not overwrite a different existing set.
+                val keep = relinked.id != 0L && resultSets.none { it.id == relinked.id }
+                val finalSet = if (keep) relinked else relinked.copy(id = nextSetId++)
+                resultSets.add(finalSet)
+            }
+        }
+
+        return MergedWorkouts(resultSessions, resultSets)
+    }
+
+    /** Content identity for a session, independent of the surrogate id. */
+    private fun sessionContentKey(s: WorkoutSession): String =
+        listOf(s.dateMs, s.durationMinutes, s.notes, s.isCompleted).joinToString("|")
+
+    /** Content identity for a set, independent of the surrogate id but INCLUDING its sessionId. */
+    private fun setContentKey(s: WorkoutSet): String =
+        listOf(
+            s.sessionId, s.exerciseName, s.muscleGroup, s.setNumber,
+            s.reps, s.weightKg, s.isWarmup, s.rpeLabel, s.loggedAtMs
+        ).joinToString("|")
+
+    // ---------------------------------------------------------------------------------------------
+    // BodyMeasurement: UNION, id-collision-safe (no children to relink).
+    // ---------------------------------------------------------------------------------------------
+
+    fun mergeBodyMeasurements(
+        existing: List<BodyMeasurement>,
+        backup: List<BodyMeasurement>
+    ): List<BodyMeasurement> {
+        val result = existing.toMutableList()
+        val existingById = existing.associateBy { it.id }
+        val seenContent = existing.map { bodyContentKey(it) }.toMutableSet()
+        var nextId = ((existing.maxOfOrNull { it.id } ?: 0L) + 1L)
+
+        for (m in backup) {
+            if (!seenContent.add(bodyContentKey(m))) continue // value duplicate -> skip
+            val collides = existingById[m.id] != null || result.any { it.id == m.id }
+            val finalRow = if (m.id != 0L && !collides) m else m.copy(id = nextId++)
+            result.add(finalRow)
+        }
+        return result
+    }
+
+    private fun bodyContentKey(m: BodyMeasurement): String = "${m.dateMs}|${m.weightKg}"
+
+    // ---------------------------------------------------------------------------------------------
+    // Achievement: UNION by String id. unlocked-wins; earliest unlockedAtMs wins.
+    // ---------------------------------------------------------------------------------------------
+
+    fun mergeAchievements(
+        existing: List<Achievement>,
+        backup: List<Achievement>
+    ): List<Achievement> {
+        val merged = LinkedHashMap<String, Achievement>()
+        for (a in existing) merged[a.id] = a
+        for (b in backup) {
+            val cur = merged[b.id]
+            if (cur == null) {
+                merged[b.id] = b
+                continue
+            }
+            // Keep any unlock from either side; never lose an unlock.
+            val unlocked = cur.isUnlocked || b.isUnlocked
+            // Earliest non-zero unlock timestamp wins.
+            val unlockedAt = earliestUnlock(
+                if (cur.isUnlocked) cur.unlockedAtMs else 0L,
+                if (b.isUnlocked) b.unlockedAtMs else 0L
+            )
+            // Prefer existing metadata (name/desc/emoji) — it reflects the installed app version.
+            merged[b.id] = cur.copy(isUnlocked = unlocked, unlockedAtMs = unlockedAt)
+        }
+        return merged.values.toList()
+    }
+
+    private fun earliestUnlock(a: Long, b: Long): Long {
+        val nonZero = listOf(a, b).filter { it > 0L }
+        return nonZero.minOrNull() ?: 0L
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // PlannedExercise: newest-generated-plan-per-week wins, grouped by weekStart.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * For each weekStart, whichever side's plan was generated more recently REPLACES the other
+     * entirely for that week.
+     *
+     * Recency signal: PlannedExercise has no createdAt. The best available signal is
+     * [PlannedExercise.resolvedAt] — set to the wall-clock time when a freshly generated plan's
+     * exercises are bound to the local DB right after generation. We take the MAX resolvedAt across
+     * a week's rows as that plan's "generated at". If a whole week's rows are all unresolved
+     * (resolvedAt == 0 on both sides — e.g. a brand-new plan not yet resolved), we fall back to
+     * preferring the EXISTING (on-device) plan for that week, since the user is actively on this
+     * device. This fallback is flagged for orchestrator ratification.
+     */
+    fun mergePlannedExercises(
+        existing: List<PlannedExercise>,
+        backup: List<PlannedExercise>
+    ): List<PlannedExercise> {
+        val existingByWeek = existing.groupBy { it.weekStart }
+        val backupByWeek = backup.groupBy { it.weekStart }
+        val allWeeks = (existingByWeek.keys + backupByWeek.keys)
+
+        val result = mutableListOf<PlannedExercise>()
+        for (week in allWeeks) {
+            val e = existingByWeek[week].orEmpty()
+            val b = backupByWeek[week].orEmpty()
+            when {
+                e.isEmpty() -> result += b
+                b.isEmpty() -> result += e
+                else -> {
+                    val eRecency = e.maxOf { it.resolvedAt }
+                    val bRecency = b.maxOf { it.resolvedAt }
+                    // Backup wins only when STRICTLY newer; ties / all-unresolved -> existing wins.
+                    result += if (bRecency > eRecency) b else e
+                }
+            }
+        }
+        return result
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Exercise (custom/edited library): UNION by name (case-insensitive), existing wins on clash.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Exercises are identified by their NAME (the natural key the rest of the app joins on:
+     * WorkoutSet.exerciseName, ExerciseDao.findByName). Union by lowercased name. If both sides
+     * have the same name, keep the EXISTING row (its id is the one local sets/plans may reference
+     * via name->row lookups, and it reflects the installed library). Backup-only names are added
+     * with re-keyed ids so they never overwrite a different existing exercise.
+     */
+    fun mergeExercises(
+        existing: List<Exercise>,
+        backup: List<Exercise>
+    ): List<Exercise> {
+        val result = existing.toMutableList()
+        val seenNames = existing.map { it.name.lowercase() }.toMutableSet()
+        val usedIds = existing.map { it.id }.toMutableSet()
+        var nextId = ((existing.maxOfOrNull { it.id } ?: 0L) + 1L)
+
+        for (ex in backup) {
+            if (!seenNames.add(ex.name.lowercase())) continue // name already present -> existing wins
+            val finalRow = if (ex.id != 0L && usedIds.add(ex.id)) ex else ex.copy(id = nextId++)
+            usedIds.add(finalRow.id)
+            result.add(finalRow)
+        }
+        return result
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // GymPreset: UNION by content, id-collision-safe. Returns the merged list AND an id remap so
+    // selectedGymPresetId can be repointed to wherever a backup preset landed.
+    // ---------------------------------------------------------------------------------------------
+
+    data class MergedPresets(
+        val presets: List<GymPreset>,
+        /** backup preset id -> id it occupies in the merged set (for selectedGymPresetId fixup). */
+        val backupIdRemap: Map<Long, Long>
+    )
+
+    fun mergeGymPresets(
+        existing: List<GymPreset>,
+        backup: List<GymPreset>
+    ): MergedPresets {
+        val result = existing.toMutableList()
+        val existingById = existing.associateBy { it.id }
+        val existingByContent = existing.associateBy { presetContentKey(it) }
+        val usedIds = existing.map { it.id }.toMutableSet()
+        var nextId = ((existing.maxOfOrNull { it.id } ?: 0L) + 1L)
+        val remap = HashMap<Long, Long>()
+
+        for (p in backup) {
+            val contentDup = existingByContent[presetContentKey(p)]
+            if (contentDup != null) {
+                remap[p.id] = contentDup.id
+                continue
+            }
+            val finalId = if (p.id != 0L && usedIds.add(p.id) && existingById[p.id] == null) {
+                p.id
+            } else {
+                nextId++
+            }
+            usedIds.add(finalId)
+            result.add(p.copy(id = finalId))
+            remap[p.id] = finalId
+        }
+        return MergedPresets(result, remap)
+    }
+
+    private fun presetContentKey(p: GymPreset): String = "${p.name}|${p.equipmentJson}|${p.notes}"
+}

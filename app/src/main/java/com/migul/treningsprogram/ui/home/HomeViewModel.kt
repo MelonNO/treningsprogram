@@ -2,6 +2,7 @@ package com.migul.treningsprogram.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
@@ -29,6 +30,7 @@ class HomeViewModel @Inject constructor(
     private val dailyChallengeManager: DailyChallengeManager,
     private val gymPresetDao: GymPresetDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
+    private val backupScheduler: BackupScheduler,
     val prefs: PreferencesManager
 ) : ViewModel() {
 
@@ -74,6 +76,7 @@ class HomeViewModel @Inject constructor(
     fun addBodyWeight(weightKg: Float) {
         viewModelScope.launch {
             bodyMeasurementDao.insert(BodyMeasurement(dateMs = System.currentTimeMillis(), weightKg = weightKg))
+            backupScheduler.requestBackup()
         }
     }
 

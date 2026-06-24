@@ -16,6 +16,10 @@ coroutines = "1.8.0"
 gson = "2.11.0"
 securityCrypto = "1.1.0-alpha06"
 coil = "2.6.0"
+playServicesAuth = "21.2.0"
+googleApiClient = "2.6.0"
+googleApiServicesDrive = "v3-rev20240628-2.0.0"
+googleHttpClientGson = "1.44.2"
 
 [libraries]
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +48,12 @@ coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutin
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 coil = { group = "io.coil-kt", name = "coil", version.ref = "coil" }
+
+# Cloud backup: Google Sign-In + Google Drive REST (appDataFolder)
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClient" }
+google-api-services-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleApiServicesDrive" }
+google-http-client-gson = { group = "com.google.http-client", name = "google-http-client-gson", version.ref = "googleHttpClientGson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
