@@ -38,7 +38,8 @@ class ProfileFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding.cardSettings.setOnClickListener {
-            findNavController().navigate(R.id.action_profile_to_settings)
+            if (findNavController().currentDestination?.id == R.id.profileFragment)
+                findNavController().navigate(R.id.action_profile_to_settings)
         }
         binding.headerAchievements.setOnClickListener { toggleAchievements() }
         viewLifecycleOwner.lifecycleScope.launch {

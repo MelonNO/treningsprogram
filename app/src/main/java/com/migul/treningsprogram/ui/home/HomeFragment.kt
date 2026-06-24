@@ -77,7 +77,8 @@ class HomeFragment : Fragment() {
             binding.cardFirstLaunch.visibility = View.VISIBLE
             binding.btnStartWorkout.visibility = View.GONE
             binding.btnStartSetup.setOnClickListener {
-                findNavController().navigate(R.id.action_home_to_setup_wizard)
+                if (findNavController().currentDestination?.id == R.id.homeFragment)
+                    findNavController().navigate(R.id.action_home_to_setup_wizard)
             }
             return  // skip wiring up the rest of the home screen until setup is complete
         }
@@ -98,6 +99,7 @@ class HomeFragment : Fragment() {
                                     binding.tvTodayPlan.text = "Session in progress — tap to continue"
                                     binding.btnStartWorkout.setOnClickListener {
                                         if (!isAdded) return@setOnClickListener
+                                        if (findNavController().currentDestination?.id != R.id.homeFragment) return@setOnClickListener
                                         findNavController().navigate(
                                             R.id.action_home_to_log,
                                             bundleOf("sessionId" to active.id, "dayOfWeek" to dayOfWeekFromMs(active.dateMs))
@@ -125,6 +127,7 @@ class HomeFragment : Fragment() {
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
                                             if (!isAdded) return@startWorkout
+                                            if (findNavController().currentDestination?.id != R.id.homeFragment) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to -1)
@@ -142,6 +145,7 @@ class HomeFragment : Fragment() {
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
                                             if (!isAdded) return@startWorkout
+                                            if (findNavController().currentDestination?.id != R.id.homeFragment) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to currentDayOfWeek())

@@ -371,7 +371,8 @@ class ProgramFragment : Fragment() {
                     putLong("sessionId", -1L)
                     putInt("dayOfWeek", day)
                 }
-                findNavController().navigate(R.id.action_program_to_log, bundle)
+                if (findNavController().currentDestination?.id == R.id.programFragment)
+                    findNavController().navigate(R.id.action_program_to_log, bundle)
             }
         } else {
             binding.tvDayCompletion.text = ""

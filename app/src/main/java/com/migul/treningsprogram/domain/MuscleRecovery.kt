@@ -91,7 +91,9 @@ object MuscleRecovery {
     fun stateFor(lastTrainedMs: Long?, nowMs: Long, weight: Float = 1.0f): RecoveryState {
         if (lastTrainedMs == null) return RecoveryState.UNTRAINED
         val rawElapsed = (nowMs - lastTrainedMs).coerceAtLeast(0L)
-        val effectiveElapsed = if (weight > 0f) (rawElapsed / weight).toLong() else rawElapsed
+        val effectiveElapsed = if (weight in 0.999f..1.001f) rawElapsed
+                               else if (weight > 0f) (rawElapsed / weight.toDouble()).toLong()
+                               else rawElapsed
         return when {
             effectiveElapsed < RECOVERING_UNTIL_MS -> RecoveryState.RECOVERING
             effectiveElapsed <= READY_UNTIL_MS     -> RecoveryState.READY
@@ -108,7 +110,9 @@ object MuscleRecovery {
      */
     fun recoveryFraction(lastTrainedMs: Long, nowMs: Long, weight: Float = 1.0f): Float {
         val rawElapsed = (nowMs - lastTrainedMs).coerceAtLeast(0L)
-        val effectiveElapsed = if (weight > 0f) (rawElapsed / weight).toLong() else rawElapsed
+        val effectiveElapsed = if (weight in 0.999f..1.001f) rawElapsed
+                               else if (weight > 0f) (rawElapsed / weight.toDouble()).toLong()
+                               else rawElapsed
         return (effectiveElapsed.toFloat() / RECOVERING_UNTIL_MS).coerceIn(0f, 1f)
     }
 
@@ -118,7 +122,9 @@ object MuscleRecovery {
      */
     fun remainingRecoveryMs(lastTrainedMs: Long, nowMs: Long, weight: Float = 1.0f): Long {
         val rawElapsed = (nowMs - lastTrainedMs).coerceAtLeast(0L)
-        val effectiveElapsed = if (weight > 0f) (rawElapsed / weight).toLong() else rawElapsed
+        val effectiveElapsed = if (weight in 0.999f..1.001f) rawElapsed
+                               else if (weight > 0f) (rawElapsed / weight.toDouble()).toLong()
+                               else rawElapsed
         return (RECOVERING_UNTIL_MS - effectiveElapsed).coerceAtLeast(0L)
     }
 

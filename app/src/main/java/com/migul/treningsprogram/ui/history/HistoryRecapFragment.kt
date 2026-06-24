@@ -399,10 +399,11 @@ class HistoryRecapFragment : Fragment() {
     }
 
     private fun openTrends(exerciseName: String, sessionDateMs: Long) {
-        findNavController().navigate(
-            R.id.recapTrendsFragment,
-            bundleOf("exerciseName" to exerciseName, "sessionDateMs" to sessionDateMs)
-        )
+        if (findNavController().currentDestination?.id == R.id.historyFragment)
+            findNavController().navigate(
+                R.id.recapTrendsFragment,
+                bundleOf("exerciseName" to exerciseName, "sessionDateMs" to sessionDateMs)
+            )
     }
 
     // ── View helpers ───────────────────────────────────────────────────────────

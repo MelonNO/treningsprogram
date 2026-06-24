@@ -132,7 +132,8 @@ class SettingsTrainingFragment : Fragment() {
 
         // --- static actions ---
         binding.btnManagePresets.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_training_to_gym_presets)
+            if (findNavController().currentDestination?.id == R.id.settingsTrainingFragment)
+                findNavController().navigate(R.id.action_settings_training_to_gym_presets)
         }
 
         setFragmentResultListener(OnboardingBottomSheet.RESULT_KEY) { _, bundle ->
