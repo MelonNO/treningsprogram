@@ -77,6 +77,9 @@ class HistoryProgressFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.strengthHistory.collect { history ->
+                    // First-run / no-selection: tell the user to pick an exercise rather than
+                    // leaving the chart's generic "Not enough data yet" looking broken (UX1).
+                    binding.tvStrengthHint.isVisible = viewModel.selectedExercise.value.isBlank()
                     binding.chartStrength.setData(history.map {
                         StrengthChartView.Entry(it.dateMs, it.maxWeight)
                     })
