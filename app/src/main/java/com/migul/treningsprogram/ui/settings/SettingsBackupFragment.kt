@@ -150,16 +150,18 @@ class SettingsBackupFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    viewModel.resetDone.collect { done ->
-                        if (done) Snackbar.make(binding.root, "All workout history deleted.", Snackbar.LENGTH_SHORT).show()
+                    // S7 fix: resetDone is now SharedFlow<Unit> — every emission means done.
+                    viewModel.resetDone.collect {
+                        Snackbar.make(binding.root, "All workout history deleted.", Snackbar.LENGTH_SHORT).show()
                     }
                 }
                 launch {
                     viewModel.factoryResetDone.collect { requireActivity().recreate() }
                 }
                 launch {
+                    // S7 fix: importResult is now SharedFlow<String> — always non-null.
                     viewModel.importResult.collect { msg ->
-                        if (msg != null) Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
+                        Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
                     }
                 }
                 launch {
@@ -175,8 +177,9 @@ class SettingsBackupFragment : Fragment() {
                     }
                 }
                 launch {
+                    // S7 fix: cloudMessage is now SharedFlow<String> — always non-null.
                     viewModel.cloudMessage.collect { msg ->
-                        if (msg != null) Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
+                        Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
                     }
                 }
             }

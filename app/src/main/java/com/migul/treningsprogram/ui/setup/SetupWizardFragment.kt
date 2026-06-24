@@ -40,6 +40,24 @@ class SetupWizardFragment : Fragment() {
     private var selectedDays = 4
     private var selectedDuration = 60
 
+    // S8 fix: restore step position + selections across rotation / process death
+    companion object {
+        private const val KEY_STEP = "wizard_current_step"
+        private const val KEY_GOAL = "wizard_selected_goal"
+        private const val KEY_EXPERIENCE = "wizard_selected_experience"
+        private const val KEY_DAYS = "wizard_selected_days"
+        private const val KEY_DURATION = "wizard_selected_duration"
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_STEP, currentStep)
+        outState.putString(KEY_GOAL, selectedGoal)
+        outState.putString(KEY_EXPERIENCE, selectedExperience)
+        outState.putInt(KEY_DAYS, selectedDays)
+        outState.putInt(KEY_DURATION, selectedDuration)
+    }
+
     private val stepTitles = listOf(
         "Fitness Goal",
         "Training Schedule",
@@ -55,6 +73,16 @@ class SetupWizardFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // S8 fix: restore step and selections on rotation / process-death restore.
+        if (savedInstanceState != null) {
+            currentStep       = savedInstanceState.getInt(KEY_STEP, 0)
+            selectedGoal      = savedInstanceState.getString(KEY_GOAL, "Hypertrophy") ?: "Hypertrophy"
+            selectedExperience = savedInstanceState.getString(KEY_EXPERIENCE, "Intermediate") ?: "Intermediate"
+            selectedDays      = savedInstanceState.getInt(KEY_DAYS, 4)
+            selectedDuration  = savedInstanceState.getInt(KEY_DURATION, 60)
+            binding.stepFlipper.displayedChild = currentStep
+        }
 
         updateStepUI()
 

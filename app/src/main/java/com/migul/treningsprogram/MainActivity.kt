@@ -98,6 +98,10 @@ class MainActivity : AppCompatActivity() {
             R.id.settingsAboutFragment       to R.id.profileFragment,
             R.id.gymPresetsFragment          to R.id.profileFragment,
             R.id.weeklySummaryFragment       to R.id.profileFragment,
+            // S8 fix: exerciseLibraryFragment and exerciseDetailFragment were missing from this
+            // map; the Profile tab lost its highlight when navigating into the library.
+            R.id.exerciseLibraryFragment     to R.id.profileFragment,
+            R.id.exerciseDetailFragment      to R.id.profileFragment,
             R.id.recapTrendsFragment         to R.id.historyFragment,
         )
 
