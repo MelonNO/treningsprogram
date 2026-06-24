@@ -10,6 +10,7 @@ import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.friendlyAiErrorMessage
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.data.repository.thisMonday
@@ -251,7 +252,7 @@ class ProgramViewModel @Inject constructor(
                 workoutRepository.saveDayPlan(weekStart, dayOfWeek, exercises)
                 _dayGenerationStatus.value = ""
             }.onFailure { e ->
-                _dayGenerationError.value = e.message ?: "Generation failed"
+                _dayGenerationError.value = friendlyAiErrorMessage(e)
                 _dayGenerationStatus.value = ""
             }
             _isDayGenerating.value = false
@@ -316,7 +317,10 @@ class ProgramViewModel @Inject constructor(
                 workoutRepository.setActiveDeload(isDeload)
                 _dayGenerationStatus.value = ""
             }.onFailure { e ->
-                _dayGenerationError.value = e.message ?: "Generation failed"
+                _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
+                    e.message ?: "Program rejected after all attempts"
+                else
+                    friendlyAiErrorMessage(e)
                 _dayGenerationStatus.value = ""
             }
             _isDayGenerating.value = false

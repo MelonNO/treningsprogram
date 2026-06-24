@@ -13,6 +13,7 @@ import com.migul.treningsprogram.data.CrashLog
 import com.migul.treningsprogram.data.PromptLog
 import com.migul.treningsprogram.data.RejectionLog
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.friendlyAiErrorMessage
 import com.migul.treningsprogram.data.repository.ExportRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
@@ -349,11 +350,14 @@ class SettingsViewModel @Inject constructor(
                     "Program generated after ${generationResult.attemptCount} attempts (${capturedReasons.size} rejected)"
                 else
                     "New program generated!"
-            }.onFailure {
+            }.onFailure { e ->
                 _retryLog.value = capturedReasons.mapIndexed { i, r ->
                     RetryEntry(i + 1, r, i == capturedReasons.lastIndex)
                 }
-                _generateStatus.value = "Program rejected after all ${AiRepository.MAX_GENERATION_ATTEMPTS} attempts"
+                _generateStatus.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
+                    "Program rejected after all ${AiRepository.MAX_GENERATION_ATTEMPTS} attempts"
+                else
+                    friendlyAiErrorMessage(e)
             }
             _isGenerating.value = false
         }

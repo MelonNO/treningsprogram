@@ -25,8 +25,14 @@ object NetworkModule {
     fun provideOkHttpClient(preferencesManager: PreferencesManager): OkHttpClient =
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            // Hard ceiling per call: if the TCP read is stuck for 180 s the read timeout fires,
+            // but a callTimeout also guards against the rare case the whole call (connect +
+            // waiting for first byte + streaming body) drags on beyond a reasonable wall-clock
+            // limit. 240 s gives the model time to produce a large response on a slow link
+            // while still guaranteeing the coroutine is eventually unblocked.
+            .callTimeout(240, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val key = preferencesManager.apiKey.filter { it.code in 0x20..0x7E }
                 val request = chain.request().newBuilder()

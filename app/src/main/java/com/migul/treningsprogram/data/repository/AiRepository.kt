@@ -13,10 +13,73 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.domain.StallDetector
 import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
+import retrofit2.HttpException
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
+
+// ── F3: transient-failure classification and retry ──────────────────────────────────────────────
+
+/**
+ * Returns true when [t] is a transient error that is safe to retry:
+ *   - [SocketTimeoutException] / [IOException] — network-level failure (timeout, dropped connection)
+ *   - [HttpException] with status 5xx or 429 (server error / rate-limited)
+ *
+ * Non-retryable: [HttpException] with 4xx codes (auth errors 401, bad request 400, etc.) indicate
+ * a problem with the request itself that a retry will not fix.
+ *
+ * This is a package-level (non-member) function so it can be unit-tested without an
+ * [AiRepository] instance.
+ */
+fun isTransientAiError(t: Throwable): Boolean = when (t) {
+    is SocketTimeoutException -> true
+    is IOException -> true
+    is HttpException -> t.code() >= 500 || t.code() == 429
+    else -> false
+}
+
+/**
+ * Returns a concise, user-friendly message for an AI network failure. Avoids surfacing raw Java
+ * exception class names to the user.
+ */
+fun friendlyAiErrorMessage(t: Throwable): String = when {
+    t is SocketTimeoutException ->
+        "The AI request timed out. Please check your connection and try again."
+    t is IOException ->
+        "Network error while reaching the AI. Please check your connection and try again."
+    t is HttpException && t.code() == 429 ->
+        "AI rate limit reached. Please wait a moment and try again."
+    t is HttpException && t.code() == 401 ->
+        "Invalid API key. Please check your key in Settings."
+    t is HttpException && t.code() >= 500 ->
+        "The AI service returned a server error (${t.code()}). Please try again."
+    else -> t.message ?: "AI request failed. Please try again."
+}
+
+/**
+ * Executes [block] up to [maxAttempts] times, retrying immediately on transient failures
+ * (as classified by [isTransientAiError]). Non-transient failures propagate immediately on
+ * the first occurrence. On the final attempt a transient failure is re-thrown.
+ *
+ * Package-level (non-member) so it can be called from any suspend context and unit-tested
+ * independently of [AiRepository].
+ */
+suspend fun <T> withAiRetry(maxAttempts: Int = 2, block: suspend () -> T): T {
+    var lastException: Throwable? = null
+    repeat(maxAttempts) { attempt ->
+        try {
+            return block()
+        } catch (t: Throwable) {
+            if (!isTransientAiError(t)) throw t   // non-transient: fail fast
+            lastException = t
+            // On last attempt fall through to re-throw; otherwise retry immediately
+        }
+    }
+    throw lastException!!
+}
 
 // Onboarding question JSON model
 private data class OQJson(
@@ -167,9 +230,11 @@ Return ONLY valid JSON — no prose, no markdown fences:
 type must be "text" for a free-form answer or "choice" for a single-select list.
         """.trimIndent()
 
-        val responseText = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        ).text()
+        val responseText = withAiRetry {
+            claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
         promptLog.add("onboarding_questions", prompt, responseText)
         val json = extractJson(responseText)
         val parsed = gson.fromJson(json, OQsJson::class.java)
@@ -233,9 +298,11 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
                 previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle
             )
-            val responseText = claudeApi.sendMessage(
-                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            ).text()
+            val responseText = withAiRetry {
+                claudeApi.sendMessage(
+                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                ).text()
+            }
             promptLog.add("generate_attempt_$attempt", prompt, responseText)
             val cleanJson = extractJson(responseText)
             val exercises = parseProgram(cleanJson)
@@ -324,9 +391,11 @@ $history
 Respond with ONLY the summary text — no JSON, no markdown fences, no preamble like "Here is your summary".
         """.trimIndent()
 
-        val responseText = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        ).text()
+        val responseText = withAiRetry {
+            claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
         promptLog.add("weekly_summary", prompt, responseText)
         val summary = responseText.trim()
         if (summary.isBlank()) throw IllegalStateException("Empty weekly summary returned")
@@ -387,9 +456,11 @@ OR
         """.trimIndent()
 
         return runCatching {
-            val responseText = claudeApi.sendMessage(
-                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            ).text()
+            val responseText = withAiRetry {
+                claudeApi.sendMessage(
+                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                ).text()
+            }
             promptLog.add("validate", prompt, responseText)
             val json = extractJson(responseText)
             val obj = gson.fromJson(json, com.google.gson.JsonObject::class.java)
@@ -929,9 +1000,11 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":90}]}]}""")
         }
 
-        val responseText = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        ).text()
+        val responseText = withAiRetry {
+            claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
         promptLog.add("single_day_${dayName.lowercase()}", prompt, responseText)
 
         val cleanJson = extractJson(responseText)
