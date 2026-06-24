@@ -54,6 +54,32 @@ object DeloadPolicy {
         if (currentlyDeloading) false else shouldTriggerDeload(stalledCount)
 
     /**
+     * Deload decision for an ON-DEMAND full regeneration ("Regenerate program now"), which — unlike
+     * the once-per-week auto-generation — can be invoked repeatedly within the SAME week.
+     *
+     * The plain [nextDeloadState] exit ("already deloading → false") models a WEEK TRANSITION: the
+     * deload week elapsed, so the next week clears it. Re-generating the SAME week is not a
+     * transition. If we let a same-week regen run the exit branch, tapping regenerate again inside a
+     * deload week would flip the flag off and silently drop the deload mid-week.
+     *
+     * So: when we are already deloading AND we're merely replacing this same week's existing plan,
+     * KEEP the deload. In every other case (fresh/empty week, or not currently deloading) defer to
+     * [nextDeloadState], so entering a deload on stalls and the normal one-week exit both still work.
+     *
+     * @param currentlyDeloading the active program's current deload flag.
+     * @param stalledCount number of currently-stalled lifts.
+     * @param replacingCurrentWeek true when a plan already exists for the week being regenerated
+     *   (i.e. this regen re-does the current week rather than starting a fresh one).
+     */
+    fun nextDeloadStateForRegen(
+        currentlyDeloading: Boolean,
+        stalledCount: Int,
+        replacingCurrentWeek: Boolean
+    ): Boolean =
+        if (currentlyDeloading && replacingCurrentWeek) true
+        else nextDeloadState(currentlyDeloading, stalledCount)
+
+    /**
      * Convenience: compute the stalled-lift names from raw per-exercise strength histories, reusing
      * [StallDetector]. Kept here so callers (e.g. the auto-generate trigger) have one call that maps
      * histories → stalled names → deload decision, without re-implementing detection.
