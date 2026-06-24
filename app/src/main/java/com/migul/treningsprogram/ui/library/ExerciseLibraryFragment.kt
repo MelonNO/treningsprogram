@@ -46,7 +46,8 @@ class ExerciseLibraryFragment : Fragment() {
 
         adapter = ExerciseLibraryAdapter { entry ->
             val args = Bundle().apply { putString("exerciseId", entry.id) }
-            findNavController().navigate(R.id.action_library_to_detail, args)
+            if (findNavController().currentDestination?.id == R.id.exerciseLibraryFragment)
+                findNavController().navigate(R.id.action_library_to_detail, args)
         }
         binding.rvExercises.layoutManager = LinearLayoutManager(requireContext())
         binding.rvExercises.adapter = adapter
@@ -67,7 +68,10 @@ class ExerciseLibraryFragment : Fragment() {
         binding.ddMuscle.setAdapter(
             ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, muscleItems)
         )
-        binding.ddMuscle.setText(anyMuscle, false)
+        // S5 fix: sync the dropdown label from the (config-surviving) ViewModel state so that
+        // after rotation/process-restore the dropdown shows the active filter rather than
+        // resetting to "All ..." while the list stays filtered.
+        binding.ddMuscle.setText(viewModel.muscle.value ?: anyMuscle, false)
         binding.ddMuscle.setOnItemClickListener { _, _, position, _ ->
             viewModel.setMuscle(if (position == 0) null else muscleItems[position])
         }
@@ -76,7 +80,8 @@ class ExerciseLibraryFragment : Fragment() {
         binding.ddEquipment.setAdapter(
             ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, equipItems)
         )
-        binding.ddEquipment.setText(anyEquipment, false)
+        // S5 fix: same sync for the equipment dropdown.
+        binding.ddEquipment.setText(viewModel.equipment.value ?: anyEquipment, false)
         binding.ddEquipment.setOnItemClickListener { _, _, position, _ ->
             viewModel.setEquipment(if (position == 0) null else equipItems[position])
         }

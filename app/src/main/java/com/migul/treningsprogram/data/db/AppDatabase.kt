@@ -19,9 +19,10 @@ import com.migul.treningsprogram.data.db.entity.*
         GymPreset::class,
         BodyMeasurement::class,
         WeeklySummary::class,
-        Program::class
+        Program::class,
+        XpEvent::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -35,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
     abstract fun weeklySummaryDao(): WeeklySummaryDao
     abstract fun programDao(): ProgramDao
+    abstract fun xpEventDao(): XpEventDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -185,6 +187,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // U2: forward-recorded XP-event log. Additive only — a single NEW table; no existing
+        // table is touched. Column names/types/nullability and the AUTOINCREMENT primary key are
+        // written to EXACTLY match what Room generates for [XpEvent], so Room's open-time schema
+        // validation passes (mismatch ⇒ crash on launch). `sessionId` is nullable (no NOT NULL),
+        // matching the entity's `Long?` default of null.
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `xp_events` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `timestampMs` INTEGER NOT NULL,
+                        `amount` INTEGER NOT NULL,
+                        `reason` TEXT NOT NULL,
+                        `sessionId` INTEGER
+                    )
+                """.trimIndent())
+            }
+        }
+
         suspend fun seedPresets(dao: GymPresetDao) {
             if (dao.count() > 0) return
             val gson = Gson()
@@ -269,7 +290,7 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("workouts_20",    "Three Weeks In",       "Complete 20 workouts",                  "📆"),
             Achievement("workouts_30",    "Monthly Grind",        "Complete 30 workouts",                  "🗓️"),
             Achievement("workouts_40",    "Forty Strong",         "Complete 40 workouts",                  "💪"),
-            Achievement("workouts_60",    "Diamond",              "Complete 60 workouts",                  "💎"),
+            Achievement("workouts_60",    "Diamond Grind",        "Complete 60 workouts",                  "💎"),
             Achievement("workouts_75",    "Three Quarter Century","Complete 75 workouts",                  "🏅"),
             Achievement("workouts_150",   "Endurance",            "Complete 150 workouts",                 "🔥"),
             Achievement("workouts_200",   "Grinder",              "Complete 200 workouts",                 "⚡"),
@@ -407,7 +428,7 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("combo_jack",        "Jack of All Trades",   "10+ exercises and 15+ sets in one session",       "🎭"),
             Achievement("combo_big3",        "The Big Three",        "5,000+ kg with 3 or fewer exercises",             "💪"),
             Achievement("combo_pr_blitz",    "PR Blitz",             "7+ PRs in one session",                           "⚡"),
-            Achievement("combo_strength",    "Strength & Speed",     "5+ PRs and 3,000+ kg in one session",             "🔱"),
+            Achievement("combo_strength",    "Strength & Speed",     "5+ PRs in a lean session under 2,000 kg",         "🔱"),
             Achievement("combo_vol_artist",  "Volume Artist",        "2,500+ kg across 6+ exercises in one session",    "🎨"),
             Achievement("combo_relentless",  "The Relentless",       "60+ sets in one session",                         "🔥"),
             Achievement("combo_go_big",      "Go Big or Go Home",    "25+ sets and 5+ PRs in one session",              "⚡"),
@@ -464,7 +485,7 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("seventeen_up",      "Seventeen Up",         "Reach Level 17",                                  "🚀"),
             Achievement("over_the_line",     "Over the Line",        "Reach Level 22",                                  "🎯"),
             Achievement("forty_five_lives",  "Forty-Five Lives",     "Reach Level 45",                                  "💪"),
-            Achievement("diamond_level",     "Diamond",              "Reach Level 60",                                  "💎"),
+            Achievement("diamond_level",     "Diamond Rank",         "Reach Level 60",                                  "💎"),
             Achievement("the_overlord",      "The Overlord",         "Reach Level 80",                                  "🔱"),
             Achievement("the_transcendent",  "The Transcendent",     "Reach Level 90",                                  "✨"),
 

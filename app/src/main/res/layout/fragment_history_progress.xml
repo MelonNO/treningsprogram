@@ -138,8 +138,16 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Max Weight"
+                    android:text="Heaviest weight"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Top working-set weight per session (kg)"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="12dp" />
 
                 <com.migul.treningsprogram.ui.history.StrengthChartView
@@ -147,6 +155,16 @@
                     android:layout_width="match_parent"
                     android:layout_height="200dp"
                     android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tv_strength_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select an exercise above to see its trend."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginBottom="4dp"
+                    android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/tv_e1rm"
@@ -189,8 +207,16 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Personal Records"
+                    android:text="PR history (estimated 1RM)"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Working sets only · Epley formula"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="12dp" />
 
                 <LinearLayout

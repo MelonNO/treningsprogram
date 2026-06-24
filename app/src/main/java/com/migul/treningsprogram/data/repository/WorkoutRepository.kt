@@ -7,6 +7,7 @@ import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
+import com.migul.treningsprogram.domain.DayPlanEditor
 import com.migul.treningsprogram.domain.model.ExerciseRecap
 import com.migul.treningsprogram.domain.model.SessionPacing
 import com.migul.treningsprogram.domain.model.SessionRecap
@@ -14,6 +15,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +38,15 @@ class WorkoutRepository @Inject constructor(
         /** Name used for the auto-created default program on fresh installs. */
         const val DEFAULT_PROGRAM_NAME = "My Program"
     }
+
+    /**
+     * Serializes E1 manual day-plan list mutations (add / delete / reorder). Each such edit is a
+     * read-modify-write of a whole day's rows; running two concurrently (rapid taps) would let the
+     * second read a stale snapshot and clobber the first's change (lost edit). The mutex forces them
+     * to apply one at a time, in order, each reading the freshly-persisted state. Field-only edits
+     * (editExercise) are a single in-place @Update and don't need it.
+     */
+    private val dayEditMutex = Mutex()
     val allSessions: Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
 
@@ -55,6 +67,14 @@ class WorkoutRepository @Inject constructor(
     /** Last-trained timestamp per muscle group, live — drives the Home recovery view (C4). */
     fun observeLastTrainedPerMuscleGroup(): Flow<List<MuscleLastTrained>> =
         setDao.observeLastTrainedPerMuscleGroup()
+
+    /**
+     * Live stream of all (exerciseName, sessionId, sessionDateMs) rows from working sets
+     * in completed sessions. Used by the weighted recovery model (U1) to derive fine-grain
+     * per-muscle recovery from MuscleClassifier.finerMusclesFor.
+     */
+    fun observeExerciseSessionRows(): Flow<List<ExerciseSessionRow>> =
+        setDao.observeExerciseSessionRows()
 
     suspend fun getRepRangeDistribution(): List<RepRange> = setDao.getRepRangeDistribution()
 
@@ -307,16 +327,51 @@ class WorkoutRepository @Inject constructor(
         val programId = ensureActiveProgramId()
         db.withTransaction {
             // B2: single-day regen must PRESERVE the week's rationale. The week's rationale is
-            // stamped on every row (see savePlan); read it off any OTHER row of the same week and
+            // stamped on every row (see savePlan); read it off any row of the same week and
             // carry it forward onto the new day's rows so the week stays consistent and the
-            // Program tab keeps showing the same "why your program changed" text.
-            val weekRationale = plannedDao.getForWeekInProgramOnce(programId, weekStart)
-                .firstOrNull { it.dayOfWeek != dayOfWeek && it.rationale.isNotBlank() }
+            // Program tab keeps showing the same "why your program changed" text. Prefer another
+            // day's copy, but fall back to the edited day's OWN rationale — otherwise a week whose
+            // only populated day is the one being saved (e.g. a single-workout-day program) would
+            // silently drop its rationale on every manual edit.
+            val weekRows = plannedDao.getForWeekInProgramOnce(programId, weekStart)
+            val weekRationale = (weekRows.firstOrNull { it.dayOfWeek != dayOfWeek && it.rationale.isNotBlank() }
+                ?: weekRows.firstOrNull { it.rationale.isNotBlank() })
                 ?.rationale ?: ""
             plannedDao.deleteForDayInProgram(programId, weekStart, dayOfWeek)
             plannedDao.insertAll(exercises.map { it.copy(rationale = weekRationale, programId = programId) })
         }
         // A regenerated/edited day plan is user data worth backing up.
+        backupScheduler.requestBackup()
+    }
+
+    /**
+     * E1: atomic read-modify-write of one day's plan list for a manual add / delete / reorder.
+     *
+     * The transform is applied to the day's CURRENT persisted rows (read inside the lock), not to a
+     * UI StateFlow snapshot, so concurrent rapid edits can't clobber each other with stale data.
+     * [transform] must produce a list already keyed with deterministic orderInDay — callers use
+     * [DayPlanEditor], which guarantees that. Mirrors [saveDayPlan]'s rationale-preservation.
+     */
+    suspend fun editDayPlan(
+        weekStart: Long,
+        dayOfWeek: Int,
+        transform: (current: List<PlannedExercise>) -> List<PlannedExercise>
+    ) {
+        val programId = ensureActiveProgramId()
+        dayEditMutex.withLock {
+            db.withTransaction {
+                val weekRows = plannedDao.getForWeekInProgramOnce(programId, weekStart)
+                val current = weekRows.filter { it.dayOfWeek == dayOfWeek }.sortedBy { it.orderInDay }
+                val updated = transform(current)
+                val weekRationale = (weekRows.firstOrNull { it.dayOfWeek != dayOfWeek && it.rationale.isNotBlank() }
+                    ?: weekRows.firstOrNull { it.rationale.isNotBlank() })
+                    ?.rationale ?: ""
+                plannedDao.deleteForDayInProgram(programId, weekStart, dayOfWeek)
+                plannedDao.insertAll(
+                    updated.map { it.copy(dayOfWeek = dayOfWeek, rationale = weekRationale, programId = programId) }
+                )
+            }
+        }
         backupScheduler.requestBackup()
     }
 
@@ -334,6 +389,16 @@ class WorkoutRepository @Inject constructor(
     }
 
     suspend fun updatePlannedExercise(exercise: PlannedExercise) = plannedDao.update(exercise)
+
+    /**
+     * E1 field edit (sets/reps/weight/notes) of a single planned-exercise row, serialized under the
+     * same [dayEditMutex] as the structural list edits. This keeps the in-place @Update from landing
+     * mid-way through a structural delete+reinsert of the same day (which would otherwise lose the
+     * field edit by targeting a row id that the rewrite had just replaced).
+     */
+    suspend fun editPlannedExerciseFields(exercise: PlannedExercise) = dayEditMutex.withLock {
+        plannedDao.update(exercise)
+    }
 
     suspend fun resetAllWorkouts() {
         setDao.deleteAll()

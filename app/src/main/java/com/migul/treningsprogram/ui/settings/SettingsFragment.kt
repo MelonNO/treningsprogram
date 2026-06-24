@@ -24,26 +24,36 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // S8 fix: guard every navigate() call against rapid double-taps (two taps before the
+        // back-stack updates throw IllegalArgumentException "action not found from destination").
+        // The guard checks that we are still on settingsFragment before navigating away.
         binding.rowTrainingProfile.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_training)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_training)
         }
         binding.rowExerciseLibrary.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_library)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_library)
         }
         binding.rowCoachSummary.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_weekly_summary)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_weekly_summary)
         }
         binding.rowAiProgram.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_ai)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_ai)
         }
         binding.rowDebug.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_debug)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_debug)
         }
         binding.rowBackup.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_backup)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_backup)
         }
         binding.rowAbout.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_to_about)
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_about)
         }
     }
 

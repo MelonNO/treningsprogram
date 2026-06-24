@@ -24,6 +24,13 @@
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
+        <action
+            android:id="@+id/action_home_to_xp_log"
+            app:destination="@id/xpLogFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
     <fragment
@@ -220,6 +227,13 @@
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
+        <action
+            android:id="@+id/action_profile_to_xp_log"
+            app:destination="@id/xpLogFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
     <fragment
@@ -267,5 +281,11 @@
         android:name="com.migul.treningsprogram.ui.summary.WeeklySummaryFragment"
         android:label="Coach Summary"
         tools:layout="@layout/fragment_weekly_summary" />
+
+    <fragment
+        android:id="@+id/xpLogFragment"
+        android:name="com.migul.treningsprogram.ui.profile.XpLogFragment"
+        android:label="XP Log"
+        tools:layout="@layout/fragment_xp_log" />
 
 </navigation>

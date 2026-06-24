@@ -3,6 +3,7 @@ package com.migul.treningsprogram.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.friendlyAiErrorMessage
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +38,7 @@ class OnboardingViewModel @Inject constructor(
             _error.value = null
             aiRepository.getOnboardingQuestions(goal, experience, daysPerWeek, sessionDurationMinutes, separateCardioDays, equipment)
                 .onSuccess { _questions.value = it }
-                .onFailure { _error.value = it.message }
+                .onFailure { _error.value = friendlyAiErrorMessage(it) }
             _isLoading.value = false
         }
     }

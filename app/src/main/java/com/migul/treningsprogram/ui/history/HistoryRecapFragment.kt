@@ -22,6 +22,7 @@ import com.google.android.material.card.MaterialCardView
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.databinding.FragmentHistoryRecapBinding
+import com.migul.treningsprogram.domain.RecapGraphs
 import com.migul.treningsprogram.domain.model.ExerciseRecap
 import com.migul.treningsprogram.domain.model.SessionRecap
 import dagger.hilt.android.AndroidEntryPoint
@@ -74,10 +75,13 @@ class HistoryRecapFragment : Fragment() {
             if (_binding == null) return@launch
             binding.tvRecapEmpty.isVisible = sessions.isEmpty()
             binding.tilSession.isVisible = sessions.isNotEmpty()
+            binding.layoutOverview.isVisible = sessions.isNotEmpty()
             if (sessions.isEmpty()) {
                 binding.layoutRecap.removeAllViews()
+                binding.layoutOverview.removeAllViews()
                 return@launch
             }
+            renderOverview()
             val labels = sessions.map { sessionLabel(it) }
             val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, labels)
             binding.acSession.setAdapter(adapter)
@@ -90,6 +94,132 @@ class HistoryRecapFragment : Fragment() {
             val initial = requested?.takeIf { id -> sessions.any { it.id == id } } ?: sessions.first().id
             selectSession(initial)
         }
+    }
+
+    // ── Overview graphs (UX1) ──────────────────────────────────────────────────
+    // Aggregate trends across all sessions, rendered once (not per-session). Built from
+    // warm-up-excluded data already exposed on the ViewModel; shaped by RecapGraphs (unit-tested).
+
+    private fun renderOverview() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val volume = viewModel.getWeeklyVolumePoints()
+            val frequency = viewModel.getWeeklyFrequencyPoints()
+            val muscles = viewModel.getMuscleRows()
+            if (_binding == null) return@launch
+            binding.layoutOverview.removeAllViews()
+            binding.layoutOverview.addView(overviewHeader())
+            binding.layoutOverview.addView(buildVolumeOverTimeCard(volume))
+            binding.layoutOverview.addView(buildFrequencyCard(frequency))
+            binding.layoutOverview.addView(buildMuscleDistributionCard(muscles))
+        }
+    }
+
+    private fun overviewHeader(): View {
+        val col = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(4) }
+        }
+        col.addView(TextView(requireContext()).apply {
+            text = "Overview"
+            setTypeface(null, Typeface.BOLD)
+            textSize = 18f
+            setTextColor(onSurface())
+        })
+        col.addView(mutedText("Trends across your recent training · working sets only").apply {
+            textSize = 12f
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(2)
+        })
+        return col
+    }
+
+    private fun buildVolumeOverTimeCard(points: List<RecapGraphs.WeekPoint>): View {
+        val card = card()
+        val col = cardColumn(card)
+        col.addView(sectionTitle("Volume over time"))
+        col.addView(mutedText("Total working sets per week (sets)").apply {
+            textSize = 12f
+            (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
+        })
+        addChartOrEmpty(col, points, label = "", emptyMsg = "Log a couple of weeks to see your volume trend.")
+        return card
+    }
+
+    private fun buildFrequencyCard(points: List<RecapGraphs.WeekPoint>): View {
+        val card = card()
+        val col = cardColumn(card)
+        col.addView(sectionTitle("Training frequency"))
+        col.addView(mutedText("Workout days per week (sessions)").apply {
+            textSize = 12f
+            (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
+        })
+        addChartOrEmpty(col, points, label = "", emptyMsg = "Train across at least two weeks to see your frequency.")
+        return card
+    }
+
+    private fun buildMuscleDistributionCard(rows: List<RecapGraphs.MuscleRow>): View {
+        val card = card()
+        val col = cardColumn(card)
+        col.addView(sectionTitle("Muscle group distribution"))
+        col.addView(mutedText("All-time working sets per muscle group (sets)").apply {
+            textSize = 12f
+            (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
+        })
+        if (rows.isEmpty()) {
+            col.addView(mutedText("Complete a workout to see which muscle groups you train most."))
+            return card
+        }
+        // Categorical data → labelled horizontal bars (clearer than a line chart for categories).
+        val maxSets = rows.maxOf { it.sets }.coerceAtLeast(1)
+        rows.forEach { (muscle, sets) ->
+            val rowLayout = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(4), 0, dp(4))
+            }
+            rowLayout.addView(TextView(requireContext()).apply {
+                text = muscle
+                textSize = 13f
+                layoutParams = LinearLayout.LayoutParams(dp(90), LinearLayout.LayoutParams.WRAP_CONTENT)
+            })
+            rowLayout.addView(View(requireContext()).apply {
+                setBackgroundColor(accent)
+                val w = (dp(120) * sets / maxSets).coerceAtLeast(dp(6))
+                layoutParams = LinearLayout.LayoutParams(w, dp(8)).apply { marginEnd = dp(8) }
+            })
+            rowLayout.addView(TextView(requireContext()).apply {
+                text = if (sets == 1) "1 set" else "$sets sets"
+                textSize = 12f
+                setTextColor(neutral)
+            })
+            col.addView(rowLayout)
+        }
+        return card
+    }
+
+    /**
+     * Adds a [StrengthChartView] for [points], or a friendly message when there is too little data.
+     * StrengthChartView itself draws "Not enough data yet" for <2 points, but we show our own
+     * guidance text instead so new users get an actionable hint rather than a chart-internal string.
+     */
+    private fun addChartOrEmpty(
+        col: LinearLayout,
+        points: List<RecapGraphs.WeekPoint>,
+        label: String,
+        emptyMsg: String
+    ) {
+        if (points.size < 2) {
+            col.addView(mutedText(emptyMsg))
+            return
+        }
+        val chart = StrengthChartView(requireContext()).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(160)
+            )
+            setData(points.map { StrengthChartView.Entry(it.weekStartMs, it.value) }, label)
+        }
+        col.addView(chart)
     }
 
     private fun selectSession(sessionId: Long) {
@@ -227,10 +357,12 @@ class HistoryRecapFragment : Fragment() {
         if (newPrs.isEmpty() && existing.isEmpty()) return
         val card = card()
         val col = cardColumn(card)
-        col.addView(sectionTitle("Personal records"))
+        // Terminology (UX1/F2): this section is the in-session HEAVIEST-WEIGHT milestone, kept
+        // distinct from the Progress tab's "PR history (estimated 1RM)" so the two don't contradict.
+        col.addView(sectionTitle("Heaviest weight"))
         newPrs.forEach { ex ->
             col.addView(TextView(requireContext()).apply {
-                text = "🎉 ${ex.exerciseName} — new best ${fmt(ex.topWeightKg)} kg!"
+                text = "🎉 ${ex.exerciseName} — new heaviest weight ${fmt(ex.topWeightKg)} kg!"
                 textSize = 13f
                 setTextColor(accent)
                 setTypeface(null, Typeface.BOLD)
@@ -239,10 +371,14 @@ class HistoryRecapFragment : Fragment() {
         }
         existing.forEach { ex ->
             val whenStr = ex.existingPrDateMs?.let { "  ·  ${relativeTime(it)}" } ?: ""
-            col.addView(mutedText("${ex.exerciseName} — PR: ${fmt(ex.existingPrWeightKg!!)} kg$whenStr").apply {
+            col.addView(mutedText("${ex.exerciseName} — heaviest ${fmt(ex.existingPrWeightKg!!)} kg$whenStr").apply {
                 setPadding(0, dp(4), 0, dp(4))
             })
         }
+        col.addView(mutedText("Full PR history (estimated 1RM) is on the Progress tab.").apply {
+            textSize = 11f
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        })
         binding.layoutRecap.addView(card)
     }
 
@@ -399,10 +535,11 @@ class HistoryRecapFragment : Fragment() {
     }
 
     private fun openTrends(exerciseName: String, sessionDateMs: Long) {
-        findNavController().navigate(
-            R.id.recapTrendsFragment,
-            bundleOf("exerciseName" to exerciseName, "sessionDateMs" to sessionDateMs)
-        )
+        if (findNavController().currentDestination?.id == R.id.historyFragment)
+            findNavController().navigate(
+                R.id.recapTrendsFragment,
+                bundleOf("exerciseName" to exerciseName, "sessionDateMs" to sessionDateMs)
+            )
     }
 
     // ── View helpers ───────────────────────────────────────────────────────────

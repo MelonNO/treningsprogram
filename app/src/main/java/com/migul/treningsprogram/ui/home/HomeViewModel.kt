@@ -2,6 +2,7 @@ package com.migul.treningsprogram.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
@@ -74,30 +75,88 @@ class HomeViewModel @Inject constructor(
         bodyMeasurementDao.getAll()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * Recovery item for one fine-grain muscle (U1).
+     *
+     * @param muscleLabel    fine-grain label (e.g. "Front Delts", "Quads")
+     * @param state          RECOVERING only (items in other states are filtered out)
+     * @param lastTrainedMs  epoch ms of the most relevant session
+     * @param lastSessionId  id of the session to navigate to on tap
+     * @param recoveryFraction  0..1: how far through the 48 h window (1.0 = almost ready)
+     * @param remainingMs    remaining recovery millis
+     */
     data class MuscleRecoveryItem(
-        val muscleGroup: String,
+        val muscleLabel: String,
         val state: MuscleRecovery.RecoveryState,
-        val lastTrainedMs: Long?  // null = never trained
+        val lastTrainedMs: Long,
+        val lastSessionId: Long,
+        val recoveryFraction: Float,
+        val remainingMs: Long
     )
 
     /**
-     * Major muscle groups shown in the Home recovery view — the app's canonical strength
-     * groups (Cardio is excluded; it isn't a muscle-recovery target). Shown even when never
-     * trained so a fresh install renders a full, sensible list rather than nothing.
+     * Live stream of RECOVERING-only fine-grain muscle items, ordered head-to-toe by the
+     * canonical ALL_FINE_MUSCLES display order. Each item carries the remaining recovery
+     * time and the last session ID for tap navigation.
+     *
+     * Empty when no muscles are currently recovering (first run, or all muscles rested).
      */
-    private val majorMuscleGroups = listOf("Chest", "Back", "Legs", "Shoulders", "Arms", "Core")
-
     val muscleRecovery: StateFlow<List<MuscleRecoveryItem>> =
-        workoutRepository.observeLastTrainedPerMuscleGroup()
+        workoutRepository.observeExerciseSessionRows()
             .map { rows ->
-                val lastByGroup = rows.associate { it.muscleGroup to it.lastTrainedMs }
-                val now = System.currentTimeMillis()
-                majorMuscleGroups.map { group ->
-                    val last = lastByGroup[group]
-                    MuscleRecoveryItem(group, MuscleRecovery.stateFor(last, now), last)
-                }
+                buildWeightedRecoveryItems(rows, System.currentTimeMillis())
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Pure function: builds the list of RECOVERING items from raw exercise-session rows.
+     * Extracted for testability.
+     *
+     * Algorithm:
+     *   1. For each row, call MuscleClassifier.finerMusclesFor to get (fineLabel, weight) pairs.
+     *   2. Accumulate ExerciseStimulusRecords per fine label.
+     *   3. For each fine label, call MuscleRecovery.computeRecovery.
+     *   4. Keep only RECOVERING results, map to MuscleRecoveryItem.
+     *   5. Sort by ALL_FINE_MUSCLES order (stable, head-to-toe).
+     */
+    internal fun buildWeightedRecoveryItems(
+        rows: List<com.migul.treningsprogram.data.db.dao.ExerciseSessionRow>,
+        nowMs: Long
+    ): List<MuscleRecoveryItem> {
+        // Accumulate stimulus records per fine-grain muscle label
+        val stimuliByMuscle = mutableMapOf<String, MutableList<MuscleRecovery.ExerciseStimulusRecord>>()
+
+        for (row in rows) {
+            val fineMuscles = MuscleClassifier.finerMusclesFor(row.exerciseName)
+            for ((fineLabel, weight) in fineMuscles) {
+                stimuliByMuscle.getOrPut(fineLabel) { mutableListOf() }.add(
+                    MuscleRecovery.ExerciseStimulusRecord(
+                        sessionId = row.sessionId,
+                        sessionDateMs = row.sessionDateMs,
+                        exerciseName = row.exerciseName,
+                        weight = weight
+                    )
+                )
+            }
+        }
+
+        // For each fine-grain muscle, compute recovery and keep only RECOVERING
+        val orderIndex = MuscleClassifier.ALL_FINE_MUSCLES.withIndex()
+            .associate { (idx, label) -> label to idx }
+
+        return stimuliByMuscle.entries.mapNotNull { (label, stimuli) ->
+            val result = MuscleRecovery.computeRecovery(stimuli, nowMs) ?: return@mapNotNull null
+            if (result.state != MuscleRecovery.RecoveryState.RECOVERING) return@mapNotNull null
+            MuscleRecoveryItem(
+                muscleLabel = label,
+                state = result.state,
+                lastTrainedMs = result.lastTrainedMs,
+                lastSessionId = result.lastSessionId,
+                recoveryFraction = result.recoveryFraction,
+                remainingMs = result.remainingMs
+            )
+        }.sortedBy { orderIndex[it.muscleLabel] ?: Int.MAX_VALUE }
+    }
 
     fun addBodyWeight(weightKg: Float) {
         viewModelScope.launch {

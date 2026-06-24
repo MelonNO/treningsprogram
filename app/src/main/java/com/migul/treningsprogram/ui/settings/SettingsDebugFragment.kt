@@ -23,17 +23,22 @@ class SettingsDebugFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // S8 fix: guard against rapid double-taps causing IllegalArgumentException.
         binding.rowPromptLog.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_debug_to_prompt_log)
+            if (findNavController().currentDestination?.id == R.id.settingsDebugFragment)
+                findNavController().navigate(R.id.action_settings_debug_to_prompt_log)
         }
         binding.rowRejectionLog.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_debug_to_rejection_log)
+            if (findNavController().currentDestination?.id == R.id.settingsDebugFragment)
+                findNavController().navigate(R.id.action_settings_debug_to_rejection_log)
         }
         binding.rowUnrecognized.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_debug_to_unrecognized)
+            if (findNavController().currentDestination?.id == R.id.settingsDebugFragment)
+                findNavController().navigate(R.id.action_settings_debug_to_unrecognized)
         }
         binding.rowCrashLog.setOnClickListener {
-            findNavController().navigate(R.id.action_settings_debug_to_crash_log)
+            if (findNavController().currentDestination?.id == R.id.settingsDebugFragment)
+                findNavController().navigate(R.id.action_settings_debug_to_crash_log)
         }
     }
 

@@ -4,6 +4,7 @@ import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.AchievementDao
 import com.migul.treningsprogram.data.db.dao.UserStatsDao
 import com.migul.treningsprogram.data.db.dao.WorkoutSetDao
+import com.migul.treningsprogram.data.db.dao.XpEventDao
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
@@ -20,6 +21,7 @@ class GamificationRepository @Inject constructor(
     private val userStatsDao: UserStatsDao,
     private val achievementDao: AchievementDao,
     private val workoutSetDao: WorkoutSetDao,
+    private val xpEventDao: XpEventDao,
     private val dailyChallengeManager: DailyChallengeManager
 ) {
     val userStats: Flow<UserStats?> = userStatsDao.observe()
@@ -27,6 +29,10 @@ class GamificationRepository @Inject constructor(
     suspend fun resetAll() {
         userStatsDao.upsert(UserStats(id = 1))
         achievementDao.resetAll()
+        // U2: clear the XP log so a stats reset doesn't leave orphan events whose totals no
+        // longer reconcile with the (now-zeroed) XP bar. Covers BOTH "Reset workouts/stats" and
+        // Factory Reset, since both call resetAll().
+        xpEventDao.deleteAll()
     }
 
     /**
@@ -62,7 +68,11 @@ class GamificationRepository @Inject constructor(
         val exerciseCount = workingSets.map { it.exerciseName }.toSet().size
         val prExercises = detectPersonalRecords(sessionId, sets)
 
-        val completedChallenges = dailyChallengeManager.completeChallenges(sets, prExercises.isNotEmpty())
+        // Pass working sets only so the challenge completion criteria match the live in-progress
+        // preview (which also uses working sets). Previously all sets were passed, causing a
+        // mismatch: warmup sets could satisfy e.g. sets_10 at completion even though the
+        // real-time progress display showed the goal not yet reached.
+        val completedChallenges = dailyChallengeManager.completeChallenges(workingSets, prExercises.isNotEmpty())
         val bonusChallengeXp = completedChallenges.sumOf { it.bonusXp }
 
         val baseXp = 50
@@ -96,6 +106,22 @@ class GamificationRepository @Inject constructor(
             lastWorkoutDateMs = System.currentTimeMillis()
         )
         userStatsDao.upsert(updatedStats)
+
+        // U2: record this award in the forward-only XP log. PURE OBSERVATION — we reuse the EXACT
+        // component amounts computed above (baseXp/setXp/prXp/bonusChallengeXp); nothing here
+        // changes how much XP is granted. Itemized so the user sees what earned each chunk; the
+        // sum of the inserted rows equals xpEarned.
+        XpEventBuilder.buildWorkoutEvents(
+            timestampMs = updatedStats.lastWorkoutDateMs,
+            sessionId = sessionId,
+            baseXp = baseXp,
+            setXp = setXp,
+            setCount = workingSets.size,
+            prXp = prXp,
+            prCount = prExercises.size,
+            bonusChallengeXp = bonusChallengeXp,
+            challengeNames = completedChallenges.map { it.name }
+        ).forEach { xpEventDao.insert(it) }
 
         val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg, prExercises.size)
 
@@ -299,7 +325,7 @@ class GamificationRepository @Inject constructor(
             "combo_jack"         to (ec >= 10 && sc >= 15),
             "combo_big3"         to (ec in 1..3 && vol >= 5_000f),
             "combo_pr_blitz"     to (sp >= 7),
-            "combo_strength"     to (sp >= 5 && vol >= 3_000f),
+            "combo_strength"     to (sp >= 5 && vol < 2_000f),
             "combo_vol_artist"   to (vol >= 2_500f && ec >= 6),
             "combo_relentless"   to (sc >= 60),
             "combo_go_big"       to (sc >= 25 && sp >= 5),
@@ -378,8 +404,25 @@ class GamificationRepository @Inject constructor(
         }
     }
 
+    /**
+     * Reconcile the persisted achievements table with the currently-defined set:
+     * 1. Insert any missing rows (IGNORE on conflict preserves existing unlock state).
+     * 2. Refresh display metadata (name, description, emoji) for every defined id so that
+     *    corrected names/descriptions propagate to upgraded devices.
+     * 3. Prune any rows whose id is no longer in the defined set (orphan rows from
+     *    IDs that were renamed/replaced in earlier builds).
+     *
+     * This ensures the profile achievements count equals the defined-set size on BOTH
+     * clean-install and upgraded devices, without losing the unlock state of any
+     * still-valid achievement.
+     */
     suspend fun ensureAchievementsSeeded() {
         achievementDao.insertAll(AppDatabase.PREDEFINED_ACHIEVEMENTS)
+        AppDatabase.PREDEFINED_ACHIEVEMENTS.forEach { a ->
+            achievementDao.updateMetadata(a.id, a.name, a.description, a.emoji)
+        }
+        val validIds = AppDatabase.PREDEFINED_ACHIEVEMENTS.map { it.id }
+        achievementDao.deleteOrphans(validIds)
     }
 
     companion object {
@@ -390,6 +433,10 @@ class GamificationRepository @Inject constructor(
          */
         fun isWeightPr(currentMax: Float, previousMax: Float?): Boolean =
             previousMax != null && currentMax > previousMax
+
+        /** Returns the IDs of all currently-defined achievements (useful for testing reconcile logic). */
+        fun currentDefinedIds(): Set<String> =
+            AppDatabase.PREDEFINED_ACHIEVEMENTS.map { it.id }.toSet()
 
         fun xpToLevel(xp: Int): Int = floor(sqrt(xp / 200.0)).toInt() + 1
 

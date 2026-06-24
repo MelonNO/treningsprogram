@@ -15,6 +15,17 @@ data class MuscleVolume(val muscleGroup: String, val totalSets: Int)
 /** Most recent completed working-set timestamp for one muscle group (recovery view, C4). */
 data class MuscleLastTrained(val muscleGroup: String, val lastTrainedMs: Long)
 
+/**
+ * One exercise-session stimulus row for the weighted recovery model (U1).
+ * Contains the exercise name, the session it was logged in, and the session timestamp.
+ * Working-sets only (isWarmup=0), completed sessions only.
+ */
+data class ExerciseSessionRow(
+    val exerciseName: String,
+    val sessionId: Long,
+    val sessionDateMs: Long
+)
+
 data class RepRange(val label: String, val setCount: Int)
 
 data class ExercisePrWithDate(val exerciseName: String, val maxWeight: Float, val dateMs: Long)
@@ -115,7 +126,7 @@ interface WorkoutSetDao {
     @Query("""
         SELECT (s.dateMs / 604800000 * 604800000) AS weekStart, COUNT(*) AS totalSets
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.exerciseName = :name AND s.isCompleted = 1
+        WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.isWarmup = 0
         GROUP BY weekStart ORDER BY weekStart ASC
     """)
     suspend fun getWeeklyVolume(name: String): List<WeekVolume>
@@ -166,7 +177,7 @@ interface WorkoutSetDao {
     @Query("""
         SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight, s.dateMs AS dateMs
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.weightKg > 0 AND s.isCompleted = 1
+        WHERE ws.weightKg > 0 AND ws.isWarmup = 0 AND s.isCompleted = 1
         GROUP BY ws.exerciseName ORDER BY maxWeight DESC
     """)
     suspend fun getPRsWithDate(): List<ExercisePrWithDate>
@@ -174,10 +185,30 @@ interface WorkoutSetDao {
     @Query("""
         SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight, s.dateMs AS dateMs
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.weightKg > 0 AND s.isCompleted = 1
+        WHERE ws.weightKg > 0 AND ws.isWarmup = 0 AND s.isCompleted = 1
         GROUP BY ws.exerciseName ORDER BY maxWeight DESC
     """)
     fun observePRsWithDate(): Flow<List<ExercisePrWithDate>>
+
+    /**
+     * All distinct (exerciseName, sessionId, sessionDateMs) rows from working sets in
+     * completed sessions. Used by the weighted recovery model (U1) to build per-exercise
+     * stimulus records and apply MuscleClassifier.finerMusclesFor for fine-grain taxonomy.
+     *
+     * Distinct per (exerciseName, sessionId) so that multiple sets of the same exercise
+     * in the same session don't create duplicate records. Only the most recent sessions
+     * matter for recovery; Room will stream updates whenever sets/sessions change.
+     */
+    @Query("""
+        SELECT DISTINCT ws.exerciseName AS exerciseName,
+               ws.sessionId AS sessionId,
+               s.dateMs AS sessionDateMs
+        FROM workout_sets ws
+        JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND ws.exerciseName != ''
+        ORDER BY s.dateMs DESC
+    """)
+    fun observeExerciseSessionRows(): Flow<List<ExerciseSessionRow>>
 
     @Query("DELETE FROM workout_sets")
     suspend fun deleteAll()

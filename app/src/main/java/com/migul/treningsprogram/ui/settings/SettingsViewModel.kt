@@ -5,14 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
+import com.migul.treningsprogram.data.db.dao.ExerciseDao
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.db.dao.PlannedExerciseDao
+import com.migul.treningsprogram.data.db.dao.ProgramDao
+import com.migul.treningsprogram.data.db.dao.WeeklySummaryDao
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.ExerciseResolutionLog
 import com.migul.treningsprogram.data.CrashLog
 import com.migul.treningsprogram.data.PromptLog
 import com.migul.treningsprogram.data.RejectionLog
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.friendlyAiErrorMessage
 import com.migul.treningsprogram.data.repository.ExportRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
@@ -39,6 +43,9 @@ class SettingsViewModel @Inject constructor(
     private val gymPresetDao: GymPresetDao,
     private val plannedExerciseDao: PlannedExerciseDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
+    private val exerciseDao: ExerciseDao,
+    private val programDao: ProgramDao,
+    private val weeklySummaryDao: WeeklySummaryDao,
     private val gson: Gson,
     private val exportRepository: ExportRepository,
     val googleDriveAuth: GoogleDriveAuth,
@@ -68,6 +75,7 @@ class SettingsViewModel @Inject constructor(
     fun refreshCrashLog() { _crashLogEntries.value = crashLog.getAll() }
     fun clearCrashLog() { crashLog.clear(); _crashLogEntries.value = emptyList() }
 
+    // _saved is a dead field (no collector) — kept as SharedFlow stub to avoid removing a public API
     private val _saved = MutableStateFlow(false)
     val saved = _saved.asStateFlow()
 
@@ -77,8 +85,12 @@ class SettingsViewModel @Inject constructor(
     private val _generateStatus = MutableStateFlow<String?>(null)
     val generateStatus = _generateStatus.asStateFlow()
 
-    private val _resetDone = MutableStateFlow(false)
-    val resetDone = _resetDone.asStateFlow()
+    // S7 fix: _resetDone was MutableStateFlow(false) with value=true;value=false — StateFlow
+    // conflates: both assignments may be observed as a single null-transition if the collector
+    // hasn't resumed between them. Use SharedFlow (extraBufferCapacity=1) so the true emission
+    // is buffered and delivered even if the collector is momentarily suspended.
+    private val _resetDone = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val resetDone = _resetDone.asSharedFlow()
 
     private val _factoryResetDone = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val factoryResetDone = _factoryResetDone.asSharedFlow()
@@ -86,8 +98,12 @@ class SettingsViewModel @Inject constructor(
     private val _exportJson = MutableStateFlow<String?>(null)
     val exportJson = _exportJson.asStateFlow()
 
-    private val _importResult = MutableStateFlow<String?>(null)
-    val importResult = _importResult.asStateFlow()
+    // S7 fix: _importResult and _cloudMessage were MutableStateFlow<String?>(null) using the
+    // "value = msg; value = null" one-shot pattern. StateFlow conflates: both writes happen
+    // synchronously on the same coroutine resume, so the non-null value can be missed by the
+    // collector. Converted to SharedFlow (extraBufferCapacity=1) which buffers the message.
+    private val _importResult = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val importResult = _importResult.asSharedFlow()
 
     // ---- Cloud backup (Google Drive appDataFolder) ----------------------------------------------
 
@@ -107,8 +123,8 @@ class SettingsViewModel @Inject constructor(
     val cloudBusy = _cloudBusy.asStateFlow()
 
     /** One-shot user-facing message for cloud operations. */
-    private val _cloudMessage = MutableStateFlow<String?>(null)
-    val cloudMessage = _cloudMessage.asStateFlow()
+    private val _cloudMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val cloudMessage = _cloudMessage.asSharedFlow()
 
     /** Re-read the signed-in account and refresh the last-backup time. */
     fun refreshCloudStatus() {
@@ -128,21 +144,18 @@ class SettingsViewModel @Inject constructor(
     /** Call after a successful sign-in ActivityResult to update status. */
     fun onSignedIn() {
         refreshCloudStatus()
-        _cloudMessage.value = "Connected to Google Drive."
-        _cloudMessage.value = null
+        _cloudMessage.tryEmit("Connected to Google Drive.")
     }
 
     fun onSignInFailed(reason: String?) {
-        _cloudMessage.value = "Google sign-in failed${if (reason != null) ": $reason" else "."}"
-        _cloudMessage.value = null
+        _cloudMessage.tryEmit("Google sign-in failed${if (reason != null) ": $reason" else "."}")
     }
 
     fun signOutCloud() {
         googleDriveAuth.signOut {
             _cloudAccount.value = null
             _cloudLastBackup.value = null
-            _cloudMessage.value = "Disconnected from Google Drive."
-            _cloudMessage.value = null
+            _cloudMessage.tryEmit("Disconnected from Google Drive.")
         }
     }
 
@@ -155,9 +168,9 @@ class SettingsViewModel @Inject constructor(
                 driveBackupUploader.upload(json)
             }.onSuccess {
                 refreshCloudStatus()
-                _cloudMessage.value = "Backed up to cloud."; _cloudMessage.value = null
+                _cloudMessage.tryEmit("Backed up to cloud.")
             }.onFailure {
-                _cloudMessage.value = "Cloud backup failed: ${it.message}"; _cloudMessage.value = null
+                _cloudMessage.tryEmit("Cloud backup failed: ${it.message}")
             }
             _cloudBusy.value = false
         }
@@ -172,9 +185,9 @@ class SettingsViewModel @Inject constructor(
                     ?: throw IllegalStateException("No cloud backup found.")
                 exportRepository.importFromJson(json)
             }.onSuccess {
-                _cloudMessage.value = "Restored from cloud."; _cloudMessage.value = null
+                _cloudMessage.tryEmit("Restored from cloud.")
             }.onFailure {
-                _cloudMessage.value = "Cloud restore failed: ${it.message}"; _cloudMessage.value = null
+                _cloudMessage.tryEmit("Cloud restore failed: ${it.message}")
             }
             _cloudBusy.value = false
         }
@@ -237,15 +250,15 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { exportRepository.exportToJson() }
                 .onSuccess { _exportJson.value = it; _exportJson.value = null }
-                .onFailure { _importResult.value = "Export failed: ${it.message}"; _importResult.value = null }
+                .onFailure { _importResult.tryEmit("Export failed: ${it.message}") }
         }
     }
 
     fun importBackup(json: String) {
         viewModelScope.launch {
             runCatching { exportRepository.importFromJson(json) }
-                .onSuccess { _importResult.value = "Backup restored successfully!"; _importResult.value = null }
-                .onFailure { _importResult.value = "Import failed: ${it.message}"; _importResult.value = null }
+                .onSuccess { _importResult.tryEmit("Backup restored successfully!") }
+                .onFailure { _importResult.tryEmit("Import failed: ${it.message}") }
         }
     }
 
@@ -253,7 +266,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { exportRepository.exportToJson() }
                 .onSuccess { block(it) }
-                .onFailure { _importResult.value = "Export failed: ${it.message}"; _importResult.value = null }
+                .onFailure { _importResult.tryEmit("Export failed: ${it.message}") }
         }
     }
 
@@ -263,22 +276,24 @@ class SettingsViewModel @Inject constructor(
             gamificationRepository.resetAll()
             resolutionLog.clearMisses()
             refreshUnrecognized()
-            _resetDone.value = true
-            _resetDone.value = false
+            _resetDone.tryEmit(Unit)
         }
     }
 
     fun factoryReset() {
         viewModelScope.launch {
-            // Clear all DB tables
+            // Clear ALL DB tables so the app is truly "freshly installed" after restart.
             workoutRepository.resetAllWorkouts()   // sessions + sets
             gamificationRepository.resetAll()       // user_stats + achievements
             plannedExerciseDao.deleteAll()
+            weeklySummaryDao.deleteAll()            // S7 fix: coach summaries were not cleared
+            programDao.deleteAll()                  // S7 fix: named programs were not cleared
+            exerciseDao.deleteAll()                 // S7 fix: exercise library was not cleared
             gymPresetDao.deleteAll()
             AppDatabase.seedPresets(gymPresetDao)
             bodyMeasurementDao.deleteAll()
             resolutionLog.clearMisses()
-            // Clear all preferences (API key, onboarding status, profile, everything)
+            // Clear all preferences (API key, onboarding status, profile, everything).
             prefs.clearAll()
             _factoryResetDone.tryEmit(Unit)
         }
@@ -349,11 +364,14 @@ class SettingsViewModel @Inject constructor(
                     "Program generated after ${generationResult.attemptCount} attempts (${capturedReasons.size} rejected)"
                 else
                     "New program generated!"
-            }.onFailure {
+            }.onFailure { e ->
                 _retryLog.value = capturedReasons.mapIndexed { i, r ->
                     RetryEntry(i + 1, r, i == capturedReasons.lastIndex)
                 }
-                _generateStatus.value = "Program rejected after all ${AiRepository.MAX_GENERATION_ATTEMPTS} attempts"
+                _generateStatus.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
+                    "Program rejected after all ${AiRepository.MAX_GENERATION_ATTEMPTS} attempts"
+                else
+                    friendlyAiErrorMessage(e)
             }
             _isGenerating.value = false
         }

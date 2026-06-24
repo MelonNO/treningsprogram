@@ -10,6 +10,7 @@ import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.friendlyAiErrorMessage
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.data.repository.thisMonday
@@ -166,48 +167,50 @@ class ProgramViewModel @Inject constructor(
      */
     fun editExercise(exercise: PlannedExercise, sets: Int, reps: String, weight: Float, notes: String) {
         viewModelScope.launch {
-            workoutRepository.updatePlannedExercise(
+            workoutRepository.editPlannedExerciseFields(
                 exercise.copy(sets = sets, targetReps = reps, targetWeightKg = weight, notes = notes)
             )
         }
     }
 
-    /** Delete a planned exercise from its day, re-indexing the remaining rows by list position. */
+    /**
+     * Delete a planned exercise from its day, re-indexing the remaining rows by list position.
+     * Routed through the repository's atomic editDayPlan: the transform runs against the day's
+     * freshly-persisted rows, so rapid delete/reorder/add in succession can't clobber one another.
+     */
     fun deleteExercise(exercise: PlannedExercise) {
         viewModelScope.launch {
-            val newList = com.migul.treningsprogram.domain.DayPlanEditor.remove(
-                selectedDayExercises.value, exercise
-            )
-            workoutRepository.saveDayPlan(thisMonday(), exercise.dayOfWeek, newList)
+            workoutRepository.editDayPlan(thisMonday(), exercise.dayOfWeek) { current ->
+                com.migul.treningsprogram.domain.DayPlanEditor.remove(current, exercise)
+            }
         }
     }
 
     /** Add a new exercise to the end of [day]'s plan, re-indexing so orderInDay = list position. */
     fun addExercise(day: Int, name: String, sets: Int, reps: String, weight: Float, notes: String) {
         viewModelScope.launch {
-            val current = weekPlan.value.filter { it.dayOfWeek == day }
-            val newRow = PlannedExercise(
-                weekStart = thisMonday(),
-                dayOfWeek = day,
-                orderInDay = current.size,
-                exerciseName = name,
-                sets = sets,
-                targetReps = reps,
-                targetWeightKg = weight,
-                notes = notes
-            )
-            val newList = com.migul.treningsprogram.domain.DayPlanEditor.add(current, newRow)
-            workoutRepository.saveDayPlan(thisMonday(), day, newList)
+            workoutRepository.editDayPlan(thisMonday(), day) { current ->
+                val newRow = PlannedExercise(
+                    weekStart = thisMonday(),
+                    dayOfWeek = day,
+                    orderInDay = current.size,
+                    exerciseName = name,
+                    sets = sets,
+                    targetReps = reps,
+                    targetWeightKg = weight,
+                    notes = notes
+                )
+                com.migul.treningsprogram.domain.DayPlanEditor.add(current, newRow)
+            }
         }
     }
 
     /** Move an exercise up or down within its day, re-indexing orderInDay by new list position. */
     fun moveExercise(exercise: PlannedExercise, up: Boolean) {
         viewModelScope.launch {
-            val newList = com.migul.treningsprogram.domain.DayPlanEditor.move(
-                selectedDayExercises.value, exercise, up
-            )
-            workoutRepository.saveDayPlan(thisMonday(), exercise.dayOfWeek, newList)
+            workoutRepository.editDayPlan(thisMonday(), exercise.dayOfWeek) { current ->
+                com.migul.treningsprogram.domain.DayPlanEditor.move(current, exercise, up)
+            }
         }
     }
 
@@ -251,7 +254,7 @@ class ProgramViewModel @Inject constructor(
                 workoutRepository.saveDayPlan(weekStart, dayOfWeek, exercises)
                 _dayGenerationStatus.value = ""
             }.onFailure { e ->
-                _dayGenerationError.value = e.message ?: "Generation failed"
+                _dayGenerationError.value = friendlyAiErrorMessage(e)
                 _dayGenerationStatus.value = ""
             }
             _isDayGenerating.value = false
@@ -278,9 +281,20 @@ class ProgramViewModel @Inject constructor(
                 workoutRepository.getActiveProgramOnce()
             }
             val stalledLifts = workoutRepository.computeStalledLifts()
-            val isDeload = com.migul.treningsprogram.domain.DeloadPolicy.nextDeloadState(
+            // Deload is a once-per-WEEK state machine: a deload week is exactly one week, and the
+            // NEXT week clears it (nextDeloadState's "if currentlyDeloading → exit"). That EXIT is
+            // meant to fire on a week TRANSITION, not on a re-generation of the same week. A manual
+            // "Regenerate program now" tapped again INSIDE an active deload week was re-running the
+            // exit branch and silently dropping the deload mid-week. Guard only that exit: when we
+            // are already deloading AND merely replacing this same week's existing plan, KEEP the
+            // deload. Entering a deload (stalls newly reached) still works normally, and the auto-gen
+            // path (which only ever runs on an empty/new week) is unaffected.
+            val replacingCurrentWeek =
+                workoutRepository.getActiveProgramPlanForWeek(monday).isNotEmpty()
+            val isDeload = com.migul.treningsprogram.domain.DeloadPolicy.nextDeloadStateForRegen(
                 currentlyDeloading = active?.isDeloadActive ?: false,
-                stalledCount = stalledLifts.size
+                stalledCount = stalledLifts.size,
+                replacingCurrentWeek = replacingCurrentWeek
             )
             val mesocycle = active?.let { p ->
                 com.migul.treningsprogram.data.repository.MesocycleContext(
@@ -316,7 +330,10 @@ class ProgramViewModel @Inject constructor(
                 workoutRepository.setActiveDeload(isDeload)
                 _dayGenerationStatus.value = ""
             }.onFailure { e ->
-                _dayGenerationError.value = e.message ?: "Generation failed"
+                _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
+                    e.message ?: "Program rejected after all attempts"
+                else
+                    friendlyAiErrorMessage(e)
                 _dayGenerationStatus.value = ""
             }
             _isDayGenerating.value = false

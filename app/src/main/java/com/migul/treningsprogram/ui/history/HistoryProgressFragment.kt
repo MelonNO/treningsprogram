@@ -1,5 +1,7 @@
 package com.migul.treningsprogram.ui.history
 
+import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,17 +15,22 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.migul.treningsprogram.data.db.dao.ExercisePrWithDate
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
 import com.migul.treningsprogram.domain.Epley
+import com.migul.treningsprogram.domain.OneRmTrend
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
+
 @AndroidEntryPoint
 class HistoryProgressFragment : Fragment() {
 
     private var _binding: FragmentHistoryProgressBinding? = null
     private val binding get() = _binding!!
     private val viewModel: HistoryViewModel by viewModels({ requireParentFragment() })
+
+    private val dateFmt = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -64,15 +71,23 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
-        // Observe strength history
+        // Observe strength history — drives both the max-weight chart and the C1 PR timeline.
+        // The history already excludes warm-up sets (WorkoutSetDao.getStrengthHistory filters
+        // isWarmup=0), so OneRmTrend.prTimeline receives working-set summaries only.
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.strengthHistory.collect { history ->
+                    // First-run / no-selection: tell the user to pick an exercise rather than
+                    // leaving the chart's generic "Not enough data yet" looking broken (UX1).
+                    binding.tvStrengthHint.isVisible = viewModel.selectedExercise.value.isBlank()
                     binding.chartStrength.setData(history.map {
                         StrengthChartView.Entry(it.dateMs, it.maxWeight)
                     })
-                    // Compute e1RM from best set with reps < 20
-                    val best = history.filter { it.bestReps < 20 }.maxByOrNull { it.maxWeight }
+                    // Compute e1RM from the set with the highest estimated 1RM (reps in 1..19).
+                    // maxByOrNull on Epley correctly handles double-progression: a lighter weight
+                    // done for more reps can yield a higher e1RM than a heavier single-rep attempt.
+                    val best = history.filter { it.bestReps in 1 until 20 }
+                        .maxByOrNull { Epley.estimate(it.maxWeight, it.bestReps) }
                     if (best != null) {
                         val e1rm = Epley.estimate(best.maxWeight, best.bestReps)
                         binding.tvE1rm.text = "Estimated 1RM: ~${e1rm.toInt()} kg"
@@ -82,14 +97,11 @@ class HistoryProgressFragment : Fragment() {
                         binding.tvE1rm.isVisible = false
                         binding.tvE1rmDisclaimer.isVisible = false
                     }
-                }
-            }
-        }
 
-        // Observe PRs reactively so deletions in the Log tab reflect immediately
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.prs.collect { prs -> renderPRs(prs.take(10)) }
+                    // C1 PR timeline — replaces the legacy max-weight PR widget.
+                    // Warm-ups are already excluded upstream; OneRmTrend does not re-filter.
+                    renderPrTimeline(history, viewModel.selectedExercise.value)
+                }
             }
         }
 
@@ -99,7 +111,6 @@ class HistoryProgressFragment : Fragment() {
                 viewModel.stalledLifts.collect { stalled -> renderStalled(stalled) }
             }
         }
-
     }
 
     private fun renderStalled(stalled: List<Pair<String, String>>) {
@@ -127,35 +138,61 @@ class HistoryProgressFragment : Fragment() {
         }
     }
 
-    private fun renderPRs(prs: List<ExercisePrWithDate>) {
+    /**
+     * Renders the C1 estimated-1RM PR timeline for the currently selected exercise.
+     * This is the SINGLE source of PR truth in this area (F2); the old max-weight PR widget
+     * that counted warm-ups has been retired.
+     *
+     * When no exercise is selected the card shows a prompt. When an exercise is selected but
+     * has no qualifying history (e.g. only warm-ups or 0-rep sets), the empty state is shown.
+     * Most-recent PR is shown first.
+     */
+    private fun renderPrTimeline(
+        history: List<com.migul.treningsprogram.data.db.dao.StrengthPoint>,
+        exerciseName: String
+    ) {
+        if (_binding == null) return
         binding.layoutPrs.removeAllViews()
+
+        if (exerciseName.isBlank()) {
+            binding.layoutPrs.addView(TextView(requireContext()).apply {
+                text = "Select an exercise above to see its PR history."
+                textSize = 13f
+                setTextColor(Color.parseColor("#9A9AB0"))
+            })
+            return
+        }
+
+        val prs = OneRmTrend.prTimeline(history)
         if (prs.isEmpty()) {
-            val tv = TextView(requireContext()).apply {
-                text = "No records yet. Complete workouts to see PRs!"
-                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+            binding.layoutPrs.addView(TextView(requireContext()).apply {
+                text = "No PR history yet for $exerciseName — log a few working sets to build it."
+                textSize = 13f
+                setTextColor(Color.parseColor("#9A9AB0"))
+            })
+            return
+        }
+
+        // Most recent PR first.
+        prs.asReversed().forEach { pr ->
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                val p = (4 * resources.displayMetrics.density).toInt()
+                setPadding(0, p, 0, p)
             }
-            binding.layoutPrs.addView(tv)
-        } else {
-            prs.forEach { pr ->
-                val row = LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    val p = (4 * resources.displayMetrics.density).toInt()
-                    setPadding(0, p, 0, p)
-                }
-                val tvName = TextView(requireContext()).apply {
-                    text = pr.exerciseName
-                    textSize = 13f
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
-                val tvWeight = TextView(requireContext()).apply {
-                    text = "${formatWeight(pr.maxWeight)} kg"
-                    textSize = 13f
-                    setTextColor(android.graphics.Color.parseColor("#7C67F5"))
-                }
-                row.addView(tvName)
-                row.addView(tvWeight)
-                binding.layoutPrs.addView(row)
-            }
+            row.addView(TextView(requireContext()).apply {
+                text = dateFmt.format(Date(pr.dateMs))
+                textSize = 13f
+                setTextColor(Color.parseColor("#9A9AB0"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(TextView(requireContext()).apply {
+                text = "${formatWeight(pr.weightKg)} kg × ${pr.reps}"
+                textSize = 13f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.parseColor("#7C67F5"))
+            })
+            binding.layoutPrs.addView(row)
         }
     }
 

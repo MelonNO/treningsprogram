@@ -3,7 +3,6 @@ package com.migul.treningsprogram.ui.home
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -12,6 +11,7 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
@@ -77,9 +77,16 @@ class HomeFragment : Fragment() {
             binding.cardFirstLaunch.visibility = View.VISIBLE
             binding.btnStartWorkout.visibility = View.GONE
             binding.btnStartSetup.setOnClickListener {
-                findNavController().navigate(R.id.action_home_to_setup_wizard)
+                if (findNavController().currentDestination?.id == R.id.homeFragment)
+                    findNavController().navigate(R.id.action_home_to_setup_wizard)
             }
             return  // skip wiring up the rest of the home screen until setup is complete
+        }
+
+        // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
+        binding.cardHomeXp.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.homeFragment)
+                findNavController().navigate(R.id.action_home_to_xp_log)
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -98,6 +105,7 @@ class HomeFragment : Fragment() {
                                     binding.tvTodayPlan.text = "Session in progress — tap to continue"
                                     binding.btnStartWorkout.setOnClickListener {
                                         if (!isAdded) return@setOnClickListener
+                                        if (findNavController().currentDestination?.id != R.id.homeFragment) return@setOnClickListener
                                         findNavController().navigate(
                                             R.id.action_home_to_log,
                                             bundleOf("sessionId" to active.id, "dayOfWeek" to dayOfWeekFromMs(active.dateMs))
@@ -125,6 +133,7 @@ class HomeFragment : Fragment() {
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
                                             if (!isAdded) return@startWorkout
+                                            if (findNavController().currentDestination?.id != R.id.homeFragment) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to -1)
@@ -142,6 +151,7 @@ class HomeFragment : Fragment() {
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
                                             if (!isAdded) return@startWorkout
+                                            if (findNavController().currentDestination?.id != R.id.homeFragment) return@startWorkout
                                             findNavController().navigate(
                                                 R.id.action_home_to_log,
                                                 bundleOf("sessionId" to sessionId, "dayOfWeek" to currentDayOfWeek())
@@ -356,86 +366,135 @@ class HomeFragment : Fragment() {
         }
     }
 
-    /** Fixed-window recovery colours (matches the three documented states + untrained). */
-    private fun recoveryColor(state: MuscleRecovery.RecoveryState): Int = when (state) {
-        MuscleRecovery.RecoveryState.RECOVERING -> android.graphics.Color.parseColor("#FF9800") // amber
-        MuscleRecovery.RecoveryState.READY      -> android.graphics.Color.parseColor("#4CAF50") // green
-        MuscleRecovery.RecoveryState.OVERDUE    -> android.graphics.Color.parseColor("#E53935") // red
-        MuscleRecovery.RecoveryState.UNTRAINED  -> android.graphics.Color.parseColor("#9E9E9E") // grey
-    }
+    /** Amber color for the RECOVERING state (the only state shown in the panel). */
+    private val recoveringColor = android.graphics.Color.parseColor("#FF9800")
 
-    private fun recoveryLabel(state: MuscleRecovery.RecoveryState): String = when (state) {
-        MuscleRecovery.RecoveryState.RECOVERING -> "Recovering"
-        MuscleRecovery.RecoveryState.READY      -> "Ready"
-        MuscleRecovery.RecoveryState.OVERDUE    -> "Overdue"
-        MuscleRecovery.RecoveryState.UNTRAINED  -> "Untrained"
-    }
-
-    private fun recoverySubtitle(item: HomeViewModel.MuscleRecoveryItem): String {
-        val last = item.lastTrainedMs ?: return "never trained"
-        val hours = ((System.currentTimeMillis() - last).coerceAtLeast(0L)) / (60L * 60L * 1000L)
-        return when {
-            hours < 1L  -> "trained just now"
-            hours < 24L -> "trained ${hours}h ago"
-            else        -> {
-                val days = hours / 24L
-                "trained ${days}d ago"
-            }
-        }
-    }
-
+    /**
+     * Render the recovering-only muscle recovery panel (U1).
+     *
+     * Shows only muscles currently RECOVERING. Each row:
+     *   - Amber status dot
+     *   - Muscle name + "trained Xh ago" subtitle
+     *   - Progress bar showing how far through recovery (0=just trained, 1=almost ready)
+     *   - Remaining hours text
+     *
+     * Empty state: shows a single row with "Nothing recovering — all muscles are ready." text.
+     *
+     * Tap on any row: navigates to the last session that trained that muscle (via RecapTargetViewModel
+     * + bottom-nav switch to history, mirroring the "View Recap" pattern in onViewCreated).
+     */
     private fun renderRecovery(items: List<HomeViewModel.MuscleRecoveryItem>) {
         if (_binding == null) return
         val container = binding.layoutHomeRecovery
         container.removeAllViews()
         val density = resources.displayMetrics.density
+
+        if (items.isEmpty()) {
+            // Empty state: sensible message, not a broken panel
+            val tv = TextView(requireContext()).apply {
+                text = "All muscles are rested and ready."
+                textSize = 13f
+                setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_surface_emphasis_medium))
+            }
+            container.addView(tv)
+            return
+        }
+
         items.forEach { item ->
+            val outerRow = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                val vp = (6 * density).toInt()
+                setPadding(0, vp, 0, vp)
+                isClickable = true
+                isFocusable = true
+                // Tap: navigate to the last session that trained this muscle
+                setOnClickListener {
+                    if (!isAdded || _binding == null) return@setOnClickListener
+                    recapTarget.request(item.lastSessionId)
+                    requireActivity()
+                        .findViewById<BottomNavigationView>(R.id.bottom_nav)
+                        ?.selectedItemId = R.id.historyFragment
+                }
+            }
+
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                val vp = (6 * density).toInt()
-                setPadding(0, vp, 0, vp)
             }
-            // Colored status dot
+
+            // Colored status dot (amber = recovering)
             val dotSize = (12 * density).toInt()
             val dot = View(requireContext()).apply {
                 val bg = android.graphics.drawable.GradientDrawable().apply {
                     shape = android.graphics.drawable.GradientDrawable.OVAL
-                    setColor(recoveryColor(item.state))
+                    setColor(recoveringColor)
                 }
                 background = bg
                 layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply {
                     marginEnd = (12 * density).toInt()
                 }
             }
-            // Group name + subtitle
+
+            // Left column: muscle name + subtitle
             val textCol = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
             val tvName = TextView(requireContext()).apply {
-                text = item.muscleGroup
+                text = item.muscleLabel
                 textSize = 14f
                 setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_surface_emphasis_high_type))
             }
             val tvSub = TextView(requireContext()).apply {
-                text = recoverySubtitle(item)
+                text = formatTrainedAgo(item.lastTrainedMs)
                 textSize = 12f
                 setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_surface_emphasis_medium))
             }
             textCol.addView(tvName)
             textCol.addView(tvSub)
-            // State label, colored
-            val tvState = TextView(requireContext()).apply {
-                text = recoveryLabel(item.state)
-                textSize = 13f
+
+            // Right column: remaining hours
+            val remainHours = (item.remainingMs / (60L * 60L * 1000L)).coerceAtLeast(0L)
+            val tvRemain = TextView(requireContext()).apply {
+                text = if (remainHours < 1L) "<1h left" else "${remainHours}h left"
+                textSize = 12f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(recoveryColor(item.state))
+                setTextColor(recoveringColor)
             }
+
             row.addView(dot)
             row.addView(textCol)
-            row.addView(tvState)
-            container.addView(row)
+            row.addView(tvRemain)
+            outerRow.addView(row)
+
+            // Progress bar: fraction of the 48 h recovery window completed
+            val progressBar = ProgressBar(
+                requireContext(), null,
+                android.R.attr.progressBarStyleHorizontal
+            ).apply {
+                max = 100
+                progress = (item.recoveryFraction * 100).toInt()
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (4 * density).toInt()
+                )
+                lp.topMargin = (4 * density).toInt()
+                layoutParams = lp
+                progressDrawable?.setColorFilter(
+                    recoveringColor, android.graphics.PorterDuff.Mode.SRC_IN
+                )
+            }
+            outerRow.addView(progressBar)
+            container.addView(outerRow)
+        }
+    }
+
+    private fun formatTrainedAgo(lastTrainedMs: Long): String {
+        val hours = ((System.currentTimeMillis() - lastTrainedMs).coerceAtLeast(0L)) / (60L * 60L * 1000L)
+        return when {
+            hours < 1L  -> "trained just now"
+            hours < 24L -> "trained ${hours}h ago"
+            else        -> "trained ${hours / 24L}d ago"
         }
     }
 

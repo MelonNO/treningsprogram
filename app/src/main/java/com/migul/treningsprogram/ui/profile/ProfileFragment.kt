@@ -38,7 +38,13 @@ class ProfileFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding.cardSettings.setOnClickListener {
-            findNavController().navigate(R.id.action_profile_to_settings)
+            if (findNavController().currentDestination?.id == R.id.profileFragment)
+                findNavController().navigate(R.id.action_profile_to_settings)
+        }
+        // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
+        binding.cardProfileXp.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.profileFragment)
+                findNavController().navigate(R.id.action_profile_to_xp_log)
         }
         binding.headerAchievements.setOnClickListener { toggleAchievements() }
         viewLifecycleOwner.lifecycleScope.launch {

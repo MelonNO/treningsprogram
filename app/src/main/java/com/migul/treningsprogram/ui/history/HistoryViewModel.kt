@@ -69,6 +69,28 @@ class HistoryViewModel @Inject constructor(
     suspend fun buildRecap(sessionId: Long): com.migul.treningsprogram.domain.model.SessionRecap? =
         workoutRepository.buildSessionRecap(sessionId)
 
+    /**
+     * UX1 Recap overview: total working-set volume per week across ALL exercises, chronological.
+     * Derived from the existing per-exercise [WorkoutRepository.getWeeklyVolume] query (one call per
+     * distinct exercise) merged by [com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints]
+     * — no new DAO query is added, and warm-ups stay excluded (the query filters isWarmup=0).
+     */
+    suspend fun getWeeklyVolumePoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> {
+        val perExercise = workoutRepository.getDistinctExerciseNames()
+            .map { workoutRepository.getWeeklyVolume(it) }
+        return com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints(perExercise)
+    }
+
+    /** UX1 Recap overview: sessions per week over time (training frequency). */
+    suspend fun getWeeklyFrequencyPoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> =
+        com.migul.treningsprogram.domain.RecapGraphs.weeklyFrequencyPoints(
+            workoutRepository.getTrainingDayEpochs()
+        )
+
+    /** UX1 Recap overview: per-muscle-group working-set distribution, desc by sets. */
+    suspend fun getMuscleRows(): List<com.migul.treningsprogram.domain.RecapGraphs.MuscleRow> =
+        com.migul.treningsprogram.domain.RecapGraphs.muscleRows(workoutRepository.getMuscleGroupVolume())
+
     // ── Progress tab ──────────────────────────────────────────────────────
     val selectedExercise = MutableStateFlow("")
     val timeWindowMonths = MutableStateFlow(0)
@@ -90,10 +112,6 @@ class HistoryViewModel @Inject constructor(
                 history.filter { it.dateMs >= cutoff }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val prs: StateFlow<List<ExercisePrWithDate>> =
-        workoutRepository.observePRsWithDate()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * Stalled lifts surfaced on the Progress tab (feature B3). A lift is stalled when its estimated

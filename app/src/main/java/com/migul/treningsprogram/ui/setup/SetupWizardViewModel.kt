@@ -8,6 +8,7 @@ import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.AiRepository
+import com.migul.treningsprogram.data.repository.friendlyAiErrorMessage
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
@@ -114,7 +115,7 @@ class SetupWizardViewModel @Inject constructor(
                 _rejectionReasons.value = result.rejectionReasons
                 _generationDone.value = true
             }.onFailure { e ->
-                _generationError.value = e.message
+                _generationError.value = friendlyAiErrorMessage(e)
             }
 
             _isGenerating.value = false

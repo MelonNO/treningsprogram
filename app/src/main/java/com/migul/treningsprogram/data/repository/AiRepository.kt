@@ -13,10 +13,193 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.domain.StallDetector
 import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
+import retrofit2.HttpException
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
+
+// ── F3: transient-failure classification and retry ──────────────────────────────────────────────
+
+/**
+ * Returns true when [t] is a transient error that is safe to retry:
+ *   - [SocketTimeoutException] / [IOException] — network-level failure (timeout, dropped connection)
+ *   - [HttpException] with status 5xx or 429 (server error / rate-limited)
+ *
+ * Non-retryable: [HttpException] with 4xx codes (auth errors 401, bad request 400, etc.) indicate
+ * a problem with the request itself that a retry will not fix.
+ *
+ * This is a package-level (non-member) function so it can be unit-tested without an
+ * [AiRepository] instance.
+ */
+fun isTransientAiError(t: Throwable): Boolean = when (t) {
+    is SocketTimeoutException -> true
+    is IOException -> true
+    is HttpException -> t.code() >= 500 || t.code() == 429
+    else -> false
+}
+
+/**
+ * Returns a concise, user-friendly message for an AI network failure. Avoids surfacing raw Java
+ * exception class names to the user.
+ */
+fun friendlyAiErrorMessage(t: Throwable): String = when {
+    t is SocketTimeoutException ->
+        "The AI request timed out. Please check your connection and try again."
+    t is IOException ->
+        "Network error while reaching the AI. Please check your connection and try again."
+    t is HttpException && t.code() == 429 ->
+        "AI rate limit reached. Please wait a moment and try again."
+    t is HttpException && t.code() == 401 ->
+        "Invalid API key. Please check your key in Settings."
+    t is HttpException && t.code() >= 500 ->
+        "The AI service returned a server error (${t.code()}). Please try again."
+    else -> t.message ?: "AI request failed. Please try again."
+}
+
+/**
+ * Executes [block] up to [maxAttempts] times, retrying immediately on transient failures
+ * (as classified by [isTransientAiError]). Non-transient failures propagate immediately on
+ * the first occurrence. On the final attempt a transient failure is re-thrown.
+ *
+ * Package-level (non-member) so it can be called from any suspend context and unit-tested
+ * independently of [AiRepository].
+ */
+suspend fun <T> withAiRetry(maxAttempts: Int = 2, block: suspend () -> T): T {
+    var lastException: Throwable? = null
+    repeat(maxAttempts) { attempt ->
+        try {
+            return block()
+        } catch (t: Throwable) {
+            if (!isTransientAiError(t)) throw t   // non-transient: fail fast
+            lastException = t
+            // On last attempt fall through to re-throw; otherwise retry immediately
+        }
+    }
+    throw lastException!!
+}
+
+// ── S3: robust extraction of a JSON object from raw model output ─────────────────────────────────
+//
+// The model occasionally wraps its JSON in markdown fences, prepends/appends prose ("Here is your
+// program:"), truncates the response, or leaves a trailing comma before a `}` / `]`. These helpers
+// are package-level (non-member) pure functions so the whole parsing seam is unit-testable WITHOUT an
+// [AiRepository] instance (matching the F3 isTransientAiError / withAiRetry pattern), and so the tests
+// exercise the REAL production logic rather than a hand-copied mirror.
+
+/**
+ * Strips markdown fences from [text] so the brace scanner sees the bare payload.
+ *  - A COMPLETE fenced block (opening ``` AND closing ```): the inner content is returned verbatim
+ *    (trimmed). This preserves the historical contract that fenced JSON is taken as-is.
+ *  - An OPENING fence only (closing fence truncated away — the common partial-response case): the
+ *    opening ```/```json marker is removed and any stray ``` are blanked, leaving the body for the
+ *    brace scanner to recover from.
+ *  - No fence: returned unchanged.
+ */
+internal fun stripJsonFences(text: String): String {
+    val complete = Regex("```(?:json)?\\s*([\\s\\S]*?)```").find(text)
+    if (complete != null) return complete.groupValues[1].trim()
+    // Opening fence only / stray fences: remove the leading marker, blank any leftover backticks.
+    return text.replaceFirst(Regex("```(?:json)?"), " ").replace("```", " ")
+}
+
+/**
+ * Returns the first BALANCED `{ … }` span in [s] (brace-depth aware, ignoring braces inside JSON
+ * strings and escaped quotes), or null when no balanced object can be found (e.g. a truncated
+ * response whose closing brace was cut off). More robust than first-`{`/last-`}` because it ignores
+ * trailing prose and refuses to "succeed" on a span that closes on a nested brace.
+ */
+internal fun balancedJsonSpan(s: String): String? {
+    val start = s.indexOf('{')
+    if (start < 0) return null
+    var depth = 0
+    var inString = false
+    var escaped = false
+    for (i in start until s.length) {
+        val c = s[i]
+        if (inString) {
+            when {
+                escaped -> escaped = false
+                c == '\\' -> escaped = true
+                c == '"' -> inString = false
+            }
+        } else {
+            when (c) {
+                '"' -> inString = true
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) return s.substring(start, i + 1)
+                }
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * Removes a trailing comma that sits immediately before a closing `}` or `]` (string/escape aware,
+ * so commas inside string values are preserved). Gson tolerates trailing commas in arrays but THROWS
+ * on a trailing comma in an object, and a trailing array comma can even materialise a phantom null
+ * element — sanitising both makes minor model JSON-dirt parse cleanly.
+ */
+internal fun stripTrailingCommas(s: String): String {
+    val out = StringBuilder(s.length)
+    var inString = false
+    var escaped = false
+    var i = 0
+    while (i < s.length) {
+        val c = s[i]
+        if (inString) {
+            out.append(c)
+            when {
+                escaped -> escaped = false
+                c == '\\' -> escaped = true
+                c == '"' -> inString = false
+            }
+            i++
+            continue
+        }
+        if (c == '"') {
+            inString = true
+            out.append(c)
+            i++
+            continue
+        }
+        if (c == ',') {
+            var j = i + 1
+            while (j < s.length && s[j].isWhitespace()) j++
+            if (j < s.length && (s[j] == '}' || s[j] == ']')) {
+                i++          // drop this trailing comma
+                continue
+            }
+        }
+        out.append(c)
+        i++
+    }
+    return out.toString()
+}
+
+/**
+ * Extracts a clean JSON object string from raw model output, hardened against fence/prose/dirt:
+ *  1. strip a complete fence (inner returned) or an opening-only fence;
+ *  2. recover the first BALANCED `{ … }` span (ignores leading/trailing prose);
+ *  3. fall back to first-`{`/last-`}` when no balanced span exists;
+ *  4. otherwise throw [IllegalStateException] — a genuinely JSON-free or irrecoverably-truncated
+ *     response must STILL surface a clear error (never a silent empty success).
+ * A residual span that is still malformed (e.g. truncated mid-object) is returned here and rejected
+ * downstream by gson, which also surfaces as a thrown failure.
+ */
+internal fun extractJsonOrThrow(text: String): String {
+    val body = stripJsonFences(text)
+    balancedJsonSpan(body)?.let { return it.trim() }
+    val start = body.indexOf('{')
+    val end = body.lastIndexOf('}')
+    if (start != -1 && end > start) return body.substring(start, end + 1).trim()
+    throw IllegalStateException("No JSON found in AI response")
+}
 
 // Onboarding question JSON model
 private data class OQJson(
@@ -167,9 +350,11 @@ Return ONLY valid JSON — no prose, no markdown fences:
 type must be "text" for a free-form answer or "choice" for a single-select list.
         """.trimIndent()
 
-        val responseText = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        ).text()
+        val responseText = withAiRetry {
+            claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
         promptLog.add("onboarding_questions", prompt, responseText)
         val json = extractJson(responseText)
         val parsed = gson.fromJson(json, OQsJson::class.java)
@@ -233,12 +418,22 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
                 previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle
             )
-            val responseText = claudeApi.sendMessage(
-                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            ).text()
+            val responseText = withAiRetry {
+                claudeApi.sendMessage(
+                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                ).text()
+            }
             promptLog.add("generate_attempt_$attempt", prompt, responseText)
             val cleanJson = extractJson(responseText)
             val exercises = parseProgram(cleanJson)
+
+            // An empty/no-exercise plan (well-formed JSON but {"days":[]} or all-empty days) would
+            // otherwise pass the duration check vacuously and could be SAVED as an empty plan — that
+            // is a silent failure. Treat it as a rejected attempt so it retries and, if it never
+            // recovers, throws after MAX_GENERATION_ATTEMPTS instead of persisting nothing.
+            val emptyPlanReason = if (exercises.isEmpty())
+                "The plan contained no exercises. Produce $daysPerWeek full training days with exercises."
+            else ""
 
             // ── Deterministic ±10 min duration check (AUTHORITATIVE) ──────────────
             // Each training day must estimate within ±10 min of the session target,
@@ -256,10 +451,13 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 }
                 .joinToString(" ")
 
-            onProgress("Reviewing plan for quality…")
-            val validation = validateProgram(cleanJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
-            // A plan is accepted only when BOTH the duration check AND the LLM review pass.
-            if (durationReason.isEmpty() && validation.accepted) {
+            // Skip the (costly) LLM review when the plan is already empty — it can never be accepted.
+            val validation = if (emptyPlanReason.isEmpty()) {
+                onProgress("Reviewing plan for quality…")
+                validateProgram(cleanJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
+            } else ValidationResult(accepted = false, reason = emptyPlanReason)
+            // A plan is accepted only when it has exercises AND the duration check AND the LLM review pass.
+            if (emptyPlanReason.isEmpty() && durationReason.isEmpty() && validation.accepted) {
                 val logAttempts = rejectionReasons.mapIndexed { i, r ->
                     RejectionLog.Attempt(i + 1, r, false)
                 }
@@ -268,9 +466,13 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 val rationale = parseRationale(cleanJson)
                 return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
             }
-            // Prefer the deterministic duration reason (it names the offending day(s));
-            // fall back to the LLM validator reason when duration is in range.
-            val rejectionReason = if (durationReason.isNotEmpty()) durationReason else validation.reason
+            // Prefer the empty-plan reason, then the deterministic duration reason (it names the
+            // offending day(s)); fall back to the LLM validator reason when those are clear.
+            val rejectionReason = when {
+                emptyPlanReason.isNotEmpty() -> emptyPlanReason
+                durationReason.isNotEmpty() -> durationReason
+                else -> validation.reason
+            }
             rejectionReasons.add(rejectionReason)
             onProgress("Attempt $attempt rejected: $rejectionReason")
             if (attempt == MAX_GENERATION_ATTEMPTS) {
@@ -324,9 +526,11 @@ $history
 Respond with ONLY the summary text — no JSON, no markdown fences, no preamble like "Here is your summary".
         """.trimIndent()
 
-        val responseText = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        ).text()
+        val responseText = withAiRetry {
+            claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
         promptLog.add("weekly_summary", prompt, responseText)
         val summary = responseText.trim()
         if (summary.isBlank()) throw IllegalStateException("Empty weekly summary returned")
@@ -387,9 +591,11 @@ OR
         """.trimIndent()
 
         return runCatching {
-            val responseText = claudeApi.sendMessage(
-                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            ).text()
+            val responseText = withAiRetry {
+                claudeApi.sendMessage(
+                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                ).text()
+            }
             promptLog.add("validate", prompt, responseText)
             val json = extractJson(responseText)
             val obj = gson.fromJson(json, com.google.gson.JsonObject::class.java)
@@ -929,9 +1135,11 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":90}]}]}""")
         }
 
-        val responseText = claudeApi.sendMessage(
-            ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-        ).text()
+        val responseText = withAiRetry {
+            claudeApi.sendMessage(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
         promptLog.add("single_day_${dayName.lowercase()}", prompt, responseText)
 
         val cleanJson = extractJson(responseText)
@@ -943,9 +1151,14 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
 
     private fun parseProgram(cleanJson: String): List<PlannedExercise> {
         val weekStart = thisMonday()
-        val program = gson.fromJson(cleanJson, ProgramJson::class.java)
+        // Tolerate minor model JSON-dirt (trailing comma before } / ]) that gson would otherwise reject.
+        val program = gson.fromJson(stripTrailingCommas(cleanJson), ProgramJson::class.java)
+            ?: throw IllegalStateException("AI response did not contain a JSON object")
+        // A balanced/extracted object with no usable days is a failed generation, not a silent empty
+        // plan — surface it so the existing onFailure path tells the user instead of saving nothing.
+        val days = program.days ?: emptyList()
         val now = System.currentTimeMillis()
-        return (program.days ?: emptyList()).flatMap { day ->
+        return days.filterNotNull().flatMap { day ->
             (day.exercises ?: emptyList()).mapIndexed { index, ex ->
                 val resolveResult = resolver.resolve(ex.name, ResolveHints())
                 PlannedExercise(
@@ -976,12 +1189,7 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
     /** E2 (L1 + M2): the mesocycle / deload directive injected into the generation prompt. */
     private fun buildMesocycleBlock(m: MesocycleContext): String = m.promptBlock()
 
-    private fun extractJson(text: String): String {
-        val fenceMatch = Regex("```(?:json)?\\s*([\\s\\S]*?)```").find(text)
-        if (fenceMatch != null) return fenceMatch.groupValues[1].trim()
-        val start = text.indexOf('{')
-        val end = text.lastIndexOf('}')
-        if (start != -1 && end > start) return text.substring(start, end + 1)
-        throw IllegalStateException("No JSON found in AI response")
-    }
+    // Delegates to the hardened package-level [extractJsonOrThrow]; kept as a member so existing call
+    // sites are unchanged.
+    private fun extractJson(text: String): String = extractJsonOrThrow(text)
 }
