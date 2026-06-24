@@ -4,6 +4,7 @@ import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.AchievementDao
 import com.migul.treningsprogram.data.db.dao.UserStatsDao
 import com.migul.treningsprogram.data.db.dao.WorkoutSetDao
+import com.migul.treningsprogram.data.db.dao.XpEventDao
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
@@ -20,6 +21,7 @@ class GamificationRepository @Inject constructor(
     private val userStatsDao: UserStatsDao,
     private val achievementDao: AchievementDao,
     private val workoutSetDao: WorkoutSetDao,
+    private val xpEventDao: XpEventDao,
     private val dailyChallengeManager: DailyChallengeManager
 ) {
     val userStats: Flow<UserStats?> = userStatsDao.observe()
@@ -27,6 +29,10 @@ class GamificationRepository @Inject constructor(
     suspend fun resetAll() {
         userStatsDao.upsert(UserStats(id = 1))
         achievementDao.resetAll()
+        // U2: clear the XP log so a stats reset doesn't leave orphan events whose totals no
+        // longer reconcile with the (now-zeroed) XP bar. Covers BOTH "Reset workouts/stats" and
+        // Factory Reset, since both call resetAll().
+        xpEventDao.deleteAll()
     }
 
     /**
@@ -100,6 +106,22 @@ class GamificationRepository @Inject constructor(
             lastWorkoutDateMs = System.currentTimeMillis()
         )
         userStatsDao.upsert(updatedStats)
+
+        // U2: record this award in the forward-only XP log. PURE OBSERVATION — we reuse the EXACT
+        // component amounts computed above (baseXp/setXp/prXp/bonusChallengeXp); nothing here
+        // changes how much XP is granted. Itemized so the user sees what earned each chunk; the
+        // sum of the inserted rows equals xpEarned.
+        XpEventBuilder.buildWorkoutEvents(
+            timestampMs = updatedStats.lastWorkoutDateMs,
+            sessionId = sessionId,
+            baseXp = baseXp,
+            setXp = setXp,
+            setCount = workingSets.size,
+            prXp = prXp,
+            prCount = prExercises.size,
+            bonusChallengeXp = bonusChallengeXp,
+            challengeNames = completedChallenges.map { it.name }
+        ).forEach { xpEventDao.insert(it) }
 
         val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg, prExercises.size)
 

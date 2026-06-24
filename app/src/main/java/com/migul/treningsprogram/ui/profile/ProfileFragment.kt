@@ -41,6 +41,11 @@ class ProfileFragment : Fragment() {
             if (findNavController().currentDestination?.id == R.id.profileFragment)
                 findNavController().navigate(R.id.action_profile_to_settings)
         }
+        // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
+        binding.cardProfileXp.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.profileFragment)
+                findNavController().navigate(R.id.action_profile_to_xp_log)
+        }
         binding.headerAchievements.setOnClickListener { toggleAchievements() }
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

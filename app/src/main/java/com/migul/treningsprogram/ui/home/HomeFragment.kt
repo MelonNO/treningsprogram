@@ -83,6 +83,12 @@ class HomeFragment : Fragment() {
             return  // skip wiring up the rest of the home screen until setup is complete
         }
 
+        // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
+        binding.cardHomeXp.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.homeFragment)
+                findNavController().navigate(R.id.action_home_to_xp_log)
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {

@@ -19,9 +19,10 @@ import com.migul.treningsprogram.data.db.entity.*
         GymPreset::class,
         BodyMeasurement::class,
         WeeklySummary::class,
-        Program::class
+        Program::class,
+        XpEvent::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -35,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
     abstract fun weeklySummaryDao(): WeeklySummaryDao
     abstract fun programDao(): ProgramDao
+    abstract fun xpEventDao(): XpEventDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -182,6 +184,25 @@ abstract class AppDatabase : RoomDatabase() {
                     "UPDATE planned_exercises SET programId = (SELECT id FROM programs WHERE isActive = 1 LIMIT 1) " +
                         "WHERE programId IS NULL"
                 )
+            }
+        }
+
+        // U2: forward-recorded XP-event log. Additive only — a single NEW table; no existing
+        // table is touched. Column names/types/nullability and the AUTOINCREMENT primary key are
+        // written to EXACTLY match what Room generates for [XpEvent], so Room's open-time schema
+        // validation passes (mismatch ⇒ crash on launch). `sessionId` is nullable (no NOT NULL),
+        // matching the entity's `Long?` default of null.
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `xp_events` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `timestampMs` INTEGER NOT NULL,
+                        `amount` INTEGER NOT NULL,
+                        `reason` TEXT NOT NULL,
+                        `sessionId` INTEGER
+                    )
+                """.trimIndent())
             }
         }
 
