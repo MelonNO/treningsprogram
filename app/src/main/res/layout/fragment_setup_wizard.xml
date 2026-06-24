@@ -334,14 +334,14 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="e.g. lower back pain, bad knee, shoulder impingement"
+                    android:text="e.g. “bad knee — deep squats aggravate it.” Say which body part, what movement or load aggravates it, and what to avoid, so the AI can act on it."
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="8dp" />
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp"
+                    android:layout_marginBottom="16dp"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/et_wizard_injuries"
@@ -352,6 +352,35 @@
                         android:inputType="textMultiLine|textCapSentences"
                         android:hint="None" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <TextView
+                    android:id="@+id/tv_wizard_severity_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    android:text="How much does it limit you?"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="6dp" />
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chip_group_wizard_severity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    app:singleSelection="true">
+                    <com.google.android.material.chip.Chip android:id="@+id/chip_wizard_severity_mild" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mild" />
+                    <com.google.android.material.chip.Chip android:id="@+id/chip_wizard_severity_moderate" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Moderate" />
+                    <com.google.android.material.chip.Chip android:id="@+id/chip_wizard_severity_severe" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Severe" />
+                </com.google.android.material.chip.ChipGroup>
+                <TextView
+                    android:id="@+id/tv_wizard_severity_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    android:text="Mild = barely limits me · Moderate = limits some movements · Severe = must avoid entirely"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="24dp" />
 
                 <!-- Priority muscles -->
                 <TextView

@@ -88,6 +88,11 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_INJURIES, "") ?: ""
         set(value) { prefs.edit().putString(KEY_INJURIES, value).apply() }
 
+    // One of "Mild" / "Moderate" / "Severe" (empty "" = unspecified/none)
+    var injurySeverity: String
+        get() = prefs.getString(KEY_INJURY_SEVERITY, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_INJURY_SEVERITY, value).apply() }
+
     // Comma-separated muscle group names, e.g. "Chest,Back,Shoulders"
     var priorityMuscles: String
         get() = prefs.getString(KEY_PRIORITY_MUSCLES, "") ?: ""
@@ -132,6 +137,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_ONBOARDING_CONTEXT = "onboarding_context"
         private const val KEY_WIZARD_EQUIPMENT = "wizard_equipment"
         private const val KEY_INJURIES = "injuries"
+        private const val KEY_INJURY_SEVERITY = "injury_severity"
         private const val KEY_PRIORITY_MUSCLES = "priority_muscles"
         private const val KEY_DISLIKED_EXERCISES = "disliked_exercises"
         private const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"

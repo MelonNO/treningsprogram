@@ -248,6 +248,7 @@ class MainActivity : AppCompatActivity() {
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = prefsManager.separateCardioDays,
                 injuries = prefsManager.injuries,
+                injurySeverity = prefsManager.injurySeverity,
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
                 onboardingContext = prefsManager.onboardingContext

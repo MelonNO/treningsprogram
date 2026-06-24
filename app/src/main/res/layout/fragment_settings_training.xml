@@ -201,6 +201,13 @@
                         android:text="Current injuries or physical limitations"
                         android:textAppearance="?attr/textAppearanceLabelMedium"
                         android:layout_marginBottom="6dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="e.g. “left shoulder impingement — overhead pressing aggravates it, avoid behind-neck.” Say which body part, what movement or load aggravates it, and what to avoid, so the AI can act on it."
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="8dp" />
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -215,6 +222,35 @@
                             android:inputType="textMultiLine|textCapSentences"
                             android:hint="None" />
                     </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:id="@+id/tv_severity_label_settings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:text="How much does it limit you?"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:layout_marginBottom="6dp" />
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chip_group_severity_settings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        app:singleSelection="true">
+                        <com.google.android.material.chip.Chip android:id="@+id/chip_severity_mild_settings" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mild" />
+                        <com.google.android.material.chip.Chip android:id="@+id/chip_severity_moderate_settings" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Moderate" />
+                        <com.google.android.material.chip.Chip android:id="@+id/chip_severity_severe_settings" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Severe" />
+                    </com.google.android.material.chip.ChipGroup>
+                    <TextView
+                        android:id="@+id/tv_severity_hint_settings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:text="Mild = barely limits me · Moderate = limits some movements · Severe = must avoid entirely"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="16dp" />
 
                     <TextView
                         android:layout_width="match_parent"

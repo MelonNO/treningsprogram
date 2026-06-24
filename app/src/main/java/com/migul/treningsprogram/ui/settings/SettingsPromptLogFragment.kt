@@ -1,5 +1,8 @@
 package com.migul.treningsprogram.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -16,6 +19,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.PromptLog
 import com.migul.treningsprogram.databinding.FragmentSettingsPromptLogBinding
@@ -97,6 +101,20 @@ class SettingsPromptLogFragment : Fragment() {
                     expanded = !expanded
                     b.layoutExpanded.visibility = if (expanded) View.VISIBLE else View.GONE
                     b.btnExpand.text = if (expanded) "Hide" else "Show"
+                }
+
+                b.btnCopyPrompt.setOnClickListener {
+                    val context = b.root.context
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("prompt", entry.prompt))
+                    Snackbar.make(b.root, "Prompt copied", Snackbar.LENGTH_SHORT).show()
+                }
+
+                b.btnCopyResponse.setOnClickListener {
+                    val context = b.root.context
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("response", entry.response))
+                    Snackbar.make(b.root, "Response copied", Snackbar.LENGTH_SHORT).show()
                 }
             }
         }

@@ -40,6 +40,7 @@ class SettingsTrainingFragment : Fragment() {
     private var initialExpIdx = 0
     private var initialCardio = false
     private var initialInjuries = ""
+    private var initialSeverity = ""
     private var initialDisliked = ""
     private var initialMuscles = ""
     private var initialPresetId = -1L
@@ -70,6 +71,18 @@ class SettingsTrainingFragment : Fragment() {
         binding.etInjuries.setText(prefs.injuries)
         binding.etDislikedExercises.setText(prefs.dislikedExercises)
 
+        // Severity selector: reveal + pre-check only when injuries non-blank
+        if (prefs.injuries.isNotBlank()) {
+            setSeverityVisible(true)
+            when (prefs.injurySeverity) {
+                "Mild"     -> binding.chipSeverityMildSettings.isChecked = true
+                "Moderate" -> binding.chipSeverityModerateSettings.isChecked = true
+                "Severe"   -> binding.chipSeveritySevereSettings.isChecked = true
+            }
+        } else {
+            setSeverityVisible(false)
+        }
+
         val savedMuscles = prefs.priorityMuscles.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
         binding.chipSettingsMuscleChest.isChecked     = "Chest" in savedMuscles
         binding.chipSettingsMuscleBack.isChecked      = "Back" in savedMuscles
@@ -93,6 +106,17 @@ class SettingsTrainingFragment : Fragment() {
         binding.etInjuries.addTextChangedListener(textWatcher)
         binding.etDislikedExercises.addTextChangedListener(textWatcher)
 
+        // Reveal the severity selector only while the injuries field is non-blank
+        binding.etInjuries.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val hasInjury = s?.toString()?.trim()?.isNotBlank() == true
+                setSeverityVisible(hasInjury)
+                if (!hasInjury) binding.chipGroupSeveritySettings.clearCheck()
+            }
+        })
+
         val spinnerListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 updateSaveButton()
@@ -104,6 +128,7 @@ class SettingsTrainingFragment : Fragment() {
 
         binding.switchSeparateCardio.setOnCheckedChangeListener { _, _ -> updateSaveButton() }
         binding.chipGroupPriorityMusclesSettings.setOnCheckedStateChangeListener { _, _ -> updateSaveButton() }
+        binding.chipGroupSeveritySettings.setOnCheckedStateChangeListener { _, _ -> updateSaveButton() }
 
         // --- static actions ---
         binding.btnManagePresets.setOnClickListener {
@@ -145,9 +170,24 @@ class SettingsTrainingFragment : Fragment() {
         initialExpIdx    = binding.spinnerExperience.selectedItemPosition
         initialCardio    = binding.switchSeparateCardio.isChecked
         initialInjuries  = binding.etInjuries.text.toString()
+        initialSeverity  = currentSeverity()
         initialDisliked  = binding.etDislikedExercises.text.toString()
         initialMuscles   = currentMuscleString()
         initialPresetId  = gymPresetsViewModel.selectedPresetId
+    }
+
+    private fun setSeverityVisible(visible: Boolean) {
+        val v = if (visible) View.VISIBLE else View.GONE
+        binding.tvSeverityLabelSettings.visibility = v
+        binding.chipGroupSeveritySettings.visibility = v
+        binding.tvSeverityHintSettings.visibility = v
+    }
+
+    private fun currentSeverity(): String = when {
+        binding.chipSeveritySevereSettings.isChecked   -> "Severe"
+        binding.chipSeverityModerateSettings.isChecked -> "Moderate"
+        binding.chipSeverityMildSettings.isChecked     -> "Mild"
+        else -> ""
     }
 
     private fun currentMuscleString(): String {
@@ -169,6 +209,7 @@ class SettingsTrainingFragment : Fragment() {
             || binding.spinnerExperience.selectedItemPosition != initialExpIdx
             || binding.switchSeparateCardio.isChecked != initialCardio
             || binding.etInjuries.text.toString() != initialInjuries
+            || currentSeverity() != initialSeverity
             || binding.etDislikedExercises.text.toString() != initialDisliked
             || currentMuscleString() != initialMuscles
             || gymPresetsViewModel.selectedPresetId != initialPresetId
@@ -186,6 +227,8 @@ class SettingsTrainingFragment : Fragment() {
         val experience = experiences[binding.spinnerExperience.selectedItemPosition]
         val separateCardio = binding.switchSeparateCardio.isChecked
         val injuries = binding.etInjuries.text.toString().trim()
+        // Severity only meaningful with an injury described; clear it otherwise.
+        val injurySeverity = if (injuries.isNotBlank()) currentSeverity() else ""
         val disliked = binding.etDislikedExercises.text.toString().trim()
         val priorityMuscles = currentMuscleString()
 
@@ -199,6 +242,7 @@ class SettingsTrainingFragment : Fragment() {
             sessionDurationMinutes = duration,
             separateCardioDays = separateCardio,
             injuries = injuries,
+            injurySeverity = injurySeverity,
             priorityMuscles = priorityMuscles,
             dislikedExercises = disliked
         )

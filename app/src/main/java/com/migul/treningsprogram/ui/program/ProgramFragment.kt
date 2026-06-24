@@ -28,13 +28,12 @@ import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.repository.WgerRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.databinding.FragmentProgramBinding
+import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.ui.log.ExerciseInfoBottomSheet
 import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-private const val ADMIN_TIME_PER_EXERCISE_SECONDS = 60
 
 @AndroidEntryPoint
 class ProgramFragment : Fragment() {
@@ -316,8 +315,7 @@ class ProgramFragment : Fragment() {
             }
             binding.tvWorkoutType.text = "${exercises.size} exercises  •  $typeLabel"
 
-            val totalSec = exercises.sumOf { ex -> exerciseEstimateSeconds(ex) }
-            val totalMins = (totalSec + 30) / 60
+            val totalMins = WorkoutTimeEstimator.estimateDayMinutes(exercises)
             binding.tvTotalTime.text = "~${totalMins}m"
 
             binding.btnStartDayWorkout.setOnClickListener {
@@ -373,8 +371,7 @@ class ProgramFragment : Fragment() {
         if (isCardio) {
             tvExerciseTime.text = exercise.targetReps
         } else {
-            val totalSec = exerciseEstimateSeconds(exercise)
-            val mins = (totalSec + 30) / 60
+            val mins = (WorkoutTimeEstimator.estimateExerciseSeconds(exercise) + 30) / 60
             tvExerciseTime.text = "~${mins}m"
         }
 
@@ -393,15 +390,6 @@ class ProgramFragment : Fragment() {
         return card
     }
 
-    private fun exerciseEstimateSeconds(ex: PlannedExercise): Int {
-        return if (getMuscleGroup(ex.exerciseName) == "Cardio") {
-            parseCardioSeconds(ex.targetReps) + ADMIN_TIME_PER_EXERCISE_SECONDS
-        } else {
-            val maxReps = Regex("\\d+").findAll(ex.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
-            ex.sets * (maxReps * 3) + (ex.sets - 1) * ex.recommendedRestSeconds + ADMIN_TIME_PER_EXERCISE_SECONDS
-        }
-    }
-
     // Muscle classification is centralised in MuscleClassifier (shared with the Log screen
     // and the set-write path) so badges, day-type detection, and stored muscle groups all
     // agree. "" → "Training" for display; the neutral fallback colour stays this screen's.
@@ -413,15 +401,6 @@ class ProgramFragment : Fragment() {
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
-
-    private fun parseCardioSeconds(targetReps: String): Int {
-        // "30 min" → 1800, "5km" → 1500 (@ 5min/km), "6×400m" → fallback 30 min
-        val minMatch = Regex("(\\d+)\\s*min", RegexOption.IGNORE_CASE).find(targetReps)
-        if (minMatch != null) return minMatch.groupValues[1].toInt() * 60
-        val kmMatch = Regex("(\\d+(?:\\.\\d+)?)\\s*km", RegexOption.IGNORE_CASE).find(targetReps)
-        if (kmMatch != null) return (kmMatch.groupValues[1].toDouble() * 5 * 60).toInt()
-        return 1800
-    }
 
     private fun showRegenerateDayDialog(dayOfWeek: Int) {
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")

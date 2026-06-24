@@ -10,6 +10,7 @@ import com.migul.treningsprogram.data.api.ClaudeApiService
 import com.migul.treningsprogram.data.api.model.ClaudeRequest
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
+import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import java.text.SimpleDateFormat
 import java.util.*
@@ -133,6 +134,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         equipmentNotes: String = "",
         separateCardioDays: Boolean = false,
         injuries: String = "",
+        injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
         onboardingContext: String = "",
@@ -156,7 +158,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 history, daysPerWeek, goal, experience,
                 sessionDurationMinutes, equipment, equipmentNotes,
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
-                injuries, priorityMuscles, dislikedExercises, onboardingContext,
+                injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
                 previousPlan, recentExercises, variationTheme, splitSuggestion
             )
             val responseText = claudeApi.sendMessage(
@@ -166,17 +168,37 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             val cleanJson = extractJson(responseText)
             val exercises = parseProgram(cleanJson)
 
+            // ── Deterministic ±10 min duration check (AUTHORITATIVE) ──────────────
+            // Each training day must estimate within ±10 min of the session target,
+            // using the SAME time-estimate formula the Program screen shows.
+            val durationReason = exercises
+                .groupBy { it.dayOfWeek }
+                .toSortedMap()
+                .mapNotNull { (day, dayExercises) ->
+                    val est = WorkoutTimeEstimator.estimateDayMinutes(dayExercises)
+                    if (est < sessionDurationMinutes - 10 || est > sessionDurationMinutes + 10) {
+                        "Day $day estimates ~$est min; target $sessionDurationMinutes ±10 " +
+                            "(${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). " +
+                            "Trim sets/exercises or rest."
+                    } else null
+                }
+                .joinToString(" ")
+
             onProgress("Reviewing plan for quality…")
-            val validation = validateProgram(cleanJson, daysPerWeek, goal, experience)
-            if (validation.accepted) {
+            val validation = validateProgram(cleanJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
+            // A plan is accepted only when BOTH the duration check AND the LLM review pass.
+            if (durationReason.isEmpty() && validation.accepted) {
                 val logAttempts = rejectionReasons.mapIndexed { i, r ->
                     RejectionLog.Attempt(i + 1, r, false)
                 }
                 rejectionLog.addSession(logAttempts, succeeded = true)
                 return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList())
             }
-            rejectionReasons.add(validation.reason)
-            onProgress("Attempt $attempt rejected: ${validation.reason}")
+            // Prefer the deterministic duration reason (it names the offending day(s));
+            // fall back to the LLM validator reason when duration is in range.
+            val rejectionReason = if (durationReason.isNotEmpty()) durationReason else validation.reason
+            rejectionReasons.add(rejectionReason)
+            onProgress("Attempt $attempt rejected: $rejectionReason")
             if (attempt == MAX_GENERATION_ATTEMPTS) {
                 val logAttempts = rejectionReasons.mapIndexed { i, r ->
                     RejectionLog.Attempt(i + 1, r, i == rejectionReasons.lastIndex)
@@ -192,30 +214,49 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
     private suspend fun validateProgram(
         planJson: String,
         daysPerWeek: Int,
+        sessionDurationMinutes: Int,
         goal: String,
-        experience: String
+        experience: String,
+        injuries: String = "",
+        injurySeverity: String = ""
     ): ValidationResult {
+        // Effective severity (only meaningful when injuries are present). Legacy/unspecified ⇒ cautious Moderate.
+        val sev = injurySeverity.ifBlank { "Moderate" }
+        val injuryCheck = if (injuries.isNotBlank())
+            "10. INJURY GATING (HARD — reject), severity = $sev for \"$injuries\". Judge against THIS severity:\n" +
+            "   • SEVERE → the aggravating category must be EXCLUDED outright. REJECT if any genuinely contraindicated movement is present, e.g. jogging / high-impact cardio or a loaded single-leg balance movement (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-up) for a bad ankle; deep loaded knee flexion or high-impact plyo for a bad knee; overhead or behind-neck pressing for a bad shoulder. Bilateral / low-impact substitutes only.\n" +
+            "   • MODERATE → the worst aggravators must be SUBSTITUTED with a safer same-muscle variant AND 1–2 rehab/prehab moves for the area should be present. REJECT if a clear aggravator is left in unmodified; do NOT reject a sensible substitution.\n" +
+            "   • MILD → training AROUND the aggravator is allowed, but light rehab/strengthening on the injured area is REQUIRED. Light, controlled rehab/strengthening of a MILD injury is CORRECT — do NOT flag it as a violation; only reject if the program omits the area entirely or prescribes an obviously reckless load.\n" +
+            "   Apply the appropriate tier PER injury if several are listed with differing severity (the stated level is the overall/worst). ALWAYS reject INCOHERENT injury handling regardless of tier: a single-leg / rear-foot-elevated / Bulgarian split squat carrying \"both feet down\" / \"bilateral contact at all times\" cues is physically impossible — the fix is to SUBSTITUTE a genuinely bilateral movement (goblet/sumo squat, leg press, hand-supported split squat), not to keep the single-leg exercise with contradictory cues. Goal: reject real contraindications, do NOT over-reject appropriate light rehab."
+        else
+            "10. INJURY GATING: no injuries reported — skip."
         val prompt = """
-You are a sports science peer reviewer. Evaluate the following AI-generated weekly training program.
+You are a sports science peer reviewer. Evaluate the following AI-generated weekly training program against the programming principles below.
 
-Goal: $goal | Experience: $experience | Training days: $daysPerWeek
+Goal: $goal | Experience: $experience | Training days: $daysPerWeek${if (injuries.isNotBlank()) " | Injuries: $injuries (severity: $sev)" else ""}
 
 PROGRAM JSON:
 $planJson
 
-Check ALL of the following. Reject only on genuine structural violations — do not penalise reasonable coaching choices or exercise variation.
+Check ALL of the following. Reject on genuine violations — do not penalise reasonable coaching choices or exercise variation. Items marked HARD are always grounds for rejection. When rejecting, name the single most critical issue only.
 
-1. DAYS: The plan contains exactly $daysPerWeek training days.
-2. RECOVERY: No primary muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on consecutive days. Heavy leg days need ≥48 h between them.
-3. ORDER: Within each session, compound exercises appear before isolation exercises for the same muscle group.
-4. GOAL ALIGNMENT — rep ranges must broadly match the goal:
-   - Strength: primary compounds 2–6 reps; accessories 6–10 reps. Do NOT reject for 8–10 rep accessory work.
-   - Hypertrophy: 6–12 reps, rest ≤120 s. A plan is invalid only if rest values consistently exceed 120 s.
-   - Endurance: 15–30 reps, 30–60 s rest, includes 2–3 cardio sessions.
+1. SAFETY — LOADED HINGE REP CAPS (HARD): No barbell hinge (deadlift, RDL, sumo DL, good morning, Pendlay-style) is prescribed above 8 reps, AND no loaded dumbbell hinge (DB RDL, DB stiff-leg deadlift, DB good morning) is prescribed above 12 reps. Bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, kettlebell swing) is exempt and may run high-rep. Higher-rep posterior-chain work must be routed to that exempt list, NOT to a barbell pull.
+2. DAYS: The plan contains exactly $daysPerWeek training days.
+3. RECOVERY: No primary muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on consecutive days. Heavy leg days need ≥48 h between them.
+4. ROLE-BASED REP RANGES (HARD if monotone): rep ranges must vary by exercise role within a session — primary compounds lower-rep, isolation higher-rep. Reject any session that applies one identical rep range to every exercise. Ranges must broadly match the goal:
+   - Strength: primary compounds 3–6, accessories 6–10, isolation 8–12. Do NOT reject for 8–10 rep accessory work.
+   - Hypertrophy: compounds 6–10, accessories 8–12, isolation 10–15, rest ≤120 s. Invalid only if rest values consistently exceed 120 s.
+   - Endurance: compounds 8–12, isolation 15–20, 30–60 s rest, includes 2–3 cardio sessions.
    - Weight Loss: 10–20 reps, 60–90 s rest, includes ≥2 cardio sessions.
-5. VOLUME: Every major muscle group trained at least once (not zero). No muscle group assigned an unreasonably excessive number of sets (>25/week).
-6. STRUCTURE: No obvious errors (e.g. all sessions are chest-only, cardio placed the day before heavy legs).
-7. EXERCISE COUNT: Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session.
+5. ORDER & HIERARCHY: Within each session, compounds appear before isolation for the same muscle group, and the session leads with a primary compound rather than a flat list of identical-volume exercises.
+6. EFFORT & PROGRESSION (HARD): Every exercise's notes must state a target effort (RIR or RPE) AND a progression rule. Reject if exercises only say "establish baseline" or carry no effort target.
+7. VOLUME: Every major muscle group is trained at least once (not zero). No muscle exceeds ~10 hard sets in a single session, nor ~25 sets/week. No session exceeds ~18–20 total working sets (cardio/prehab excluded) — flag sessions of 22–23+ sets that run long and accrue fatigue even when no single muscle is over its cap.
+8. DE-DUPLICATION: No two near-identical movement patterns within one session (e.g. RDL + single-leg stiff-leg deadlift). No obvious structural errors (all-chest sessions, cardio the day before heavy legs).
+9. WEEKLY BALANCE: The week includes direct lateral-delt + rear-delt work and at least one knee-dominant quad movement; posterior-chain work is not stacked with no quad movement.
+$injuryCheck
+11. EXERCISE COUNT: Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session.
+12. NOTES: Notes assert no incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest"). Reject any use of "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch", "increases bicep peak"). "Peak contraction" as a squeeze cue (hold the shortened position) is allowed.
+13. TIME BUDGET (belt-and-suspenders; a deterministic Kotlin check is authoritative): each training day should estimate within ±10 min of $sessionDurationMinutes min (window ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). Rough per-exercise estimate ≈ sets × (reps × 3 s work + rest seconds between sets) + ~60 s setup; cardio ≈ its duration (targetReps minutes/distance) + ~60 s. A day that clearly runs far over or under that window should be flagged.
 
 Respond with ONLY valid JSON — no prose, no markdown fences:
 {"accepted": true}
@@ -312,6 +353,7 @@ OR
         separateCardioDays: Boolean = false,
         previousRejectionReason: String = "",
         injuries: String = "",
+        injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
         onboardingContext: String = "",
@@ -321,6 +363,8 @@ OR
         splitSuggestion: String = ""
     ): String {
         val goalLower = goal.lowercase()
+        // Effective severity (only used when injuries non-blank). Legacy/unspecified ⇒ cautious Moderate.
+        val sev = injurySeverity.ifBlank { "Moderate" }
 
         val equipLower = equipment.map { it.lowercase() }
         val hasCable    = equipLower.any { "cable" in it }
@@ -410,11 +454,52 @@ Consider using this split structure this week: $splitSuggestion
 (You may deviate if another structure better serves the goal and recovery, but justify variation.)
 """ else ""
 
+        val safetyBlock = """
+══════════════════════════════════════════
+HARD SAFETY RULES — NEVER VIOLATE (override every other directive, including the variation directive)
+══════════════════════════════════════════
+1. LOADED HIP-HINGE REP CAPS (three tiers):
+   • Barbell hinges (deadlift, RDL, sumo deadlift, good morning, Pendlay-style): cap at ≤8 reps. NEVER prescribe barbell deadlift or barbell RDL at 9+ reps.
+   • Loaded DUMBBELL hinges (DB RDL, DB stiff-leg deadlift, DB good morning): cap at ≤12 reps (lower absolute load → lower spinal risk).
+   • Bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, kettlebell swing) is EXEMPT and may run high-rep.
+   If the goal calls for higher-rep posterior-chain work, ROUTE it to the exempt list (hip thrust, back extension, lying/seated leg curl, glute bridge, kettlebell swing) — NEVER to a barbell pull.
+2. Heavy compounds use a controlled ~2 s eccentric — NOT a deliberate 3 s+ slow eccentric. Reserve slow/tempo eccentrics for isolation movements only.
+3. Heavy hinges (deadlift, RDL, good morning): do NOT program to failure — leave ≥2 RIR.
+4. Injuries change exercise SELECTION, not just the notes (see the INJURY HARD-CONSTRAINTS block below).
+"""
+
+        // Prominent injury block — sits up with the other hard constraints, driven by reported severity.
+        val injuryHardBlock = if (injuries.isNotBlank()) """
+══════════════════════════════════════════
+INJURY HARD-CONSTRAINTS — severity: $sev — NEVER VIOLATE
+══════════════════════════════════════════
+Reported injuries/limitations: "$injuries". This drives exercise SELECTION (not just notes). Apply the tier for the stated severity. If several injuries are listed with differing severity, apply the appropriate tier PER injury — the level here is the overall/worst.
+${when (sev) {
+    "Severe" -> """
+SEVERE → EXCLUDE the aggravating category ENTIRELY (do not merely substitute — leave it out):
+- Bad ankle ⇒ NO jogging / high-impact cardio (use stationary bike, rowing, incline walk) AND NO loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups). Use BILATERAL substitutes only (goblet/sumo squat, leg press, hand-supported split squat).
+- Bad knee ⇒ NO deep loaded knee flexion and NO high-impact plyo; substitute leg press at partial ROM and box squat to a comfortable depth.
+- Bad shoulder ⇒ NO overhead pressing and NO behind-neck work; substitute landmine press, incline press, neutral-grip variants."""
+    "Mild" -> """
+MILD → you MAY train AROUND the worst aggravators, but you MUST still include light rehabilitation / strengthening on the injured area, staged as progression (do NOT omit the area entirely):
+- Bad ankle ⇒ keep bilateral work primary; add light calf/ankle stability work and (if used) hand-supported single-leg progressions; prefer low-impact cardio (bike, row, incline walk) over jogging.
+- Bad knee ⇒ keep knee-friendly ROM; add light terminal-knee-extension / controlled leg work as rehab.
+- Bad shoulder ⇒ keep pressing in pain-free ranges; add light external-rotation / scapular rehab. Stage all of this as light progression, not a loaded baseline."""
+    else -> """
+MODERATE → SUBSTITUTE the safer same-muscle variant for the worst aggravators, AND include 1–2 rehab/prehab moves for the area:
+- Bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups); prefer low-impact cardio over jogging.
+- Bad knee ⇒ substitute leg press / box squat to comfortable depth for deep loaded knee flexion; avoid high-impact plyo.
+- Bad shoulder ⇒ substitute landmine / incline / neutral-grip pressing for overhead and behind-neck work.
+Include light rehab/prehab for the injured area, staged as progression."""
+}}
+CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilateral where bilateral is intended — a rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION, so NEVER keep it and append "both feet down" / "bilateral contact at all times" cues (physically incoherent); if a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) staged as light rehab. Always prefer low-impact cardio (bike, row, incline walk) over jogging for any lower-limb injury.
+""" else ""
+
         return """
 You are an expert strength & conditioning coach. Design a $daysPerWeek-day weekly training program tailored to the user below.
 
 CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic. A good coach rotates exercises every single week — the same muscle can be trained with completely different exercises each week.
-$rejectionBlock$blacklistBlock$themeBlock
+$safetyBlock$injuryHardBlock$rejectionBlock$blacklistBlock$themeBlock
 ══════════════════════════════════════════
 WORKOUT HISTORY
 ══════════════════════════════════════════
@@ -440,65 +525,79 @@ FORBIDDEN EXERCISES (equipment not available)
 ${if (forbidden.isEmpty()) "None — all exercise types are available." else "Do NOT prescribe any of these: ${forbidden.joinToString(", ")}"}$rackNote
 
 ══════════════════════════════════════════
-GOAL PRINCIPLES
+GOAL → REP RANGE BY EXERCISE ROLE (deterministic)
 ══════════════════════════════════════════
+Assign every exercise a ROLE — primary compound, accessory, or isolation — and pick its rep range from the table for this goal. The SAME role under the SAME goal must always get the SAME range across regenerations; do not let the variation directive drift rep ranges. NEVER apply one rep range to a whole session — each session must show a primary→accessory→isolation spread of ranges. Hinge caps override the table (hard safety rule above): barbell hinges (deadlift, RDL, sumo DL, good morning) stay ≤8 reps; loaded dumbbell hinges (DB RDL, DB stiff-leg, DB good morning) stay ≤12 reps; bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, KB swing) is exempt and may run high-rep.
 ${when {
     goalLower.contains("strength") -> """
 Goal: build maximal strength in compound lifts.
-- Prioritise low-rep, high-load work on the big lifts (squat, deadlift, press, row).
-- Rep ranges: 2–6 for primary compounds, 6–10 for accessories.
+- Rep ranges by role: primary compounds 3–6 / accessories 6–10 / isolation 8–12.
 - Rest: 3–5 min between heavy sets, 2–3 min for accessories.
-- Volume: lower (8–12 sets/muscle/week) — intensity beats volume here.
-- Progressive overload: add weight (2.5–5 kg) when all reps are completed with ≥2 RIR.
-- Hypertrophy work is secondary — keep isolation low.
-- Leave 1–2 RIR on every working set. Never train to failure on compounds.""".trimIndent()
+- Weekly volume: lower (8–12 hard sets/muscle) — intensity beats volume here. Keep isolation low.
+- Effort: ~2–3 RIR on compounds, ~1–2 RIR on isolation. Never train compounds to failure.
+- Progression: add weight (2.5–5 kg) when all reps are completed with ≥2 RIR.""".trimIndent()
 
     goalLower.contains("hypertrophy") -> """
 Goal: maximise muscle growth.
-- Rep ranges: 6–12 (sweet spot 8–12), moderate load (~65–80% 1RM), 1–3 RIR.
+- Rep ranges by role: primary compounds 6–10 / accessories 8–12 / isolation 10–15. Moderate load (~65–80% 1RM).
 - Rest: 60–120 s between sets — do not exceed 120 s.
-- Train each muscle group at least twice per week.
-- Weekly volume: 12–20 sets per muscle group across both sessions.
-- Order: 1–2 compounds first per session, then isolation work.
-- Progressive overload: add weight once the top of the rep range is reached with ≥2 RIR.""".trimIndent()
+- Train each muscle group at least twice per week. Weekly volume 10–20 hard sets/muscle across both sessions.
+- Order: 1–2 compounds first per session, then accessory/isolation work.
+- Effort: ~2–3 RIR compounds, ~1–2 RIR isolation.
+- Progression: double progression — add reps to the top of the range across all sets, then +load and reset to the bottom.""".trimIndent()
 
     goalLower.contains("endurance") -> """
 Goal: muscular and cardiovascular endurance.
-- Resistance work: 2–3 sets, 15–30 reps, light load (~40–60% 1RM), 30–60 s rest.
+- Rep ranges by role: compounds 8–12 (barbell hinges still ≤8) / isolation 15–20. Light load (~40–60% 1RM), 2–3 sets, 30–60 s rest.
 - Cardio is the priority — include 2–3 dedicated cardio sessions per week.
 - Choose exercises that complement aerobic capacity: circuits, supersets, bodyweight work welcome.
-- Progressive overload: add reps or sets before increasing load.
-- Volume per muscle: lower (6–10 sets/week) — cardio takes the majority of the session.""".trimIndent()
+- Weekly volume per muscle: lower (6–10 hard sets/week) — cardio takes the majority of the session.
+- Progression: add reps or sets before increasing load.""".trimIndent()
 
     goalLower.contains("weight") || goalLower.contains("loss") -> """
 Goal: fat loss and body recomposition.
+- Rep ranges by role: compounds 8–12 (barbell hinges still ≤8) / accessories 10–15 / isolation 12–20. Rest 60–90 s (keep heart rate elevated).
 - Prioritise compound multi-joint movements (highest calorie burn and muscle retention).
-- Rep ranges: 10–20, rest 60–90 s (keep heart rate elevated).
-- Include 2 cardio sessions per week — mix HIIT and steady-state.
-- Supersets of non-competing muscle groups are encouraged to increase density.
-- Avoid extremely heavy low-rep work — form and metabolic stress matter more than 1RM.""".trimIndent()
+- Include 2 cardio sessions per week — mix HIIT and steady-state. Supersets of non-competing muscle groups welcome.
+- Effort: ~1–2 RIR. Progression: add reps, then load. Avoid extremely heavy low-rep work.""".trimIndent()
 
     else -> """
 Goal: general health and fitness.
-- Balanced mix of compound and isolation work.
-- Rep ranges: 8–15, rest 90–120 s.
-- Hit all major muscle groups across the week.""".trimIndent()
+- Rep ranges by role: primary compounds 6–10 / accessories 8–12 / isolation 10–15 (barbell hinges ≤8). Rest 90–120 s.
+- Balanced mix of compound and isolation work; hit all major muscle groups across the week.
+- Effort: ~2–3 RIR. Progression: double progression.""".trimIndent()
 }}
 
 ══════════════════════════════════════════
 WEEKLY STRUCTURE
 ══════════════════════════════════════════
 Organise $daysPerWeek days to distribute muscle group stimulus optimally for the stated goal.
+- WEEKLY VOLUME: aim ${if (experience.lowercase().contains("beginner")) "6–12" else "10–20"} hard sets per trained muscle. Beyond ~20–25 sets/week is diminishing returns.
+- PER-SESSION VOLUME: cap any single muscle at ~8–10 hard sets in one session. Excess in-session sets are junk volume — split them across the week, do not stack one brutal session.
+- PER-SESSION TOTAL VOLUME: keep total working sets per session ≤ ~18–20 (cardio/prehab excluded). Sessions of 22–23 sets run long and accrue fatigue even when no single muscle is over its cap.
+- FREQUENCY: train each major muscle ~2×/week so weekly volume is spread, not crammed into a single session.
 - Each major muscle group (chest, back, quads, hamstrings/glutes, shoulders) should be trained at least once, ideally twice per week.
 - Never train the same primary muscle group on consecutive days.
 - Heavy leg sessions (squat, deadlift) need at least 48 h before the next leg session.
+- WEEKLY PATTERN BALANCE: across the week include horizontal push + vertical push, horizontal pull + vertical pull, a knee-dominant (squat/quad) + a hip-dominant (hinge) lower movement, and DIRECT lateral-delt + rear-delt work. Do not stack RDL + SLDL + hip thrust + deadlift + lunge in one week with no knee-dominant quad movement.
 - $cardioInstruction
 - Space the days evenly across the week where possible.
 $splitBlock$previousPlanBlock
 
 ══════════════════════════════════════════
+TIME BUDGET (applies PER training day)
+══════════════════════════════════════════
+The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. Self-size on attempt 1 using this estimate:
+- Per strength exercise ≈ sets × (reps × 3 s work + rest seconds between sets) + ~60 s setup.
+- Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
+- A day's estimate = the sum of its exercises.
+Add or remove accessory work, or adjust sets/rest, to land inside the window. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — trim within those limits.
+
+══════════════════════════════════════════
 SESSION DESIGN RULES
 ══════════════════════════════════════════
+- Use a PRIMARY → ACCESSORY hierarchy: lead each session with a main compound (heavier, lower-rep), then accessories and isolation (lighter, higher-rep). Avoid the flat "6 exercises × identical sets × identical reps" template.
+- DE-DUPLICATE movement patterns: no two near-identical patterns in one session (e.g. do not pair RDL with single-leg stiff-leg deadlift, or barbell bench with dumbbell bench as two separate slots).
 - Order: compound exercises before isolation for the same muscle group.
 - Start each session with the most demanding movement.
 - Exercise count per session: Beginner ≤ 5, Intermediate ≤ 7, Advanced ≤ 8.
@@ -509,25 +608,46 @@ ${when {
     else -> "- Advanced techniques (drop sets, rest-pause, tempo work) are appropriate where beneficial."
 }}
 ${if (injuries.isNotBlank()) """
-- Injury constraint: avoid any exercise that loads, compresses, or aggravates the reported injury.
-- Where safe, include 1–2 low-load rehab or prehab exercises targeting the injured area.""" else ""}
+- INJURY GATING (changes SELECTION, not just notes): apply the INJURY HARD-CONSTRAINTS block above at its stated severity ($sev) for "$injuries". At SEVERE, EXCLUDE the aggravating category outright; at MODERATE, REPLACE the worst aggravators with safer same-muscle variants; at MILD, train AROUND them but still include light rehab. Do NOT merely add a caution note to a risky exercise.
+  • e.g. ankle instability → down-rank/exclude loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups). When you down-rank these, SUBSTITUTE a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) — do NOT keep the single-leg exercise and bolt on contradictory cues. A rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION; NEVER append "both feet down" / "bilateral contact at all times" to it (physically incoherent). If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) and stage it as light rehab progression, not a loaded baseline. For cardio prefer low-impact (bike, row, incline walk) over jogging.
+- Where safe (REQUIRED at MILD/MODERATE), include 1–2 low-load rehab/prehab exercises targeting the injured area, staged as light progression rather than a loaded baseline.""" else ""}
 ${if (priorityMuscles.isNotBlank()) """
 - Priority muscles ($priorityMuscles): allocate at least 2 extra sets compared to non-priority groups. Train them twice per week.""" else ""}
 
 ══════════════════════════════════════════
-PROGRESSIVE OVERLOAD
+PROGRESSION & EFFORT (every exercise)
 ══════════════════════════════════════════
-Use the workout history above to set weights and reps intelligently:
+EVERY exercise's notes MUST state (a) a target effort as RIR or RPE, and (b) a concrete progression rule. "Establish baseline" alone is NOT acceptable.
+- Default effort: ~2–3 RIR on compounds, ~1–2 RIR on isolation.
+- Default progression: DOUBLE PROGRESSION — add reps to the top of the range across all sets, then add load and reset to the bottom of the range.
+Use the workout history above to set starting weights and reps intelligently:
 - Progressing (weight increasing across sessions): add 2.5 kg (intermediate/advanced) or 5 kg (beginner) to targetWeightKg.
-- Plateaued (3+ sessions at same weight): increase targetReps to the top of the range, or note a technique cue to break the plateau.
+- Plateaued (3+ sessions at same weight): push reps to the top of the range, or note a technique cue, before adding load.
 - Regressing: reduce weight 5–10% and note "deload — rebuild form".
-- No history: set a conservative baseline (~55–65% estimated 1RM) and note "establish baseline".
+- No history: set a conservative baseline (~55–65% estimated 1RM); still give the RIR + progression rule, not just "establish baseline".
 
 ══════════════════════════════════════════
 CARDIO
 ══════════════════════════════════════════
 For cardio exercises, use these name conventions so the app can identify them: Easy Jog, Outdoor Run, Tempo Run, Interval Run.
 Cardio JSON fields: sets=1, targetReps = duration or distance only (e.g. "30 min", "5 km", "6×400m"), targetWeightKg=0, recommendedRestSeconds=60.
+
+══════════════════════════════════════════
+NOTES FIELD
+══════════════════════════════════════════
+Keep notes concise, but they MUST contain the target effort (RIR/RPE) AND the progression rule. Common exercise names are fine ("lateral raise", "calf raise"), but NEVER assert incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest", "increases bicep peak"). Do NOT use "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch"). "Peak contraction" as a squeeze cue (hold the shortened position) IS allowed.
+
+══════════════════════════════════════════
+SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
+══════════════════════════════════════════
+- No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
+- Rep ranges vary by exercise role within each session (not monotone).
+- Every exercise's notes carry an RIR/RPE target AND a progression rule.
+- No muscle exceeds ~10 hard sets in a session; total working sets per session ≤ ~20; weekly volume within range.
+- No duplicate movement pattern within a session.
+- injury_flags applied to SELECTION, not just notes (and no rear-foot-elevated / single-leg movement carries "both feet down" cues).
+- Weekly plan includes direct lateral + rear-delt work and a knee-dominant quad movement.
+- Notes assert no incorrect mechanisms and use no "peak" muscle-shape noun.
 
 ══════════════════════════════════════════
 OUTPUT — valid JSON only, no prose, no markdown fences
@@ -543,7 +663,7 @@ OUTPUT — valid JSON only, no prose, no markdown fences
           "sets": 4,
           "targetReps": "8-10",
           "targetWeightKg": 80.0,
-          "notes": "Brief coaching cue",
+          "notes": "RPE 8 (~2 RIR). Double progression: build to 10 reps across all sets, then +2.5 kg and reset to 8.",
           "recommendedRestSeconds": 120
         }
       ]
@@ -564,12 +684,15 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
         sessionDurationMinutes: Int,
         existingWeekPlan: List<PlannedExercise>,
         injuries: String = "",
+        injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
         muscleFocus: String = "",
         onProgress: (String) -> Unit = {}
     ): Result<List<PlannedExercise>> = runCatching {
         val weekStart = thisMonday()
+        // Effective severity (only used when injuries non-blank). Legacy/unspecified ⇒ cautious Moderate.
+        val sev = injurySeverity.ifBlank { "Moderate" }
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
         val dayName = dayNames.getOrElse(dayOfWeek - 1) { "Day $dayOfWeek" }
 
@@ -587,10 +710,10 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
         onProgress("Generating $dayName exercises…")
 
         val repRange = when {
-            goal.lowercase().contains("strength") -> "3–6 reps (compounds), 6–10 reps (accessories)"
-            goal.lowercase().contains("endurance") -> "15–25 reps, shorter rest"
-            goal.lowercase().contains("loss") || goal.lowercase().contains("weight") -> "10–20 reps, moderate rest"
-            else -> "8–12 reps (hypertrophy)"
+            goal.lowercase().contains("strength") -> "primary compounds 3–6, accessories 6–10, isolation 8–12"
+            goal.lowercase().contains("endurance") -> "compounds 8–12 (barbell hinges ≤8), isolation 15–20, shorter rest"
+            goal.lowercase().contains("loss") || goal.lowercase().contains("weight") -> "compounds 8–12 (barbell hinges ≤8), accessories 10–15, isolation 12–20"
+            else -> "primary compounds 6–10, accessories 8–12, isolation 10–15 (hypertrophy)"
         }
 
         val prompt = buildString {
@@ -599,14 +722,30 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
+            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). Estimate ≈ per strength exercise: sets × (reps × 3 s work + rest seconds between sets) + ~60 s setup; per cardio exercise: its duration + ~60 s. Adjust accessories/sets/rest to hit the window (without exceeding ~10 sets/muscle or ~18–20 working sets total).")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
             appendLine()
+            appendLine("HARD SAFETY RULES (never violate):")
+            appendLine("- Loaded hip-hinge rep caps (three tiers): barbell hinges (deadlift, RDL, sumo DL, good morning) ≤8 reps; loaded DUMBBELL hinges (DB RDL, DB stiff-leg, DB good morning) ≤12 reps; bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, KB swing) is exempt and may run high-rep. For higher-rep posterior chain, route to the exempt list — never to a barbell pull. Never output barbell deadlift/RDL at 9+ reps.")
+            appendLine("- Slow/tempo eccentrics on isolation only; heavy compounds use a controlled ~2 s eccentric and are not taken to failure (leave ≥2 RIR).")
+            appendLine()
             if (injuries.isNotBlank()) {
-                appendLine("INJURIES AND LIMITATIONS (HARD CONSTRAINTS):")
-                appendLine("- Do NOT program any exercise that aggravates: $injuries")
-                appendLine("- Include 1-2 light rehab/strengthening accessories where appropriate")
+                appendLine("INJURIES AND LIMITATIONS — severity: $sev (HARD CONSTRAINTS — change SELECTION, not just notes) for: $injuries")
+                when (sev) {
+                    "Severe" -> {
+                        appendLine("- SEVERE → EXCLUDE the aggravating category ENTIRELY (do not merely substitute): bad ankle ⇒ NO jogging/high-impact cardio (use bike, rowing, incline walk) AND NO loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups) — bilateral substitutes only (goblet/sumo squat, leg press, hand-supported split squat); bad knee ⇒ NO deep loaded knee flexion / high-impact plyo (sub leg press partial ROM, box squat to comfortable depth); bad shoulder ⇒ NO overhead/behind-neck pressing (sub landmine/incline press, neutral-grip).")
+                    }
+                    "Mild" -> {
+                        appendLine("- MILD → you MAY train AROUND the worst aggravators, but you MUST still include light rehabilitation/strengthening on the injured area, staged as progression (do NOT omit the area). Keep bilateral/pain-free work primary; prefer low-impact cardio over jogging for any lower-limb injury.")
+                    }
+                    else -> {
+                        appendLine("- MODERATE → SUBSTITUTE the safer same-muscle variant for the worst aggravators AND include 1–2 rehab/prehab moves: bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups); bad knee ⇒ sub leg press/box squat to comfortable depth for deep loaded knee flexion; bad shoulder ⇒ sub landmine/incline/neutral-grip for overhead/behind-neck pressing. Prefer low-impact cardio over jogging.")
+                    }
+                }
+                appendLine("- ALWAYS (every tier): a rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION — never keep it and append \"both feet down\" / \"bilateral contact at all times\" cues (physically incoherent); SUBSTITUTE a genuinely bilateral movement instead. If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) staged as light rehab.")
+                appendLine("- Include 1-2 light rehab/strengthening accessories for the area (REQUIRED at Mild/Moderate)")
                 appendLine()
             }
             if (priorityMuscles.isNotBlank()) {
@@ -630,12 +769,15 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             }
             appendLine("INSTRUCTIONS:")
             appendLine("- Generate 4–7 exercises only using the listed equipment")
+            appendLine("- Use a primary → accessory hierarchy: lead with a main compound (heavier, lower-rep), then accessories/isolation (lighter, higher-rep). Do NOT apply one rep range to every exercise.")
+            appendLine("- No duplicate movement patterns in the session (e.g. don't pair RDL with single-leg stiff-leg deadlift)")
             appendLine("- Start with compound movements, finish with isolation")
             appendLine("- Check the rest of week context and avoid muscle group conflicts on adjacent days")
-            appendLine("- Set/rep targets must match the goal's rep range above")
+            appendLine("- Set/rep targets must match the role-based rep ranges above; cap any single muscle at ~10 hard sets, and keep total working sets for the session ≤ ~18–20 (cardio/prehab excluded)")
+            appendLine("- Every exercise's notes MUST include a target effort (RIR/RPE) AND a progression rule (default: double progression). Notes may use common exercise names but must not assert incorrect mechanisms, and must NOT use \"peak\" as a noun for muscle shape (\"bicep peak\", \"peak stretch\"); \"peak contraction\" as a squeeze cue is allowed.")
             appendLine()
             append("Return ONLY valid JSON, no prose, no markdown fences:")
-            appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"coaching cue","recommendedRestSeconds":90}]}]}""")
+            appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":90}]}]}""")
         }
 
         val responseText = claudeApi.sendMessage(

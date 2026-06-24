@@ -97,6 +97,7 @@ class SetupWizardViewModel @Inject constructor(
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = separateCardioDays,
                 injuries = prefs.injuries,
+                injurySeverity = prefs.injurySeverity,
                 priorityMuscles = prefs.priorityMuscles,
                 dislikedExercises = prefs.dislikedExercises,
                 onProgress = { _generationStatus.value = it }

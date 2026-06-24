@@ -1,0 +1,282 @@
+```json
+{
+  "days": [
+    {
+      "dayOfWeek": 1,
+      "name": "Upper A — Chest & Back Focus",
+      "exercises": [
+        {
+          "name": "Dumbbell Floor Press",
+          "sets": 4,
+          "targetReps": "8-10",
+          "targetWeightKg": 24.0,
+          "notes": "Primary compound — horizontal push. ~2-3 RIR. Controlled ~2 s eccentric, press explosively. Double progression: build to 10 reps across all 4 sets, then +2 kg and reset to 8.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Single-Arm Row (Knee on Bench)",
+          "sets": 4,
+          "targetReps": "10-12",
+          "targetWeightKg": 26.0,
+          "notes": "Primary compound — horizontal pull. ~2-3 RIR. Drive elbow back and up; pause 1 s at top. Double progression: build to 12 reps each arm across all sets, then +2 kg and reset to 10.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 18.0,
+          "notes": "Accessory — upper chest. ~1-2 RIR. Set bench to ~30–45°. Double progression: reach 15 reps all 3 sets, then +2 kg and reset to 12.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Chest-Fly (Floor)",
+          "sets": 3,
+          "targetReps": "13-15",
+          "targetWeightKg": 12.0,
+          "notes": "Isolation — chest. ~1-2 RIR. Wide arc with slight elbow bend; slow eccentric ~3 s. Double progression: reach 15 reps all sets, then +1 kg and reset to 13.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Zottman Curl",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 10.0,
+          "notes": "Isolation — biceps + forearm. ~1-2 RIR. Supinate on the way up, pronate and lower slowly (~3 s eccentric). Priority muscle: arms. Double progression: build to 15 reps, then +1 kg and reset to 12.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Overhead Tricep Extension (Standing, Hinge at Hips to Clear Ceiling)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 14.0,
+          "notes": "Isolation — triceps long head. ~1-2 RIR. Hold one dumbbell with both hands; hinge forward slightly to clear low ceiling. Slow eccentric ~3 s. Priority muscle: arms. Double progression: reach 15 reps all sets, then +1 kg and reset to 12.",
+          "recommendedRestSeconds": 75
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 2,
+      "name": "Lower A — Quad & Glute Focus",
+      "exercises": [
+        {
+          "name": "Dumbbell Bulgarian Split Squat (Rear Foot Elevated on Bench — Ankle Note)",
+          "sets": 4,
+          "targetReps": "8-10",
+          "targetWeightKg": 16.0,
+          "notes": "Primary compound — quads/glutes. ~2-3 RIR. ANKLE SAFETY: trailing foot rests flat on bench surface so front (working) ankle bears load in a stable, planted position; do not use if instability is flaring. Controlled ~2 s descent. Double progression: build to 10 reps each leg, then +2 kg and reset to 8.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Barbell Hip Thrust (Floor — Upper Back on Bench)",
+          "sets": 4,
+          "targetReps": "12-15",
+          "targetWeightKg": 60.0,
+          "notes": "Accessory — glutes. ~2 RIR. Shoulders on bench, feet flat and wide enough for stable base; minimises ankle stress. Squeeze glutes hard at top for 1 s. Double progression: reach 15 reps all sets, then +5 kg and reset to 12.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Romanian Deadlift (Single-Leg — Supported: Hand on Wall)",
+          "sets": 3,
+          "targetReps": "10-12",
+          "targetWeightKg": 16.0,
+          "notes": "Accessory — hamstrings/glutes. ~2 RIR. ANKLE SAFETY: free hand lightly touches wall throughout for balance support; removes ankle-instability overstep risk. Hinge slowly ~2 s; do not go to failure. Double progression: reach 12 reps each leg, then +2 kg and reset to 10.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Nordic Hamstring Curl (Kneeling, Feet Anchored Under Bench)",
+          "sets": 3,
+          "targetReps": "8-10",
+          "targetWeightKg": 0.0,
+          "notes": "Accessory — hamstrings eccentric. ~2 RIR. Lower body as slowly as possible (~3-4 s); catch with hands at bottom if needed. As reps improve, aim to control more of the descent before needing hands. Double progression: add reps; once 10 reps fully controlled, add a weighted vest if available.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Standing Dumbbell Calf Raise (Both Feet, Hands on Wall)",
+          "sets": 3,
+          "targetReps": "15-20",
+          "targetWeightKg": 0.0,
+          "notes": "Isolation — calves/prehab. ~1-2 RIR. Bilateral to reduce ankle instability risk; use wall for balance. Slow 3 s eccentric. Double progression: reach 20 reps all sets, then hold one dumbbell and reset to 15.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Single-Leg Calf Raise (Seated on Bench, Dumbbell on Knee)",
+          "sets": 3,
+          "targetReps": "15-20",
+          "targetWeightKg": 10.0,
+          "notes": "Isolation/rehab — soleus + ankle load tolerance. ~1-2 RIR. Seated variant eliminates balance demand. Slow 3 s eccentric. Double progression: reach 20 reps, then +2 kg and reset to 15.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 3,
+      "name": "Upper B — Shoulders & Arms Focus",
+      "exercises": [
+        {
+          "name": "Dumbbell Seated Shoulder Press (Neutral Grip, Dumbbells)",
+          "sets": 4,
+          "targetReps": "8-10",
+          "targetWeightKg": 18.0,
+          "notes": "Primary compound — vertical push/delts. ~2-3 RIR. Seated to comply with low ceiling; neutral grip reduces shoulder impingement. Controlled ~2 s eccentric. Double progression: reach 10 reps all sets, then +2 kg and reset to 8.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Chin-up (Supinated Grip)",
+          "sets": 4,
+          "targetReps": "8-10",
+          "targetWeightKg": 0.0,
+          "notes": "Primary compound — vertical pull/lats + biceps. ~2-3 RIR. Supinated grip as variation from last week's pronated pull-up. Controlled ~2 s eccentric. Double progression: build to 10 reps, then add dumbbell held between feet and reset to 8.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Lateral Raise (Standing, Slight Forward Lean)",
+          "sets": 4,
+          "targetReps": "13-15",
+          "targetWeightKg": 8.0,
+          "notes": "Accessory — lateral delts. ~1-2 RIR. Slight forward torso lean targets lateral head. Slow ~3 s eccentric on the descent. Priority: bilateral standing is stable; use wall nearby if ankle flares. Double progression: reach 15 reps all sets, then +1 kg and reset to 13.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Spider Curl (Prone on Incline Bench)",
+          "sets": 4,
+          "targetReps": "12-15",
+          "targetWeightKg": 10.0,
+          "notes": "Isolation — biceps. ~1-2 RIR. Lie chest-down on incline bench; arms hang perpendicular to floor for peak contraction. Slow 3 s eccentric. Priority muscle: arms. Double progression: reach 15 reps all sets, then +1 kg and reset to 12.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Diamond Push-up",
+          "sets": 4,
+          "targetReps": "12-15",
+          "targetWeightKg": 0.0,
+          "notes": "Isolation — triceps. ~1-2 RIR. Hands form a diamond under chest; elbows track close to body. Slow 3 s eccentric. Priority muscle: arms. When 15 reps feel easy add a weight plate on back. Double progression: reach 15 reps all sets, then add load.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Face-Down Rear-Delt Raise (Prone on Bench)",
+          "sets": 3,
+          "targetReps": "13-15",
+          "targetWeightKg": 7.0,
+          "notes": "Isolation — rear delts. ~1-2 RIR. Lie face-down on flat bench; arms arc out with slight elbow bend. Slow 3 s eccentric. Double progression: reach 15 reps, then +1 kg and reset to 13.",
+          "recommendedRestSeconds": 75
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 4,
+      "name": "Cardio — Low-Impact Active Recovery",
+      "exercises": [
+        {
+          "name": "Cycling (Outdoor or Indoor Stationary)",
+          "sets": 1,
+          "targetReps": "35 min",
+          "targetWeightKg": 0.0,
+          "notes": "Zero-impact cardio — ANKLE SAFETY: cycling eliminates ankle overstep risk entirely; prescribed in place of any running/jogging. Easy aerobic pace (RPE 4-5). Progression: increase duration by 5 min every 2 weeks, or add one 2-min moderate-effort surge per session.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 5,
+      "name": "Lower B — Hamstring & Posterior Chain Focus",
+      "exercises": [
+        {
+          "name": "Barbell Deadlift (Conventional)",
+          "sets": 4,
+          "targetReps": "5-8",
+          "targetWeightKg": 80.0,
+          "notes": "Primary compound — posterior chain. HARD CAP ≤8 reps. Leave ≥2 RIR — do NOT go to failure. Controlled ~2 s eccentric. Starting weight conservative based on no recent deadlift history. Double progression: build to 8 reps all sets, then +5 kg and reset to 5.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Walking Lunge (Controlled Steps, Ankle Note)",
+          "sets": 3,
+          "targetReps": "10-12",
+          "targetWeightKg": 14.0,
+          "notes": "Accessory — quads/glutes. ~2 RIR. ANKLE SAFETY: take deliberate, controlled steps — both feet fully planted before shifting weight; do not rush stride. Avoid if ankle is unstable on the day; substitute seated leg extension equivalent (box sit-to-stand) if needed. Double progression: reach 12 reps each leg, then +2 kg and reset to 10.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Back Extension (Hyperextension on Bench)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0.0,
+          "notes": "Accessory — hamstrings/lower back. ~1-2 RIR. Low spinal load hinge substitute for higher-rep posterior chain. Hold a dumbbell at chest when 15 reps becomes easy. Slow 3 s eccentric. Double progression: reach 15 reps, then add 5 kg load held at chest and reset to 12.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Sumo Romanian Deadlift",
+          "sets": 3,
+          "targetReps": "10-12",
+          "targetWeightKg": 20.0,
+          "notes": "Accessory — inner hamstrings/adductors/glutes. ~2 RIR. Wide stance, toes out, dumbbells between legs; controlled ~2 s hinge. Leave ≥2 RIR. Double progression: reach 12 reps, then +2 kg and reset to 10.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Tibialis Raise (Seated on Bench — Heels on Floor, Toes Lift)",
+          "sets": 3,
+          "targetReps": "15-20",
+          "targetWeightKg": 0.0,
+          "notes": "Rehab/prehab — anterior tibialis and ankle dorsiflexion strength. Seated removes balance demand completely. RPE 5-6. Progression: once 20 reps easy, add light dumbbell balanced on foot and reset to 15.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 6,
+      "name": "Upper C — Arms Priority + Full Upper",
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Row (Chest on Incline Bench)",
+          "sets": 4,
+          "targetReps": "10-12",
+          "targetWeightKg": 22.0,
+          "notes": "Primary compound — horizontal pull/lats. ~2-3 RIR. Chest on bench eliminates lower back load; full range of motion. Controlled ~2 s eccentric. Double progression: reach 12 reps all sets, then +2 kg and reset to 10.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Floor Press (Neutral Grip, Slow Eccentric)",
+          "sets": 3,
+          "targetReps": "10-12",
+          "targetWeightKg": 20.0,
+          "notes": "Accessory — chest/triceps. ~2 RIR. Neutral grip as variation; slow 3 s eccentric for TUT emphasis this week. Double progression: reach 12 reps all sets, then +2 kg and reset to 10.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Preacher Curl (Arm Over Incline Bench)",
+          "sets": 4,
+          "targetReps": "12-15",
+          "targetWeightKg": 10.0,
+          "notes": "Isolation — biceps short head. ~1-2 RIR. Rest upper arm on incline bench pad to replicate preacher position; eliminates shoulder swing. Slow 3 s eccentric. Priority muscle: arms. Double progression: reach 15 reps all sets, then +1 kg and reset to 12.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Lying Tricep Extension (Floor, Neutral Grip)",
+          "sets": 4,
+          "targetReps": "12-15",
+          "targetWeightKg": 10.0,
+          "notes": "Isolation — triceps. ~1-2 RIR. Lie on floor; lower dumbbells to temples with slow 3 s eccentric. Neutral grip differentiates from skull crusher. Priority muscle: arms. Double progression: reach 15 reps, then +1 kg and reset to 12.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Upright Row (Wide Grip)",
+          "sets": 3,
+          "targetReps": "13-15",
+          "targetWeightKg": 14.0,
+          "notes": "Accessory — lateral delts + traps. ~1-2 RIR. Wide grip (hands wider than shoulder width) reduces impingement risk. Slow 3 s eccentric. Double progression: reach 15 reps all sets, then +1 kg and reset to 13.",
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Dumbbell Reverse Fly (Seated, Bent Over, Elbows Slightly Bent)",
+          "sets": 3,
+          "targetReps": "13-15",
+          "targetWeightKg": 7.0,
+          "notes": "Isolation — rear delts. ~1-2 RIR. Seated torso hinge to ~45°; arc arms out with slow 3 s eccentric. Double progression: reach 15 reps, then +1 kg and reset to 13.",
+          "recommendedRestSeconds": 75
+        }
+      ]
+    }
+  ]
+}
+```

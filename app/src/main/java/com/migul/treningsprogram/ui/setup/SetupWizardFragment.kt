@@ -2,6 +2,8 @@ package com.migul.treningsprogram.ui.setup
 
 import android.graphics.Color
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -97,6 +99,27 @@ class SetupWizardFragment : Fragment() {
             }
         }
 
+        // Severity selector: reveal only while injuries field is non-blank
+        binding.etWizardInjuries.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val hasInjury = s?.toString()?.trim()?.isNotBlank() == true
+                setWizardSeverityVisible(hasInjury)
+                if (!hasInjury) binding.chipGroupWizardSeverity.clearCheck()
+            }
+        })
+        // Restore previously chosen injuries/severity if the wizard is re-entered
+        if (viewModel.prefs.injuries.isNotBlank()) {
+            binding.etWizardInjuries.setText(viewModel.prefs.injuries)
+            setWizardSeverityVisible(true)
+            when (viewModel.prefs.injurySeverity) {
+                "Mild"     -> binding.chipWizardSeverityMild.isChecked = true
+                "Moderate" -> binding.chipWizardSeverityModerate.isChecked = true
+                "Severe"   -> binding.chipWizardSeveritySevere.isChecked = true
+            }
+        }
+
         binding.btnAddPreset.setOnClickListener { showCreatePresetDialog() }
 
         binding.btnWizardBack.setOnClickListener { pulseButton(binding.btnWizardBack); goBack() }
@@ -169,6 +192,20 @@ class SetupWizardFragment : Fragment() {
                 }
             }
         }
+    }
+
+    private fun setWizardSeverityVisible(visible: Boolean) {
+        val v = if (visible) View.VISIBLE else View.GONE
+        binding.tvWizardSeverityLabel.visibility = v
+        binding.chipGroupWizardSeverity.visibility = v
+        binding.tvWizardSeverityHint.visibility = v
+    }
+
+    private fun currentWizardSeverity(): String = when {
+        binding.chipWizardSeveritySevere.isChecked   -> "Severe"
+        binding.chipWizardSeverityModerate.isChecked -> "Moderate"
+        binding.chipWizardSeverityMild.isChecked     -> "Mild"
+        else -> ""
     }
 
     private fun renderEquipmentStep(presets: List<GymPreset>) {
@@ -339,6 +376,7 @@ class SetupWizardFragment : Fragment() {
                 if (binding.chipMuscleGlutes.isChecked)    priorityList.add("Glutes")
                 if (binding.chipMuscleCore.isChecked)      priorityList.add("Core")
                 viewModel.prefs.injuries = injuries
+                viewModel.prefs.injurySeverity = if (injuries.isNotBlank()) currentWizardSeverity() else ""
                 viewModel.prefs.priorityMuscles = priorityList.joinToString(",")
                 viewModel.prefs.dislikedExercises = dislikes
                 nextStep()

@@ -125,6 +125,7 @@ class ProgramViewModel @Inject constructor(
                 sessionDurationMinutes = prefsManager.sessionDurationMinutes,
                 existingWeekPlan = currentPlan,
                 injuries = prefsManager.injuries,
+                injurySeverity = prefsManager.injurySeverity,
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
                 muscleFocus = muscleFocus,

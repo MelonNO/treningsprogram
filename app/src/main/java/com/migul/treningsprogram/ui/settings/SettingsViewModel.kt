@@ -115,6 +115,7 @@ class SettingsViewModel @Inject constructor(
         sessionDurationMinutes: Int = 60,
         separateCardioDays: Boolean = false,
         injuries: String = "",
+        injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = ""
     ) {
@@ -125,6 +126,7 @@ class SettingsViewModel @Inject constructor(
         prefs.sessionDurationMinutes = sessionDurationMinutes
         prefs.separateCardioDays = separateCardioDays
         prefs.injuries = injuries
+        prefs.injurySeverity = injurySeverity
         prefs.priorityMuscles = priorityMuscles
         prefs.dislikedExercises = dislikedExercises
         _saved.value = true
@@ -220,6 +222,7 @@ class SettingsViewModel @Inject constructor(
                 equipmentNotes = preset?.notes ?: "",
                 separateCardioDays = prefs.separateCardioDays,
                 injuries = prefs.injuries,
+                injurySeverity = prefs.injurySeverity,
                 priorityMuscles = prefs.priorityMuscles,
                 dislikedExercises = prefs.dislikedExercises,
                 onboardingContext = prefs.onboardingContext,

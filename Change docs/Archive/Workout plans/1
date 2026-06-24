@@ -1,0 +1,190 @@
+```json
+{
+  "days": [
+    {
+      "dayOfWeek": 1,
+      "name": "Push (Chest, Shoulders, Triceps)",
+      "exercises": [
+        {
+          "name": "Pike Push-up",
+          "sets": 4,
+          "targetReps": "6-10",
+          "targetWeightKg": 0,
+          "notes": "Primary compound. Elevate feet on a chair to increase shoulder loading. ~2-3 RIR. Double progression: build to 10 reps across all 4 sets, then increase elevation (higher surface) and reset to 6.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Archer Push-up",
+          "sets": 3,
+          "targetReps": "8-12",
+          "targetWeightKg": 0,
+          "notes": "Accessory horizontal push. Extend one arm wide each rep to overload one pec at a time. ~2 RIR. Double progression: build to 12 reps per side across all sets, then progress to a slower eccentric (3 s) and reset to 8.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Lateral Raise (Lying Side-Lying)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — direct lateral delt work. Lie on your side, raise top arm against gravity with a controlled arc. ~1-2 RIR. Progression: build to 15 reps across all sets, then add a 2 s pause at the top and reset to 12.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Diamond Push-up",
+          "sets": 3,
+          "targetReps": "10-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation emphasis on triceps long head. ~1-2 RIR. Double progression: build to 15 reps across all sets, then elevate feet slightly and reset to 10.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Prone Y-T-W Raise",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — rear delt and lower trap. Lie face-down, perform Y, T, and W positions for equal reps. ~1-2 RIR. Progression: build to 15 reps per position across all sets, then add a 3 s hold at the top and reset to 12.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 3,
+      "name": "Pull (Back, Biceps, Rear Delt)",
+      "exercises": [
+        {
+          "name": "Australian Row (Bodyweight Row under Table)",
+          "sets": 4,
+          "targetReps": "6-10",
+          "targetWeightKg": 0,
+          "notes": "Primary compound horizontal pull. Use a sturdy table edge, feet elevated to increase load. ~2-3 RIR. Double progression: build to 10 reps across all sets, then elevate feet higher and reset to 6.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Doorframe Row",
+          "sets": 3,
+          "targetReps": "8-12",
+          "targetWeightKg": 0,
+          "notes": "Accessory vertical-pull pattern. Hold doorframe edges, lean back, and pull chest to the frame — mimics a lat-dominant pull. ~2 RIR. Double progression: build to 12 reps, then increase lean angle and reset to 8.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Prone Reverse Snow Angel",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — rear delt and mid-trap. Lie face-down, sweep arms from hips to overhead while keeping them off the floor. ~1-2 RIR. Progression: build to 15 reps, then add a 2 s hold at the top of each sweep and reset to 12.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Isometric Bicep Curl (Table Underside)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — biceps. Place palms under a table edge, drive up against it isometrically, hold 3 s, then lower. ~1-2 RIR. Progression: build to 15 reps, then increase hold time to 5 s and reset to 12.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Superman Hold",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — erector spinae and lower back. Hold peak position for 2 s each rep. ~1-2 RIR. Progression: build to 15 reps across all sets, then extend hold to 3 s per rep and reset to 12.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 5,
+      "name": "Legs (Quads, Hamstrings, Glutes, Calves)",
+      "exercises": [
+        {
+          "name": "Bulgarian Split Squat",
+          "sets": 4,
+          "targetReps": "8-10",
+          "targetWeightKg": 0,
+          "notes": "Primary compound — knee-dominant quad emphasis. Rear foot elevated on chair. ~2-3 RIR. Double progression: build to 10 reps per leg across all sets, then add a weighted backpack (~5 kg) and reset to 8.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Single-Leg Hip Thrust (Shoulders on Floor)",
+          "sets": 3,
+          "targetReps": "10-12",
+          "targetWeightKg": 0,
+          "notes": "Accessory hip-dominant. Shoulders on the floor, drive one hip up, squeeze glute at the top. ~2 RIR. Double progression: build to 12 reps per leg across all sets, then add a 2 s pause at the top and reset to 10.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Slow Eccentric Reverse Lunge",
+          "sets": 3,
+          "targetReps": "10-12",
+          "targetWeightKg": 0,
+          "notes": "Accessory — quad and glute. Use a 3 s eccentric (lowering phase) to increase tension. ~2 RIR. Double progression: build to 12 reps per leg, then add a weighted backpack (~5 kg) and reset to 10.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Nordic Curl Progression (Assisted)",
+          "sets": 3,
+          "targetReps": "8-12",
+          "targetWeightKg": 0,
+          "notes": "Accessory — hamstring isolation. Anchor feet under sofa, lower slowly with hands ready to catch. Use push from hands to assist the concentric. ~2 RIR. Progression: reduce hand-assist each session; target full eccentric-only reps then full reps.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Single-Leg Calf Raise (on Step)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — gastrocnemius and soleus. Use a stair edge for full ROM; slow 2 s eccentric. ~1-2 RIR. Double progression: build to 15 reps per leg across all sets, then add a weighted backpack and reset to 12.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 7,
+      "name": "Upper (Shoulders, Chest, Back, Arms)",
+      "exercises": [
+        {
+          "name": "Decline Push-up",
+          "sets": 4,
+          "targetReps": "8-10",
+          "targetWeightKg": 0,
+          "notes": "Primary compound — upper chest and anterior delt emphasis with feet elevated. ~2-3 RIR. Double progression: build to 10 reps across all sets, then increase foot elevation and reset to 8.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Wide-Grip Australian Row",
+          "sets": 3,
+          "targetReps": "8-12",
+          "targetWeightKg": 0,
+          "notes": "Accessory horizontal pull — mid-back and rear delt. Use a wide grip on the table edge. ~2 RIR. Double progression: build to 12 reps, then elevate feet and reset to 8.",
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Side-Lying External Rotation",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — rear delt and infraspinatus. Lie on your side, elbow tucked, rotate forearm up with 2 s eccentric. ~1-2 RIR. Progression: build to 15 reps, then add a small water bottle for load and reset to 12.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Tricep Dip (between Two Chairs)",
+          "sets": 3,
+          "targetReps": "10-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — triceps. Keep elbows tracking back, 2 s eccentric. ~1-2 RIR. Double progression: build to 15 reps across all sets, then add a weighted backpack and reset to 10.",
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Towel Bicep Curl",
+          "sets": 3,
+          "targetReps": "12-15",
+          "targetWeightKg": 0,
+          "notes": "Isolation — biceps. Loop a towel around a door handle, lean back and curl yourself toward the door. ~1-2 RIR. Progression: build to 15 reps, then increase lean angle for more resistance and reset to 12.",
+          "recommendedRestSeconds": 60
+        }
+      ]
+    }
+  ]
+}
+```
