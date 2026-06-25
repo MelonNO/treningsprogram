@@ -112,8 +112,16 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Max Weight"
+                    android:text="Heaviest weight"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Top working-set weight per session (kg)"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="12dp" />
 
                 <com.migul.treningsprogram.ui.history.StrengthChartView
@@ -154,6 +162,14 @@
                     android:layout_height="wrap_content"
                     android:text="Estimated 1RM trend"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Estimated 1RM per session (kg) — this is the PR truth below"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="12dp" />
 
                 <com.migul.treningsprogram.ui.history.StrengthChartView
@@ -199,8 +215,16 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="PR history"
+                    android:text="PR history (estimated 1RM)"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Working sets only · Epley formula · a weight PR or a rep PR at equal weight both count"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="12dp" />
 
                 <LinearLayout

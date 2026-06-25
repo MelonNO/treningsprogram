@@ -14,6 +14,8 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.view.isVisible
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.databinding.FragmentHistoryStatsBinding
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -68,12 +70,19 @@ class HistoryStatsFragment : Fragment() {
 
             if (_binding == null) return@launch
 
+            // First-run / no-data state (UX1): show a single friendly prompt instead of a wall of
+            // zero-cards and empty charts. Switches to the full dashboard once any set is logged.
+            val hasData = totalWorkouts > 0 || totalSets > 0
+            binding.tvStatsEmpty.isVisible = !hasData
+            binding.contentStats.isVisible = hasData
+            if (!hasData) return@launch
+
             binding.tvTotalWorkouts.text = totalWorkouts.toString()
             binding.tvTotalSets.text = totalSets.toString()
             binding.tvTotalVolume.text = if (totalVolume >= 1000f) {
-                "${"%.1f".format(totalVolume / 1000f)}t"
+                "${"%.1f".format(totalVolume / 1000f)} t"
             } else {
-                "${totalVolume.roundToInt()}kg"
+                "${totalVolume.roundToInt()} kg"
             }
             binding.tvBestStreak.text = bestStreak.toString()
 
@@ -104,15 +113,6 @@ class HistoryStatsFragment : Fragment() {
         binding.layoutMuscleBars.removeAllViews()
         if (data.isEmpty()) return
         val max = data.maxOf { it.second }
-        val muscleColors = mapOf(
-            "Chest" to "#E91E63",
-            "Back" to "#2196F3",
-            "Legs" to "#4CAF50",
-            "Shoulders" to "#9C27B0",
-            "Arms" to "#FF5722",
-            "Core" to "#FF9800",
-            "Cardio" to "#00BCD4"
-        )
         data.forEach { (muscle, sets) ->
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -126,7 +126,7 @@ class HistoryStatsFragment : Fragment() {
                 val w = (80 * resources.displayMetrics.density).toInt()
                 layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
             }
-            val barColor = muscleColors[muscle] ?: "#607D8B"
+            val barColor = MuscleClassifier.colorFor(muscle, "#607D8B")
             val bar = View(requireContext()).apply {
                 val maxW = (200 * resources.displayMetrics.density).toInt()
                 val w = (maxW * sets / max.toFloat()).toInt().coerceAtLeast(4)

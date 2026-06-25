@@ -11,6 +11,26 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Empty / first-run state (UX1): shown until any set is logged. -->
+        <TextView
+            android:id="@+id/tv_stats_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No stats yet.\n\nComplete a workout and your totals, muscle balance, consistency calendar and rep ranges will appear here."
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:paddingVertical="48dp"
+            android:visibility="gone" />
+
+        <!-- Full dashboard (UX1): hidden on first run, shown once data exists. -->
+        <LinearLayout
+            android:id="@+id/content_stats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
         <!-- Summary cards row 1: Workouts + Sets -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -260,6 +280,9 @@
             android:layout_height="wrap_content"
             android:text="Export as CSV"
             android:layout_marginBottom="16dp" />
+
+        </LinearLayout>
+        <!-- /content_stats -->
 
     </LinearLayout>
 

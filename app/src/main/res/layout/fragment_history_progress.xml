@@ -184,6 +184,18 @@
                     android:layout_marginTop="4dp"
                     android:visibility="gone" />
 
+                <!-- IA (UX1): one consistent entry point to the full per-exercise Trends screen,
+                     the same destination the Recap deltas open. Shown only once an exercise is
+                     selected. -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_view_trends"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="View full trends"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone" />
+
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
