@@ -9,12 +9,15 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
+import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
 import com.migul.treningsprogram.domain.Epley
 import com.migul.treningsprogram.domain.OneRmTrend
@@ -61,6 +64,21 @@ class HistoryProgressFragment : Fragment() {
             false
         }
 
+        // IA (UX1): open the full per-exercise Trends screen — the same destination the Recap
+        // deltas open — so there is one consistent place to drill into an exercise. Uses the same
+        // currentDestination guard as HistoryRecap's openTrends to avoid a double-tap double-nav.
+        binding.btnViewTrends.setOnClickListener {
+            val name = viewModel.selectedExercise.value
+            if (name.isNotBlank() &&
+                findNavController().currentDestination?.id == R.id.historyFragment
+            ) {
+                findNavController().navigate(
+                    R.id.recapTrendsFragment,
+                    bundleOf("exerciseName" to name, "sessionDateMs" to System.currentTimeMillis())
+                )
+            }
+        }
+
         // Time window chips
         binding.cgTime.setOnCheckedStateChangeListener { _, checkedIds ->
             viewModel.timeWindowMonths.value = when {
@@ -79,10 +97,12 @@ class HistoryProgressFragment : Fragment() {
                 viewModel.strengthHistory.collect { history ->
                     // First-run / no-selection: tell the user to pick an exercise rather than
                     // leaving the chart's generic "Not enough data yet" looking broken (UX1).
-                    binding.tvStrengthHint.isVisible = viewModel.selectedExercise.value.isBlank()
+                    val hasSelection = viewModel.selectedExercise.value.isNotBlank()
+                    binding.tvStrengthHint.isVisible = !hasSelection
+                    binding.btnViewTrends.isVisible = hasSelection
                     binding.chartStrength.setData(history.map {
                         StrengthChartView.Entry(it.dateMs, it.maxWeight)
-                    })
+                    }, "kg")
                     // Compute e1RM from the set with the highest estimated 1RM (reps in 1..19).
                     // maxByOrNull on Epley correctly handles double-progression: a lighter weight
                     // done for more reps can yield a higher e1RM than a heavier single-rep attempt.

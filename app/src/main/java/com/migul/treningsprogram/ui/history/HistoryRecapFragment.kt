@@ -20,6 +20,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
 import com.migul.treningsprogram.R
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.databinding.FragmentHistoryRecapBinding
 import com.migul.treningsprogram.domain.RecapGraphs
@@ -138,11 +139,11 @@ class HistoryRecapFragment : Fragment() {
         val card = card()
         val col = cardColumn(card)
         col.addView(sectionTitle("Volume over time"))
-        col.addView(mutedText("Total working sets per week (sets)").apply {
+        col.addView(mutedText("Total working sets per week").apply {
             textSize = 12f
             (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
         })
-        addChartOrEmpty(col, points, label = "", emptyMsg = "Log a couple of weeks to see your volume trend.")
+        addChartOrEmpty(col, points, label = "sets", emptyMsg = "Log a couple of weeks to see your volume trend.")
         return card
     }
 
@@ -150,11 +151,11 @@ class HistoryRecapFragment : Fragment() {
         val card = card()
         val col = cardColumn(card)
         col.addView(sectionTitle("Training frequency"))
-        col.addView(mutedText("Workout days per week (sessions)").apply {
+        col.addView(mutedText("Workout days per week").apply {
             textSize = 12f
             (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
         })
-        addChartOrEmpty(col, points, label = "", emptyMsg = "Train across at least two weeks to see your frequency.")
+        addChartOrEmpty(col, points, label = "sessions", emptyMsg = "Train across at least two weeks to see your frequency.")
         return card
     }
 
@@ -172,30 +173,42 @@ class HistoryRecapFragment : Fragment() {
         }
         // Categorical data → labelled horizontal bars (clearer than a line chart for categories).
         val maxSets = rows.maxOf { it.sets }.coerceAtLeast(1)
-        rows.forEach { (muscle, sets) ->
-            val rowLayout = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(4), 0, dp(4))
-            }
-            rowLayout.addView(TextView(requireContext()).apply {
-                text = muscle
-                textSize = 13f
-                layoutParams = LinearLayout.LayoutParams(dp(90), LinearLayout.LayoutParams.WRAP_CONTENT)
-            })
-            rowLayout.addView(View(requireContext()).apply {
-                setBackgroundColor(accent)
-                val w = (dp(120) * sets / maxSets).coerceAtLeast(dp(6))
-                layoutParams = LinearLayout.LayoutParams(w, dp(8)).apply { marginEnd = dp(8) }
-            })
-            rowLayout.addView(TextView(requireContext()).apply {
-                text = if (sets == 1) "1 set" else "$sets sets"
-                textSize = 12f
-                setTextColor(neutral)
-            })
-            col.addView(rowLayout)
-        }
+        rows.forEach { (muscle, sets) -> col.addView(muscleBarRow(muscle, sets, maxSets)) }
         return card
+    }
+
+    /**
+     * One coloured horizontal bar row for a muscle group, shared by the Overview "Muscle group
+     * distribution" and the per-session "Muscles hit" sections so both read the same. Bars are
+     * coloured by muscle group via the app-wide [MuscleClassifier.colorFor] mapping (UX1 restyle);
+     * the count text reuses that colour so the legend is implicit.
+     */
+    private fun muscleBarRow(muscle: String, sets: Int, maxSets: Int): View {
+        val barColor = Color.parseColor(MuscleClassifier.colorFor(muscle, "#607D8B"))
+        val rowLayout = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        rowLayout.addView(TextView(requireContext()).apply {
+            text = muscle
+            textSize = 13f
+            layoutParams = LinearLayout.LayoutParams(dp(90), LinearLayout.LayoutParams.WRAP_CONTENT)
+        })
+        rowLayout.addView(View(requireContext()).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(barColor)
+                cornerRadius = dp(3).toFloat()
+            }
+            val w = (dp(120) * sets / maxSets).coerceAtLeast(dp(6))
+            layoutParams = LinearLayout.LayoutParams(w, dp(10)).apply { marginEnd = dp(8) }
+        })
+        rowLayout.addView(TextView(requireContext()).apply {
+            text = if (sets == 1) "1 set" else "$sets sets"
+            textSize = 12f
+            setTextColor(barColor)
+        })
+        return rowLayout
     }
 
     /**
@@ -215,9 +228,14 @@ class HistoryRecapFragment : Fragment() {
         }
         val chart = StrengthChartView(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(160)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(168)
             )
-            setData(points.map { StrengthChartView.Entry(it.weekStartMs, it.value) }, label)
+            // These overview series are whole counts (sets / sessions) — render integer labels.
+            setData(
+                points.map { StrengthChartView.Entry(it.weekStartMs, it.value) },
+                label,
+                integerValues = true
+            )
         }
         col.addView(chart)
     }
@@ -388,30 +406,7 @@ class HistoryRecapFragment : Fragment() {
         val col = cardColumn(card)
         col.addView(sectionTitle("Muscles hit this session"))
         val maxSets = r.muscleVolume.maxOf { it.second }.coerceAtLeast(1)
-        r.muscleVolume.forEach { (muscle, sets) ->
-            val rowLayout = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(4), 0, dp(4))
-            }
-            rowLayout.addView(TextView(requireContext()).apply {
-                text = muscle
-                textSize = 13f
-                layoutParams = LinearLayout.LayoutParams(dp(90), LinearLayout.LayoutParams.WRAP_CONTENT)
-            })
-            // proportional bar
-            rowLayout.addView(View(requireContext()).apply {
-                setBackgroundColor(accent)
-                val w = (dp(120) * sets / maxSets).coerceAtLeast(dp(6))
-                layoutParams = LinearLayout.LayoutParams(w, dp(8)).apply { marginEnd = dp(8) }
-            })
-            rowLayout.addView(TextView(requireContext()).apply {
-                text = if (sets == 1) "1 set" else "$sets sets"
-                textSize = 12f
-                setTextColor(neutral)
-            })
-            col.addView(rowLayout)
-        }
+        r.muscleVolume.forEach { (muscle, sets) -> col.addView(muscleBarRow(muscle, sets, maxSets)) }
         binding.layoutRecap.addView(card)
     }
 
