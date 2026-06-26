@@ -238,6 +238,39 @@ internal fun isLikelyTruncated(text: String, stopReason: String?): Boolean {
     return opened && balancedJsonSpan(body) == null
 }
 
+// ── G1: direction-aware per-day time-budget feedback ─────────────────────────────────────────────
+//
+// The deterministic ±10-min per-day duration gate is kept STRICT (the accepted window is unchanged).
+// Its previous retry feedback said "Trim sets/exercises or rest." for EVERY out-of-window day —
+// including days that estimated UNDER the floor, which told the model to make an already-too-short
+// day even shorter. Retries therefore drove the under-time days down and never converged: the LLM
+// review never ran (it is short-circuited when a deterministic check fails), and after the attempt
+// limit the loop threw and saved nothing. This pure helper makes the feedback DIRECTION-AWARE — a
+// day under the floor is told to ADD work; a day over the ceiling is told to TRIM.
+//
+// The reject CONDITION is byte-for-byte the old one: a non-null message is returned in EXACTLY the
+// cases the gate rejects (est < target-10, or est > target+10) and null when the day is inside the
+// window. So the strict gate is untouched — only the wording the model sees on the next attempt
+// changes. Package-level + pure so it is unit-testable without an AiRepository instance (matching
+// the F3 / S3 / B10 helper pattern).
+internal fun dayDurationFeedback(day: Int, estimateMinutes: Int, targetMinutes: Int): String? {
+    val low = targetMinutes - 10
+    val high = targetMinutes + 10
+    return when {
+        estimateMinutes < low ->
+            "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
+                "($low–$high min, aim $targetMinutes). ADD work to this day so it reaches about " +
+                "$targetMinutes min: add an accessory exercise, or add sets/reps to the exercises it " +
+                "already has (stay within the per-muscle ~8–10 and per-session ~18–20 working-set " +
+                "caps; do NOT pad with junk volume). Do NOT trim it — it is already too short."
+        estimateMinutes > high ->
+            "Day $day estimates ~$estimateMinutes min — that is OVER the target window " +
+                "($low–$high min, aim $targetMinutes). TRIM this day so it drops to about " +
+                "$targetMinutes min: remove an accessory exercise, or reduce sets or shorten rest."
+        else -> null
+    }
+}
+
 // Onboarding question JSON model
 private data class OQJson(
     val id: String = "",
@@ -541,11 +574,10 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 .filterKeys { it !in lockedDays }
                 .mapNotNull { (day, dayExercises) ->
                     val est = WorkoutTimeEstimator.estimateDayMinutes(dayExercises)
-                    if (est < sessionDurationMinutes - 10 || est > sessionDurationMinutes + 10) {
-                        "Day $day estimates ~$est min; target $sessionDurationMinutes ±10 " +
-                            "(${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). " +
-                            "Trim sets/exercises or rest."
-                    } else null
+                    // G1: direction-aware feedback — under-time days are told to ADD work, over-time
+                    // days to TRIM. The reject CONDITION (the ±10 window) is unchanged; only the
+                    // wording fed back to the next attempt differs, so the strict gate is untouched.
+                    dayDurationFeedback(day, est, sessionDurationMinutes)
                 }
                 .joinToString(" ")
 
@@ -685,7 +717,7 @@ Check ALL of the following. Reject on genuine violations — do not penalise rea
 $injuryCheck
 11. EXERCISE COUNT: Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session.
 12. NOTES: Notes assert no incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest"). Reject any use of "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch", "increases bicep peak"). "Peak contraction" as a squeeze cue (hold the shortened position) is allowed.
-13. TIME BUDGET (belt-and-suspenders; a deterministic Kotlin check is authoritative): each training day should estimate within ±10 min of $sessionDurationMinutes min (window ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). Rough per-exercise estimate ≈ sets × (reps × 3 s work + rest seconds between sets) + ~60 s setup; cardio ≈ its duration (targetReps minutes/distance) + ~60 s. A day that clearly runs far over or under that window should be flagged.
+13. TIME BUDGET (belt-and-suspenders; a deterministic Kotlin check is authoritative): each training day should estimate within ±10 min of $sessionDurationMinutes min (window ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). Rough per-exercise estimate ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); cardio ≈ its duration (targetReps minutes/distance) + ~60 s. A day that clearly runs far over OR under that window should be flagged.
 
 Respond with ONLY valid JSON — no prose, no markdown fences:
 {"accepted": true}
@@ -1048,13 +1080,13 @@ Organise $daysPerWeek days to distribute muscle group stimulus optimally for the
 $splitBlock$previousPlanBlock
 
 ══════════════════════════════════════════
-TIME BUDGET (applies PER training day)
+TIME BUDGET (applies PER training day — STRICT, BOTH directions)
 ══════════════════════════════════════════
-The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. Self-size on attempt 1 using this estimate:
-- Per strength exercise ≈ sets × (reps × 3 s work + rest seconds between sets) + ~60 s setup.
+The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. A day that comes in UNDER ${sessionDurationMinutes - 10} min is rejected just as hard as one OVER ${sessionDurationMinutes + 10} min — under-filled days are the most common cause of rejection, so do NOT leave any day short. Self-size EVERY day using this EXACT estimate (it is the formula the app enforces — match it, do not approximate):
+- Per strength exercise ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N.
 - Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
 - A day's estimate = the sum of its exercises.
-Add or remove accessory work, or adjust sets/rest, to land inside the window. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — trim within those limits.
+After sizing each day: if it lands under ${sessionDurationMinutes - 10} min, ADD an accessory exercise or add sets/reps until it estimates close to $sessionDurationMinutes min; if it lands over ${sessionDurationMinutes + 10} min, remove an accessory or shorten rest until it estimates close to $sessionDurationMinutes min. Aim for the CENTRE of the window ($sessionDurationMinutes min), not its edge, so small rounding does not tip a day out. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — fill or trim within those limits, and never pad with junk volume.
 
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -1103,6 +1135,7 @@ Keep notes concise, but they MUST contain the target effort (RIR/RPE) AND the pr
 ══════════════════════════════════════════
 SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
+- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min (aim $sessionDurationMinutes) using the TIME BUDGET formula above — ADD work to any day under ${sessionDurationMinutes - 10} min, trim any over ${sessionDurationMinutes + 10} min.
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone).
 - Every exercise's notes carry an RIR/RPE target AND a progression rule.
@@ -1240,7 +1273,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). Estimate ≈ per strength exercise: sets × (reps × 3 s work + rest seconds between sets) + ~60 s setup; per cardio exercise: its duration + ~60 s. Adjust accessories/sets/rest to hit the window (without exceeding ~10 sets/muscle or ~18–20 working sets total).")
+            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. If short, ADD an accessory or sets/reps; if long, trim — without exceeding ~10 sets/muscle or ~18–20 working sets total.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
