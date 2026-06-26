@@ -21,8 +21,8 @@ android {
         applicationId = "com.migul.treningsprogram"
         minSdk = 26
         targetSdk = 34
-        versionCode = 40
-        versionName = "1.10.1"
+        versionCode = 41
+        versionName = "1.10.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -117,6 +117,9 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.5.0")
+    // Real SQLite engine for the backfill-migration test; bundles a Linux/aarch64 native, unlike
+    // Robolectric's own SQLite native runtime which has no aarch64 build on this ARM host.
+    testImplementation("org.xerial:sqlite-jdbc:3.41.2.2")
     testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.7.0")

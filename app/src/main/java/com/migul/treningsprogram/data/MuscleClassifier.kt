@@ -62,27 +62,47 @@ object MuscleClassifier {
     fun fromName(exerciseName: String): String {
         val lower = exerciseName.lowercase()
         return when {
+            // 0. Pure balance / proprioception / mobility → un-grouped (intentional "").
+            lower.containsAny("balance hold", "ankle alphabet", "foot circles") -> ""
+            // 1. Genuine cardio. NOTE: "tempo"/"interval" deliberately REMOVED (they are strength
+            //    modifiers; genuine "Interval Run"/"Tempo Run" still match via "run"). "walk" handled
+            //    at the END so "walking lunge"/"walking plank" classify by their strength movement first.
             lower.containsAny(
                 "run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
-                "burpee", "mountain climber", "high knee", "jump rope", "tempo", "interval"
+                "burpee", "mountain climber", "high knee", "jump rope"
             ) -> "Cardio"
-            lower.containsAny("bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip") -> "Chest"
-            // Legs before Back so "Romanian Deadlift", "Back Squat", "Stiff-Leg Deadlift" resolve correctly
+            // 2. Posterior-/rear-delt target moves → Shoulders. MUST precede Chest ("fly"/"bench")
+            //    and the row rule (rear-delt ROW is Shoulders, not Back).
             lower.containsAny(
-                "squat", "leg press", "lunge", "calf", "hamstring", "quad", "romanian", "rdl",
+                "rear delt", "reverse fly", "rear fly", "reverse pec",
+                "bent over fly", "bent-over fly", "face pull", "y-raise", " y raise"
+            ) -> "Shoulders"
+            // 3. Any row → Back. MUST precede Chest so a "chest-supported row" is a Back row, not Chest.
+            lower.contains("row") -> "Back"
+            // 4. Chest
+            lower.containsAny("bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip") -> "Chest"
+            // 5. Legs (before remaining Back so "Romanian Deadlift"/"RDL" resolve to Legs). + tibialis.
+            lower.containsAny(
+                "squat", "leg press", "lunge", "calf", "tibialis", "hamstring", "quad", "romanian", "rdl",
                 "glute", "hip thrust", "leg curl", "leg extension", "hip hinge", "step up",
                 "step-up", "box jump", "split squat", "wall sit", "sumo", "pistol"
             ) -> "Legs"
+            // 6. Back (remaining)
             lower.containsAny(
-                "row", "pulldown", "pull-up", "pullup", "chin-up", "chinup", "lat ",
+                "pulldown", "pull-up", "pullup", "chin-up", "chinup", "lat ",
                 "deadlift", "shrug", "back", "scapular", "dead hang"
             ) -> "Back"
-            lower.containsAny("shoulder", "overhead", "lateral raise", "face pull", "delt", "military") -> "Shoulders"
+            // 7. Shoulders (remaining) + arnold
+            lower.containsAny("shoulder", "overhead", "lateral raise", "face pull", "delt", "military", "arnold") -> "Shoulders"
+            // 8. Arms
             lower.containsAny("curl", "tricep", "bicep", "arm") -> "Arms"
+            // 9. Core
             lower.containsAny(
                 "plank", "crunch", "ab ", "abs", "core", "sit-up", "sit up", "russian",
                 "leg raise", "dead bug", "l-sit", "dragon flag", "hollow"
             ) -> "Core"
+            // 10. Walk → Cardio (low priority; "walking lunge"/"walking plank" already classified above).
+            lower.contains("walk") -> "Cardio"
             else -> ""
         }
     }
@@ -155,18 +175,27 @@ object MuscleClassifier {
             // ── Cardio ──────────────────────────────────────────────────────────────────
             lower.containsAny(
                 "run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
-                "burpee", "mountain climber", "high knee", "jump rope", "tempo", "interval"
+                "burpee", "mountain climber", "high knee", "jump rope"
             ) -> listOf("Cardio" to 1.0f)
 
+            // ── Posterior / rear-delt (MUST precede Chest/pressing so a rear-delt move named
+            //    with "incline bench"/"bench"/"fly" is not captured as Chest) ───────────────
+            lower.containsAny("face pull") ->
+                listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f, "Biceps" to 0.3f)
+            lower.containsAny("rear delt", "rear fly", "reverse fly",
+                               "reverse pec", "bent over fly", "bent-over fly",
+                               "y-raise", " y raise") ->
+                listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f)
+
             // ── Chest / pressing ─────────────────────────────────────────────────────────
-            lower.containsAny("incline bench", "incline press", "incline push") ->
+            lower.containsAny("incline bench", "incline press", "incline push") && !lower.contains("row") ->
                 listOf("Chest" to 1.0f, "Front Delts" to 0.6f, "Triceps" to 0.6f)
             lower.containsAny("decline bench", "decline press", "decline push") ->
                 listOf("Chest" to 1.0f, "Triceps" to 0.6f, "Front Delts" to 0.3f)
             lower.containsAny("cable cross", "cable fly", "chest fly", "pec fly",
                                "chest flye", "pec flye") ->
                 listOf("Chest" to 1.0f, "Front Delts" to 0.3f)
-            lower.containsAny("bench", "chest press", "pec deck") ->
+            lower.containsAny("bench", "chest press", "pec deck") && !lower.contains("row") ->
                 listOf("Chest" to 1.0f, "Front Delts" to 0.6f, "Triceps" to 0.6f)
             lower.containsAny("push-up", "pushup") ->
                 listOf("Chest" to 1.0f, "Triceps" to 0.6f, "Front Delts" to 0.6f, "Core" to 0.3f)
@@ -185,11 +214,6 @@ object MuscleClassifier {
                 listOf("Side Delts" to 1.0f, "Front Delts" to 0.3f)
             lower.containsAny("front raise") ->
                 listOf("Front Delts" to 1.0f, "Side Delts" to 0.3f)
-            lower.containsAny("face pull") ->
-                listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f, "Biceps" to 0.3f)
-            lower.containsAny("rear delt", "rear fly", "reverse fly",
-                               "reverse pec", "bent over fly") ->
-                listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f)
             lower.containsAny("upright row") ->
                 listOf("Side Delts" to 1.0f, "Front Delts" to 0.6f, "Biceps" to 0.3f)
 

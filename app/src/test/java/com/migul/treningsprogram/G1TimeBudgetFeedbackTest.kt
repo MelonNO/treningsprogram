@@ -19,7 +19,7 @@ import org.junit.Test
  *     floor is told to ADD work; a day over the ceiling is told to TRIM. The old feedback said
  *     "Trim…" for both, which drove under-time days even shorter so retries never converged.
  *  2. The canonical repro (`docs/intake/generation-timebudget-fix-2026-06/repro-failing-generation.md`)
- *     — a complete, rule-compliant 5-day plan the app discarded — really does land 3 of its 5 days
+ *     — a complete, rule-compliant 5-day plan the app discarded — really does land 4 of its 5 days
  *     UNDER the 40-min floor for a 50-min target, so the strict gate rejects the whole plan and the
  *     fixed feedback steers those days the correct direction (ADD).
  *
@@ -120,9 +120,9 @@ class G1TimeBudgetFeedbackTest {
         ex("Dumbbell Chest-Supported Rear Delt Row (Wide Elbows)", 4, "8-12", 90, 7),
         ex("Ab Roller Rollout (Kneeling)", 3, "8-12", 60, 7),
         ex("Dumbbell Incline Lateral Raise", 3, "12-15", 60, 7),
-        // NOTE: "Slow Tempo" makes this classify as Cardio (MuscleClassifier keys "tempo"), so it is
-        // estimated as a 30-min cardio fallback → Sunday ≈ 58 min (in-window). This is why the
-        // relayed lead's "Sun ~33 / 4-of-5-under" differs from reality: the true fixture is 3-of-5.
+        // The fixed classifier reads this as Legs (calf), NOT Cardio — so it is estimated as a normal
+        // strength move and no longer inflates the day. Sunday is now 33 min (UNDER the 40-min floor),
+        // not the old 58 min the "tempo"→Cardio bug produced.
         ex("Standing Bilateral Calf Raise (Bodyweight, Slow Tempo)", 3, "20-25", 45, 7)
     )
 
@@ -131,11 +131,11 @@ class G1TimeBudgetFeedbackTest {
         assertEquals(33, WorkoutTimeEstimator.estimateDayMinutes(wednesday)) // UNDER floor
         assertEquals(36, WorkoutTimeEstimator.estimateDayMinutes(friday))    // UNDER floor
         assertEquals(31, WorkoutTimeEstimator.estimateDayMinutes(saturday))  // UNDER floor
-        assertEquals(58, WorkoutTimeEstimator.estimateDayMinutes(sunday))    // in-window (Cardio quirk)
+        assertEquals(33, WorkoutTimeEstimator.estimateDayMinutes(sunday))    // UNDER floor (tempo fixed)
     }
 
     /**
-     * The fixture really is rejected by the strict gate: 3 of its 5 days fall under the 40-min floor,
+     * The fixture really is rejected by the strict gate: 4 of its 5 days fall under the 40-min floor,
      * and the fixed feedback steers each of those the correct direction (ADD), while the two in-window
      * days produce no feedback. This is the regression the fix targets.
      */
@@ -150,13 +150,12 @@ class G1TimeBudgetFeedbackTest {
             }
 
         val rejectedDays = feedback.filterValues { it != null }
-        assertEquals("exactly the 3 under-floor days are rejected", setOf(3, 5, 6), rejectedDays.keys)
+        assertEquals("exactly the 4 under-floor days are rejected", setOf(3, 5, 6, 7), rejectedDays.keys)
         rejectedDays.forEach { (day, msg) ->
             assertTrue("Day $day under-floor feedback must say ADD: $msg", msg!!.contains("ADD"))
         }
         // In-window days produce no rejection feedback.
         assertNull(feedback[2])
-        assertNull(feedback[7])
 
         // Whole-plan outcome: any out-of-window day makes the deterministic durationReason non-empty,
         // which is exactly what the generation loop rejects on (and short-circuits the LLM review).

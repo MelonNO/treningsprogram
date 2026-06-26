@@ -372,8 +372,7 @@ class LogWorkoutViewModel @Inject constructor(
      * A blank result is acceptable (genuinely unclassifiable name).
      */
     private fun resolveMuscleGroup(exerciseName: String): String =
-        AppDatabase.DEFAULT_EXERCISES.find { it.name == exerciseName }?.muscleGroup
-            ?: MuscleClassifier.fromName(exerciseName)
+        com.migul.treningsprogram.data.MuscleGroupResolver.resolve(exerciseName)
 
     fun logSet(weight: Float, reps: Int, isWarmup: Boolean, rpeLabel: String) {
         val sid = _sessionId.value ?: return

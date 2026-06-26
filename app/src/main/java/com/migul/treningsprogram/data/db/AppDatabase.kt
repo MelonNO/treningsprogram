@@ -22,7 +22,7 @@ import com.migul.treningsprogram.data.db.entity.*
         Program::class,
         XpEvent::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -203,6 +203,29 @@ abstract class AppDatabase : RoomDatabase() {
                         `sessionId` INTEGER
                     )
                 """.trimIndent())
+            }
+        }
+
+        // R1: historical backfill of the denormalised muscleGroup on already-logged sets, using the
+        // corrected name-based classifier. Re-derives ONLY the muscleGroup label; never references or
+        // mutates reps/weightKg/dates/exerciseName/session data, so no logged data can change or be
+        // lost. Operates per DISTINCT exerciseName (few names, many rows) and is idempotent
+        // (resolve() is deterministic and the UPDATE sets an absolute value). Parameterized so names
+        // containing quotes/apostrophes (e.g. "Farmer's Walk") are handled safely. No schema change.
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val names = mutableListOf<String>()
+                db.query("SELECT DISTINCT exerciseName FROM workout_sets").use { c ->
+                    val idx = c.getColumnIndexOrThrow("exerciseName")
+                    while (c.moveToNext()) names.add(c.getString(idx))
+                }
+                for (name in names) {
+                    val group = com.migul.treningsprogram.data.MuscleGroupResolver.resolve(name)
+                    db.execSQL(
+                        "UPDATE workout_sets SET muscleGroup = ? WHERE exerciseName = ?",
+                        arrayOf<Any?>(group, name)
+                    )
+                }
             }
         }
 
