@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.os.bundleOf
@@ -19,6 +18,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
+import com.migul.treningsprogram.domain.DataScreenEmptyState
 import com.migul.treningsprogram.domain.Epley
 import com.migul.treningsprogram.domain.OneRmTrend
 import dagger.hilt.android.AndroidEntryPoint
@@ -45,13 +45,21 @@ class HistoryProgressFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Load exercise names into autocomplete
+        // Load exercise names into autocomplete, ordered most-trained-first (B03). The custom
+        // adapter preserves that order while the user types to filter (it does not re-alphabetize).
         viewLifecycleOwner.lifecycleScope.launch {
             val names = viewModel.getExerciseNames()
             if (_binding == null) return@launch
-            val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, names)
+            val adapter = OrderedExerciseAdapter(requireContext(), names)
             binding.acExercise.setAdapter(adapter)
             binding.acExercise.threshold = 1
+
+            // B07 whole-screen empty state: when nothing has ever been logged, show the single
+            // top-level line and hide the picker/charts. Once any exercise exists, show the picker
+            // (data cards still appear per-field as an exercise is selected).
+            val screenEmpty = DataScreenEmptyState.isProgressEmpty(names.size)
+            binding.tvProgressEmpty.isVisible = screenEmpty
+            binding.cardExerciseSelector.isVisible = !screenEmpty
         }
 
         binding.acExercise.setOnItemClickListener { _, _, _, _ ->
@@ -95,11 +103,15 @@ class HistoryProgressFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.strengthHistory.collect { history ->
-                    // First-run / no-selection: tell the user to pick an exercise rather than
-                    // leaving the chart's generic "Not enough data yet" looking broken (UX1).
+                    // B07: no per-field "select an exercise" copy. The strength card is hidden until
+                    // the selected exercise actually has data; the chart inside needs >= 2 points to
+                    // draw, so hide the chart view (not the whole card) at a single point — the e1RM
+                    // line and "view trends" entry still make sense with one logged session.
                     val hasSelection = viewModel.selectedExercise.value.isNotBlank()
-                    binding.tvStrengthHint.isVisible = !hasSelection
-                    binding.btnViewTrends.isVisible = hasSelection
+                    val hasHistory = hasSelection && history.isNotEmpty()
+                    binding.cardStrength.isVisible = hasHistory
+                    binding.btnViewTrends.isVisible = hasHistory
+                    binding.chartStrength.isVisible = history.size >= 2
                     binding.chartStrength.setData(history.map {
                         StrengthChartView.Entry(it.dateMs, it.maxWeight)
                     }, "kg")
@@ -163,8 +175,8 @@ class HistoryProgressFragment : Fragment() {
      * This is the SINGLE source of PR truth in this area (F2); the old max-weight PR widget
      * that counted warm-ups has been retired.
      *
-     * When no exercise is selected the card shows a prompt. When an exercise is selected but
-     * has no qualifying history (e.g. only warm-ups or 0-rep sets), the empty state is shown.
+     * B07: there is no per-field guidance copy. The whole PR card is hidden when there is no
+     * selection or no qualifying PR history; it appears only once there are PRs to show.
      * Most-recent PR is shown first.
      */
     private fun renderPrTimeline(
@@ -174,24 +186,9 @@ class HistoryProgressFragment : Fragment() {
         if (_binding == null) return
         binding.layoutPrs.removeAllViews()
 
-        if (exerciseName.isBlank()) {
-            binding.layoutPrs.addView(TextView(requireContext()).apply {
-                text = "Select an exercise above to see its PR history."
-                textSize = 13f
-                setTextColor(Color.parseColor("#9A9AB0"))
-            })
-            return
-        }
-
-        val prs = OneRmTrend.prTimeline(history)
-        if (prs.isEmpty()) {
-            binding.layoutPrs.addView(TextView(requireContext()).apply {
-                text = "No PR history yet for $exerciseName — log a few working sets to build it."
-                textSize = 13f
-                setTextColor(Color.parseColor("#9A9AB0"))
-            })
-            return
-        }
+        val prs = if (exerciseName.isBlank()) emptyList() else OneRmTrend.prTimeline(history)
+        binding.cardPrs.isVisible = prs.isNotEmpty()
+        if (prs.isEmpty()) return
 
         // Most recent PR first.
         prs.asReversed().forEach { pr ->

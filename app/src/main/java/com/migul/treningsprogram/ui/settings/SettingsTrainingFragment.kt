@@ -19,6 +19,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentSettingsTrainingBinding
+import com.migul.treningsprogram.domain.TrainingDaySelection
 import com.migul.treningsprogram.ui.onboarding.OnboardingBottomSheet
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -44,6 +45,8 @@ class SettingsTrainingFragment : Fragment() {
     private var initialDisliked = ""
     private var initialMuscles = ""
     private var initialPresetId = -1L
+    private var initialLetAiChoose = false
+    private var initialRestCsv = ""
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSettingsTrainingBinding.inflate(inflater, container, false)
@@ -82,6 +85,20 @@ class SettingsTrainingFragment : Fragment() {
         } else {
             setSeverityVisible(false)
         }
+
+        // B08: initialise day-selection mode from the saved rest-day CSV. Non-blank ⇒ rest-day mode
+        // (switch off, chips pre-checked); blank ⇒ count mode (switch on). Existing users (who never
+        // set rest days) have a blank CSV and so land in count mode — preserving their behaviour.
+        val savedRest = TrainingDaySelection.parseRestDays(prefs.restDaysCsv)
+        binding.switchLetAiChooseDays.isChecked = savedRest.isEmpty()
+        binding.chipRest1.isChecked = 1 in savedRest
+        binding.chipRest2.isChecked = 2 in savedRest
+        binding.chipRest3.isChecked = 3 in savedRest
+        binding.chipRest4.isChecked = 4 in savedRest
+        binding.chipRest5.isChecked = 5 in savedRest
+        binding.chipRest6.isChecked = 6 in savedRest
+        binding.chipRest7.isChecked = 7 in savedRest
+        updateDayModeUi()
 
         val savedMuscles = prefs.priorityMuscles.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
         binding.chipSettingsMuscleChest.isChecked     = "Chest" in savedMuscles
@@ -129,6 +146,9 @@ class SettingsTrainingFragment : Fragment() {
         binding.switchSeparateCardio.setOnCheckedChangeListener { _, _ -> updateSaveButton() }
         binding.chipGroupPriorityMusclesSettings.setOnCheckedStateChangeListener { _, _ -> updateSaveButton() }
         binding.chipGroupSeveritySettings.setOnCheckedStateChangeListener { _, _ -> updateSaveButton() }
+        // B08: day-selection mode toggle + rest-day chip changes.
+        binding.switchLetAiChooseDays.setOnCheckedChangeListener { _, _ -> updateDayModeUi(); updateSaveButton() }
+        binding.chipGroupRestDays.setOnCheckedStateChangeListener { _, _ -> updateTrainingDaysHint(); updateSaveButton() }
 
         // --- static actions ---
         binding.btnManagePresets.setOnClickListener {
@@ -175,6 +195,40 @@ class SettingsTrainingFragment : Fragment() {
         initialDisliked  = binding.etDislikedExercises.text.toString()
         initialMuscles   = currentMuscleString()
         initialPresetId  = gymPresetsViewModel.selectedPresetId
+        initialLetAiChoose = binding.switchLetAiChooseDays.isChecked
+        initialRestCsv   = currentRestCsv()
+    }
+
+    // ── B08: day-selection mode ──────────────────────────────────────────────────────────────────
+
+    private fun isRestDayMode(): Boolean = !binding.switchLetAiChooseDays.isChecked
+
+    private fun selectedRestDays(): Set<Int> = buildSet {
+        if (binding.chipRest1.isChecked) add(1)
+        if (binding.chipRest2.isChecked) add(2)
+        if (binding.chipRest3.isChecked) add(3)
+        if (binding.chipRest4.isChecked) add(4)
+        if (binding.chipRest5.isChecked) add(5)
+        if (binding.chipRest6.isChecked) add(6)
+        if (binding.chipRest7.isChecked) add(7)
+    }
+
+    private fun currentRestCsv(): String =
+        if (isRestDayMode()) TrainingDaySelection.formatRestDays(selectedRestDays()) else ""
+
+    private fun updateDayModeUi() {
+        val restMode = isRestDayMode()
+        binding.layoutRestMode.visibility = if (restMode) View.VISIBLE else View.GONE
+        binding.layoutCountMode.visibility = if (restMode) View.GONE else View.VISIBLE
+        if (restMode) updateTrainingDaysHint()
+    }
+
+    private fun updateTrainingDaysHint() {
+        val training = TrainingDaySelection.trainingDaysFrom(selectedRestDays())
+        binding.tvTrainingDaysHint.text = if (training.isEmpty())
+            "Pick at least one training day (leave a day un-selected)."
+        else
+            "Training ${training.size} day${if (training.size == 1) "" else "s"}/week: ${TrainingDaySelection.dayNames(training)}"
     }
 
     private fun setSeverityVisible(visible: Boolean) {
@@ -214,6 +268,8 @@ class SettingsTrainingFragment : Fragment() {
             || binding.etDislikedExercises.text.toString() != initialDisliked
             || currentMuscleString() != initialMuscles
             || gymPresetsViewModel.selectedPresetId != initialPresetId
+            || binding.switchLetAiChooseDays.isChecked != initialLetAiChoose
+            || currentRestCsv() != initialRestCsv
     }
 
     private fun updateSaveButton() {
@@ -222,7 +278,21 @@ class SettingsTrainingFragment : Fragment() {
 
     private fun saveAndPrompt() {
         val prefs = viewModel.prefs
-        val days = binding.etDaysPerWeek.text.toString().toIntOrNull()?.coerceIn(1, 7) ?: 4
+        // B08: resolve days/week from the active mode. Rest-day mode stores the rest days and derives
+        // the count; count mode clears the rest days and uses the entered number.
+        val days: Int
+        if (isRestDayMode()) {
+            val restDays = selectedRestDays()
+            if (restDays.size >= 7) {
+                Snackbar.make(binding.root, "Pick at least one training day (leave one day un-selected).", Snackbar.LENGTH_SHORT).show()
+                return
+            }
+            prefs.restDaysCsv = TrainingDaySelection.formatRestDays(restDays)
+            days = TrainingDaySelection.daysPerWeekFrom(restDays)
+        } else {
+            prefs.restDaysCsv = ""
+            days = binding.etDaysPerWeek.text.toString().toIntOrNull()?.coerceIn(1, 7) ?: 4
+        }
         val duration = binding.etSessionDuration.text.toString().toIntOrNull()?.coerceIn(15, 180) ?: 60
         val goal = goals[binding.spinnerGoal.selectedItemPosition]
         val experience = experiences[binding.spinnerExperience.selectedItemPosition]

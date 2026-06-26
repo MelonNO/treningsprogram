@@ -58,6 +58,10 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getDistinctExerciseNames(): List<String> = setDao.getDistinctExerciseNames()
 
+    /** Each exercise with its distinct-session count, for the B03 most-trained-first picker. */
+    suspend fun getExerciseSessionCounts(): List<ExerciseSessionCount> =
+        setDao.getExerciseSessionCounts()
+
     suspend fun getStrengthHistory(name: String): List<StrengthPoint> = setDao.getStrengthHistory(name)
 
     suspend fun getWeeklyVolume(name: String): List<WeekVolume> = setDao.getWeeklyVolume(name)
@@ -297,6 +301,32 @@ class WorkoutRepository @Inject constructor(
     fun weekInBlock(program: Program, currentMonday: Long): Int =
         Program.weekInBlock(program.mesocycleWeeks, program.blockStartWeek, currentMonday)
 
+    /**
+     * Deload-/mesocycle-aware [MesocycleContext] for an on-demand regeneration of the week starting
+     * [monday] (E2 L1 + M2). Computes the stall-triggered deload decision (reusing B3's StallDetector).
+     * Deload is a once-per-week state machine: re-generating the SAME week (it already has a plan) must
+     * KEEP an active deload rather than re-running the exit branch and dropping it mid-week. Shared by
+     * the Program-tab preserve-logged regen and the Settings full-week regen so they stay consistent.
+     */
+    suspend fun buildRegenMesocycle(monday: Long): MesocycleContext {
+        val active = ensureActiveProgramId().let { getActiveProgramOnce() }
+        val stalledLifts = computeStalledLifts()
+        val replacingCurrentWeek = getActiveProgramPlanForWeek(monday).isNotEmpty()
+        val isDeload = com.migul.treningsprogram.domain.DeloadPolicy.nextDeloadStateForRegen(
+            currentlyDeloading = active?.isDeloadActive ?: false,
+            stalledCount = stalledLifts.size,
+            replacingCurrentWeek = replacingCurrentWeek
+        )
+        return active?.let { p ->
+            MesocycleContext(
+                mesocycleWeeks = p.mesocycleWeeks,
+                weekInBlock = weekInBlock(p, monday),
+                isDeload = isDeload,
+                stalledLifts = stalledLifts
+            )
+        } ?: MesocycleContext(isDeload = isDeload, stalledLifts = stalledLifts)
+    }
+
     // ── Plan queries (program-scoped, defaulting to the active program) ──────────────────────────
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -320,6 +350,38 @@ class WorkoutRepository @Inject constructor(
             plannedDao.insertAll(exercises.map { it.copy(programId = programId) })
         }
         // A newly generated weekly plan is user data worth backing up.
+        backupScheduler.requestBackup()
+    }
+
+    /**
+     * B09: persist a preserve-logged-days regeneration. Replaces the PLAN of every day NOT in
+     * [loggedDays] with [exercises], and leaves every logged day's rows completely untouched
+     * (including their isLogged flag + actuals). Days the new plan does not cover are cleared, so a
+     * regeneration that rebalances training off an unlogged-but-previously-planned day removes that
+     * stale plan.
+     *
+     * HARD GUARANTEE (B09): this only ever touches the planned_exercises table. Logged SETS and
+     * workout HISTORY live in workout_sessions / workout_sets and are never referenced here, so no
+     * regeneration can delete logged data. [exercises] is defensively filtered to the non-logged days.
+     */
+    suspend fun savePlanPreservingLoggedDays(
+        weekStart: Long,
+        exercises: List<PlannedExercise>,
+        loggedDays: Set<Int>
+    ) {
+        val programId = ensureActiveProgramId()
+        db.withTransaction {
+            // Pure decision (unit-tested): only NON-logged days are cleared, and only NON-logged-day
+            // rows are inserted — logged days' planned rows are untouched, and logged sets/history
+            // (separate tables) are never referenced.
+            com.migul.treningsprogram.domain.RegeneratePlanner.daysToReplace(loggedDays).forEach { day ->
+                plannedDao.deleteForDayInProgram(programId, weekStart, day)
+            }
+            plannedDao.insertAll(
+                com.migul.treningsprogram.domain.RegeneratePlanner.exercisesToPersist(exercises, loggedDays)
+                    .map { it.copy(programId = programId) }
+            )
+        }
         backupScheduler.requestBackup()
     }
 

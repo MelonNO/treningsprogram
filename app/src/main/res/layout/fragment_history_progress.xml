@@ -11,6 +11,20 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Whole-screen empty state (B07): the ONE top-level line shown when there is no data at
+             all on this tab (no logged exercises). Per-field guidance copy is gone; individual
+             cards appear as data accumulates. -->
+        <TextView
+            android:id="@+id/tv_progress_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Complete a workout to see your progress."
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:gravity="center"
+            android:paddingVertical="48dp"
+            android:visibility="gone" />
+
         <!-- Stalled-lifts alert card (B3) — hidden when nothing is stalled -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_stalled"
@@ -49,6 +63,7 @@
 
         <!-- Exercise selector card -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_exercise_selector"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
@@ -121,6 +136,7 @@
 
         <!-- Strength chart card -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_strength"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
@@ -155,16 +171,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="200dp"
                     android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:id="@+id/tv_strength_hint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Select an exercise above to see its trend."
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="4dp"
-                    android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/tv_e1rm"
@@ -202,6 +208,7 @@
 
         <!-- Personal Records card -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_prs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"

@@ -83,7 +83,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Claude generates a new plan each week automatically. You can also trigger one manually."
+                    android:text="Claude generates a new plan each week automatically. Generate Now regenerates the FULL week — it replaces every day, including ones you've already logged. To keep logged days and only rebuild the rest, use Regenerate on the Program tab."
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="14dp" />

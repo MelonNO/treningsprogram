@@ -53,18 +53,68 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <!-- B08: day-selection mode. OFF = pick rest days (training fills the rest);
+                         ON = pick a number of training days, AI chooses which are rest. -->
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switch_let_ai_choose_days"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:hint="@string/days_per_week"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/et_days_per_week"
+                        android:text="Let the AI choose which days to train"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:id="@+id/layout_rest_mode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="12dp">
+                        <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="number" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:text="Your rest days — we plan training on every other day."
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:layout_marginBottom="8dp" />
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/chip_group_rest_days"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_1" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mon" />
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_2" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tue" />
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_3" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Wed" />
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_4" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Thu" />
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_5" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Fri" />
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_6" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Sat" />
+                            <com.google.android.material.chip.Chip android:id="@+id/chip_rest_7" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Sun" />
+                        </com.google.android.material.chip.ChipGroup>
+                        <TextView
+                            android:id="@+id/tv_training_days_hint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="?attr/colorPrimary"
+                            android:layout_marginTop="8dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layout_count_mode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:layout_marginBottom="12dp">
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="@string/days_per_week"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/et_days_per_week"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"

@@ -8,6 +8,13 @@ data class ExercisePr(val exerciseName: String, val maxWeight: Float)
 
 data class StrengthPoint(val dateMs: Long, val maxWeight: Float, val bestReps: Int)
 
+/**
+ * One exercise with the number of DISTINCT sessions it appears in (B03). Drives the
+ * Progress-tab exercise picker's "most-trained first" ordering. Counts distinct sessions,
+ * not total sets, so a session with many sets of the same exercise counts once.
+ */
+data class ExerciseSessionCount(val exerciseName: String, val sessionCount: Int)
+
 data class WeekVolume(val weekStart: Long, val totalSets: Int)
 
 data class MuscleVolume(val muscleGroup: String, val totalSets: Int)
@@ -114,6 +121,21 @@ interface WorkoutSetDao {
 
     @Query("SELECT DISTINCT exerciseName FROM workout_sets ORDER BY exerciseName ASC")
     suspend fun getDistinctExerciseNames(): List<String>
+
+    /**
+     * Each exercise name with the number of distinct sessions it appears in (B03).
+     * Mirrors the population source of [getDistinctExerciseNames] (all sets, no warm-up /
+     * completed filter) so the picker lists exactly the same exercises — only reordered.
+     * Ordering here is a stable starting point; final sort (count desc, alpha tie-break) is
+     * applied by the pure [com.migul.treningsprogram.domain.ExercisePickerSort] helper.
+     */
+    @Query("""
+        SELECT exerciseName AS exerciseName, COUNT(DISTINCT sessionId) AS sessionCount
+        FROM workout_sets
+        GROUP BY exerciseName
+        ORDER BY exerciseName ASC
+    """)
+    suspend fun getExerciseSessionCounts(): List<ExerciseSessionCount>
 
     @Query("""
         SELECT s.dateMs AS dateMs, MAX(ws.weightKg) AS maxWeight, ws.reps AS bestReps

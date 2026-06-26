@@ -25,7 +25,9 @@ class ProfileFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: ProfileViewModel by viewModels()
 
-    private var achievementsExpanded = true
+    // B04: always start collapsed every time the Profile screen is opened.
+    // Reset in onViewCreated so a reused fragment instance never restores a prior open state.
+    private var achievementsExpanded = false
 
     // How many locked "shadow" achievements to tease below the unlocked ones
     private val shadowCount = 3
@@ -46,6 +48,10 @@ class ProfileFragment : Fragment() {
             if (findNavController().currentDestination?.id == R.id.profileFragment)
                 findNavController().navigate(R.id.action_profile_to_xp_log)
         }
+        // B04: force the achievements list collapsed on every open (do not restore prior state).
+        achievementsExpanded = false
+        binding.layoutAchievements.visibility = View.GONE
+        binding.tvAchievementsChevron.text = "▸"
         binding.headerAchievements.setOnClickListener { toggleAchievements() }
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

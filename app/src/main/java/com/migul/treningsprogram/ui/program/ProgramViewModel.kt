@@ -261,14 +261,19 @@ class ProgramViewModel @Inject constructor(
         }
     }
 
+    /** B08: effective rest-day/count selection for generation (rest-day mode vs count fallback). */
+    private fun effectiveSelection() =
+        com.migul.treningsprogram.domain.TrainingDaySelection.effective(
+            prefsManager.restDaysCsv, prefsManager.daysPerWeek
+        )
+
     /**
-     * E2: regenerate the ENTIRE active program for this week through the deload-aware generation
-     * path (L1 + M2). This is the reachable on-demand trigger: it computes the stall-triggered
-     * deload decision (reusing B3's StallDetector via the repository), conveys the mesocycle /
-     * deload context to the model, replaces this week's plan, and persists the deload flag so the
-     * Home/Program deload indicators update. Mirrors MainActivity's weekly auto-generation.
+     * B09: the DEFAULT Program-tab "regenerate" action. Preserves every day that has ≥1 logged
+     * exercise (kept exactly as-is, including its logged rows) and regenerates every other day,
+     * feeding the already-trained days to the AI as fixed context so it rebalances around them.
+     * Never deletes logged sets/history (only planned_exercises for non-logged days are replaced).
      */
-    fun regenerateFullProgram(equipment: List<String>, equipmentNotes: String) {
+    fun regeneratePreservingLoggedDays(equipment: List<String>, equipmentNotes: String) {
         if (prefsManager.apiKey.isBlank()) {
             _dayGenerationError.value = "Set your API key in Profile → Settings first."
             return
@@ -277,38 +282,21 @@ class ProgramViewModel @Inject constructor(
             _isDayGenerating.value = true
             _dayGenerationError.value = null
             val monday = thisMonday()
-            val active = workoutRepository.ensureActiveProgramId().let {
-                workoutRepository.getActiveProgramOnce()
-            }
-            val stalledLifts = workoutRepository.computeStalledLifts()
-            // Deload is a once-per-WEEK state machine: a deload week is exactly one week, and the
-            // NEXT week clears it (nextDeloadState's "if currentlyDeloading → exit"). That EXIT is
-            // meant to fire on a week TRANSITION, not on a re-generation of the same week. A manual
-            // "Regenerate program now" tapped again INSIDE an active deload week was re-running the
-            // exit branch and silently dropping the deload mid-week. Guard only that exit: when we
-            // are already deloading AND merely replacing this same week's existing plan, KEEP the
-            // deload. Entering a deload (stalls newly reached) still works normally, and the auto-gen
-            // path (which only ever runs on an empty/new week) is unaffected.
-            val replacingCurrentWeek =
-                workoutRepository.getActiveProgramPlanForWeek(monday).isNotEmpty()
-            val isDeload = com.migul.treningsprogram.domain.DeloadPolicy.nextDeloadStateForRegen(
-                currentlyDeloading = active?.isDeloadActive ?: false,
-                stalledCount = stalledLifts.size,
-                replacingCurrentWeek = replacingCurrentWeek
-            )
-            val mesocycle = active?.let { p ->
-                com.migul.treningsprogram.data.repository.MesocycleContext(
-                    mesocycleWeeks = p.mesocycleWeeks,
-                    weekInBlock = workoutRepository.weekInBlock(p, monday),
-                    isDeload = isDeload,
-                    stalledLifts = stalledLifts
-                )
-            } ?: com.migul.treningsprogram.data.repository.MesocycleContext(
-                isDeload = isDeload, stalledLifts = stalledLifts
-            )
+            val currentPlan = weekPlan.value
+            val loggedDays = com.migul.treningsprogram.domain.RegeneratePlanner.loggedDays(currentPlan)
+            val lockedExercises = com.migul.treningsprogram.domain.RegeneratePlanner.lockedExercises(currentPlan)
+            val eff = effectiveSelection()
 
+            if (com.migul.treningsprogram.domain.RegeneratePlanner.nothingToRegenerate(loggedDays.size, eff.daysPerWeek)) {
+                _dayGenerationError.value =
+                    "All ${eff.daysPerWeek} of this week's training days are already logged — nothing to regenerate."
+                _isDayGenerating.value = false
+                return@launch
+            }
+
+            val mesocycle = workoutRepository.buildRegenMesocycle(monday)
             aiRepository.generateAdaptedProgram(
-                daysPerWeek = prefsManager.daysPerWeek,
+                daysPerWeek = eff.daysPerWeek,
                 goal = prefsManager.fitnessGoal,
                 experience = prefsManager.experienceLevel,
                 sessionDurationMinutes = prefsManager.sessionDurationMinutes,
@@ -321,13 +309,16 @@ class ProgramViewModel @Inject constructor(
                 dislikedExercises = prefsManager.dislikedExercises,
                 onboardingContext = prefsManager.onboardingContext,
                 mesocycle = mesocycle,
+                restDays = eff.restDays,
+                lockedExercises = lockedExercises,
                 onProgress = { _dayGenerationStatus.value = it }
             ).onSuccess { generationResult ->
-                workoutRepository.savePlan(
+                workoutRepository.savePlanPreservingLoggedDays(
                     monday,
-                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
+                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) },
+                    loggedDays
                 )
-                workoutRepository.setActiveDeload(isDeload)
+                workoutRepository.setActiveDeload(mesocycle.isDeload)
                 _dayGenerationStatus.value = ""
             }.onFailure { e ->
                 _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)

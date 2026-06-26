@@ -201,6 +201,43 @@ internal fun extractJsonOrThrow(text: String): String {
     throw IllegalStateException("No JSON found in AI response")
 }
 
+// ── B10: non-throwing extraction + truncation detection ──────────────────────────────────────────
+//
+// The generation loop must treat a no-JSON / truncated / unparseable response as a REJECTED ATTEMPT
+// that retries (the same path quality/duration rejections take), NOT as a thrown error that escapes
+// the loop and strands the user with a stall. These pure helpers are the non-throwing seam for that:
+// they classify the response so the loop can decide retry-vs-accept without try/catch around control
+// flow. Kept package-level (like the S3/F3 helpers) so they are unit-testable without an instance.
+
+/**
+ * Like [extractJsonOrThrow] but returns null instead of throwing when no JSON object can be found.
+ * The loop uses this so a prose-only / JSON-free response becomes a retryable rejection rather than
+ * an exception that escapes the per-attempt loop.
+ */
+internal fun extractJsonOrNull(text: String): String? =
+    runCatching { extractJsonOrThrow(text) }.getOrNull()
+
+/**
+ * Heuristically detects a TRUNCATED / cut-off AI response — one that ran out of room before the JSON
+ * was completed. Two independent signals, either of which flags truncation:
+ *  1. [stopReason] == "max_tokens" — the API itself says it stopped at the output-token cap. This is
+ *     authoritative and catches the worst case (a wall of planning prose that never reached the JSON,
+ *     so [text] contains no `{` at all).
+ *  2. JSON STARTED BUT NEVER CLOSED — the (fence-stripped) body has an opening `{` but no brace-balanced
+ *     span (string/escape aware). That means the object began and was cut off mid-way; the API flag
+ *     may be absent (older payloads, proxies) so this is the structural backstop.
+ *
+ * A response with NO `{` at all and stopReason != "max_tokens" is classified as "no JSON" (handled by
+ * [extractJsonOrNull] returning null), not as "truncated" — the distinction only affects the message
+ * shown; both are retryable.
+ */
+internal fun isLikelyTruncated(text: String, stopReason: String?): Boolean {
+    if (stopReason == "max_tokens") return true
+    val body = stripJsonFences(text)
+    val opened = body.indexOf('{') >= 0
+    return opened && balancedJsonSpan(body) == null
+}
+
 // Onboarding question JSON model
 private data class OQJson(
     val id: String = "",
@@ -395,8 +432,17 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         dislikedExercises: String = "",
         onboardingContext: String = "",
         mesocycle: MesocycleContext = MesocycleContext.NONE,
+        // B08: explicit REST weekdays (1=Mon…7=Sun). Non-empty ⇒ the plan must train on EXACTLY the
+        // complement of these and never on a rest day (deterministically enforced below). Empty ⇒
+        // count mode (the AI chooses which days are rest, pre-B08 behaviour).
+        restDays: Set<Int> = emptySet(),
+        // B09: days already trained THIS week, passed as fixed context so the model reproduces them
+        // and rebalances the regenerated days around them. The loop never lets these be rejected on a
+        // duration miss (we keep the real logged rows and discard the model's echo of these days).
+        lockedExercises: List<PlannedExercise> = emptyList(),
         onProgress: (String) -> Unit = {}
     ): Result<GenerationResult> = runCatching {
+        val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
         val previousPlan = buildPreviousPlanContext()
@@ -416,16 +462,55 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 sessionDurationMinutes, equipment, equipmentNotes,
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
-                previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle
+                previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle,
+                restDays, lockedExercises
             )
-            val responseText = withAiRetry {
+            val response = withAiRetry {
                 claudeApi.sendMessage(
                     ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-                ).text()
+                )
             }
+            val responseText = response.text()
             promptLog.add("generate_attempt_$attempt", prompt, responseText)
-            val cleanJson = extractJson(responseText)
-            val exercises = parseProgram(cleanJson)
+
+            // ── B10: no-JSON / truncated / unparseable response → RETRYABLE rejection ──────────────
+            // Previously extractJson(responseText) called extractJsonOrThrow, which THROWS on a
+            // prose-only / cut-off response. That throw escaped this loop (it is inside the for-loop
+            // but not inside any try/catch) and propagated out of generateAdaptedProgram's runCatching
+            // as Result.failure — but WITHOUT ever recording an attempt or retrying, unlike a quality
+            // rejection which stays in the loop. Result: the model emitting planning prose that ran out
+            // of room before the JSON would STALL (no plan, no retry). Now such a response is handled
+            // EXACTLY like a quality/duration rejection: a reason is recorded, the loop retries, and
+            // only after MAX_GENERATION_ATTEMPTS does it surface the same clear onFailure error.
+            val cleanJson = extractJsonOrNull(responseText)
+            // parseProgram can still throw on a residual-but-malformed span (gson) — keep that inside
+            // the loop too, so it becomes a rejected attempt rather than an escape.
+            val exercises = cleanJson?.let { runCatching { parseProgram(it) }.getOrNull() }
+            if (cleanJson == null || exercises == null) {
+                val truncated = isLikelyTruncated(responseText, response.stopReason)
+                val parseRejectionReason = when {
+                    truncated ->
+                        "The response was cut off before a complete plan was produced (ran out of room). " +
+                            "Lead with the JSON plan — keep any reasoning brief so the JSON is fully emitted."
+                    cleanJson == null ->
+                        "No usable JSON plan was found in the response. " +
+                            "Return the JSON object (the {\"rationale\": …, \"days\": […]} plan), not only prose."
+                    else ->
+                        "The JSON plan could not be parsed. " +
+                            "Return a single valid JSON object matching the required shape."
+                }
+                rejectionReasons.add(parseRejectionReason)
+                onProgress("Attempt $attempt rejected: $parseRejectionReason")
+                if (attempt == MAX_GENERATION_ATTEMPTS) {
+                    val logAttempts = rejectionReasons.mapIndexed { i, r ->
+                        RejectionLog.Attempt(i + 1, r, i == rejectionReasons.lastIndex)
+                    }
+                    rejectionLog.addSession(logAttempts, succeeded = false)
+                    val reasons = rejectionReasons.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
+                    throw IllegalStateException("Program rejected after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
+                }
+                continue
+            }
 
             // An empty/no-exercise plan (well-formed JSON but {"days":[]} or all-empty days) would
             // otherwise pass the duration check vacuously and could be SAVED as an empty plan — that
@@ -435,12 +520,25 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 "The plan contained no exercises. Produce $daysPerWeek full training days with exercises."
             else ""
 
+            // ── B08: deterministic REST-DAY check (HARD) ─────────────────────────
+            // In rest-day mode the user pinned specific rest weekdays; the plan must train on EXACTLY
+            // their complement. Reject (retryable, inside the loop) any plan that schedules training
+            // on a rest day OR omits a required training day. Empty restDays ⇒ count mode ⇒ no check.
+            // B09: locked (already-logged) days are exempt — they are preserved regardless of the
+            // rest-day setting (e.g. a day trained before it was marked a rest day).
+            val restDayReason = com.migul.treningsprogram.domain.TrainingDaySelection.scheduleViolation(
+                exercises.map { it.dayOfWeek }.toSet(), restDays, lockedDays
+            ) ?: ""
+
             // ── Deterministic ±10 min duration check (AUTHORITATIVE) ──────────────
             // Each training day must estimate within ±10 min of the session target,
             // using the SAME time-estimate formula the Program screen shows.
+            // B09: locked (already-logged) days are SKIPPED — we keep the real logged rows and discard
+            // the model's echo of them, so a duration miss on a day we won't persist must not reject.
             val durationReason = exercises
                 .groupBy { it.dayOfWeek }
                 .toSortedMap()
+                .filterKeys { it !in lockedDays }
                 .mapNotNull { (day, dayExercises) ->
                     val est = WorkoutTimeEstimator.estimateDayMinutes(dayExercises)
                     if (est < sessionDurationMinutes - 10 || est > sessionDurationMinutes + 10) {
@@ -451,13 +549,23 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 }
                 .joinToString(" ")
 
-            // Skip the (costly) LLM review when the plan is already empty — it can never be accepted.
-            val validation = if (emptyPlanReason.isEmpty()) {
+            // Deterministic (Kotlin) rejections, in priority order: empty plan, B08 rest-day violation,
+            // then the ±10-min duration miss. Any of these makes the plan un-acceptable regardless of
+            // the LLM review, so we surface the most critical one AND skip the costly review when set.
+            val deterministicReason = when {
+                emptyPlanReason.isNotEmpty() -> emptyPlanReason
+                restDayReason.isNotEmpty() -> restDayReason
+                durationReason.isNotEmpty() -> durationReason
+                else -> ""
+            }
+            // Skip the (costly) LLM review when a deterministic check already failed — it can never
+            // be accepted anyway.
+            val validation = if (deterministicReason.isEmpty()) {
                 onProgress("Reviewing plan for quality…")
                 validateProgram(cleanJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
-            } else ValidationResult(accepted = false, reason = emptyPlanReason)
-            // A plan is accepted only when it has exercises AND the duration check AND the LLM review pass.
-            if (emptyPlanReason.isEmpty() && durationReason.isEmpty() && validation.accepted) {
+            } else ValidationResult(accepted = false, reason = deterministicReason)
+            // A plan is accepted only when every deterministic check AND the LLM review pass.
+            if (deterministicReason.isEmpty() && validation.accepted) {
                 val logAttempts = rejectionReasons.mapIndexed { i, r ->
                     RejectionLog.Attempt(i + 1, r, false)
                 }
@@ -466,13 +574,8 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 val rationale = parseRationale(cleanJson)
                 return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
             }
-            // Prefer the empty-plan reason, then the deterministic duration reason (it names the
-            // offending day(s)); fall back to the LLM validator reason when those are clear.
-            val rejectionReason = when {
-                emptyPlanReason.isNotEmpty() -> emptyPlanReason
-                durationReason.isNotEmpty() -> durationReason
-                else -> validation.reason
-            }
+            // Prefer the named deterministic reason; fall back to the LLM validator reason.
+            val rejectionReason = deterministicReason.ifEmpty { validation.reason }
             rejectionReasons.add(rejectionReason)
             onProgress("Attempt $attempt rejected: $rejectionReason")
             if (attempt == MAX_GENERATION_ATTEMPTS) {
@@ -710,9 +813,16 @@ OR
         recentExercises: Set<String> = emptySet(),
         variationTheme: String = "",
         splitSuggestion: String = "",
-        mesocycle: MesocycleContext = MesocycleContext.NONE
+        mesocycle: MesocycleContext = MesocycleContext.NONE,
+        restDays: Set<Int> = emptySet(),
+        lockedExercises: List<PlannedExercise> = emptyList()
     ): String {
         val goalLower = goal.lowercase()
+        // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
+        val restDayBlock = buildRestDayBlock(restDays)
+        // B09: already-trained days this week, fed back as fixed context so the model reproduces them
+        // and rebalances the regenerated days around them.
+        val lockedDaysBlock = buildLockedDaysBlock(lockedExercises)
         // E2: mesocycle / deload awareness block (L1 + M2). Empty for plain programs (no block,
         // no deload) so non-block users get the exact pre-E2 prompt.
         val mesocycleBlock = buildMesocycleBlock(mesocycle)
@@ -852,7 +962,7 @@ CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilate
 You are an expert strength & conditioning coach. Design a $daysPerWeek-day weekly training program tailored to the user below.
 
 CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic. A good coach rotates exercises every single week — the same muscle can be trained with completely different exercises each week.
-$safetyBlock$injuryHardBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock
+$safetyBlock$injuryHardBlock$restDayBlock$lockedDaysBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock
 ══════════════════════════════════════════
 WORKOUT HISTORY
 ══════════════════════════════════════════
@@ -1005,6 +1115,7 @@ SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
 OUTPUT — valid JSON only, no prose, no markdown fences
 ══════════════════════════════════════════
+Do your reasoning silently (or fold it into the "rationale" field below) — do NOT write a long visible planning preamble before the JSON. Your FIRST output character must be the opening "{" of the JSON object, and you must emit the ENTIRE object through its closing "}" in one go. A response that runs out of room before the JSON is complete cannot be used.
 ALSO include a top-level "rationale" string (a sibling of "days"): a concise, plain-language explanation (2–4 sentences) of WHAT changed in this plan versus the user's recent training / last week's plan and WHY — your own coaching reasoning, referencing the ACTUAL exercises and changes in the plan you just produced (e.g. "Added posterior-chain volume because your hamstrings lagged; swapped barbell bench for dumbbell to ease the flagged shoulder; bumped squat load after three progressing sessions."). Speak directly to the user, no jargon. If there is no meaningful history to compare against (new user), briefly explain how the plan was built for their goal instead.
 {
   "rationale": "Short plain-language explanation of what changed in this plan and why.",
@@ -1026,8 +1137,60 @@ ALSO include a top-level "rationale" string (a sibling of "days"): a concise, pl
   ]
 }
 
-dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optimally across the week.
+dayOfWeek: 1=Monday … 7=Sunday. ${
+            if (restDays.isNotEmpty())
+                "Output training on EXACTLY these weekdays: ${com.migul.treningsprogram.domain.TrainingDaySelection.dayNames(com.migul.treningsprogram.domain.TrainingDaySelection.trainingDaysFrom(restDays))} — one day object per training weekday, and NEVER a day object on a rest day (${com.migul.treningsprogram.domain.TrainingDaySelection.dayNames(restDays)})."
+            else
+                "Output exactly $daysPerWeek days, spaced optimally across the week."
+        }
         """.trimIndent()
+    }
+
+    /**
+     * B08: the FIXED-SCHEDULE directive when the user pinned specific rest days. Empty when no rest
+     * days are pinned (count mode ⇒ byte-for-byte the pre-B08 prompt). The deterministic Kotlin check
+     * in [generateAdaptedProgram] is authoritative; this just steers the model to comply first time.
+     */
+    private fun buildRestDayBlock(restDays: Set<Int>): String {
+        if (restDays.isEmpty()) return ""
+        val training = com.migul.treningsprogram.domain.TrainingDaySelection.trainingDaysFrom(restDays)
+        return """
+
+══════════════════════════════════════════
+FIXED WEEKLY SCHEDULE — HARD (override day-placement choices)
+══════════════════════════════════════════
+The user has chosen specific REST days. You MUST train ONLY on the remaining weekdays:
+- TRAINING days (one day object each, these exact dayOfWeek values): ${com.migul.treningsprogram.domain.TrainingDaySelection.dayNames(training)}
+- REST days (NO day object, NO training): ${com.migul.treningsprogram.domain.TrainingDaySelection.dayNames(restDays)}
+Produce exactly ${training.size} training days, one per listed training weekday. Never place a workout on a rest day. Distribute muscle groups/recovery across the available training days.
+"""
+    }
+
+    /**
+     * B09: the ALREADY-TRAINED (locked) days block for a preserve-logged regeneration. Lists each
+     * logged day's exercises and instructs the model to reproduce those days verbatim and rebalance
+     * the OTHER training days around them. Empty when nothing is locked (a fresh full generation).
+     */
+    private fun buildLockedDaysBlock(lockedExercises: List<PlannedExercise>): String {
+        if (lockedExercises.isEmpty()) return ""
+        val byDay = lockedExercises.groupBy { it.dayOfWeek }.toSortedMap()
+        val lines = byDay.entries.joinToString("\n") { (day, exs) ->
+            val label = com.migul.treningsprogram.domain.TrainingDaySelection.dayName(day)
+            val items = exs.sortedBy { it.orderInDay }.joinToString(", ") { e ->
+                val w = if (e.targetWeightKg > 0f) " @${e.targetWeightKg}kg" else ""
+                "${e.exerciseName} ${e.sets}×${e.targetReps}$w"
+            }
+            "  $label: $items"
+        }
+        return """
+
+══════════════════════════════════════════
+ALREADY TRAINED THIS WEEK — FIXED, DO NOT CHANGE THESE DAYS
+══════════════════════════════════════════
+The user has already trained these days this week. Reproduce them EXACTLY (same dayOfWeek, same exercises) in your output, and design EVERY OTHER training day around them:
+$lines
+Rebalance the remaining days against this already-trained work: manage recovery (don't put the same primary muscle the day before/after a fixed day), spread weekly volume accounting for what was already done, and do NOT repeat the fixed days' exercises elsewhere this week.
+"""
     }
 
     suspend fun generateSingleDayProgram(
@@ -1135,14 +1298,25 @@ dayOfWeek: 1=Monday … 7=Sunday. Output exactly $daysPerWeek days, spaced optim
             appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":90}]}]}""")
         }
 
-        val responseText = withAiRetry {
+        val response = withAiRetry {
             claudeApi.sendMessage(
                 ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            ).text()
+            )
         }
+        val responseText = response.text()
         promptLog.add("single_day_${dayName.lowercase()}", prompt, responseText)
 
-        val cleanJson = extractJson(responseText)
+        // B10: this single-attempt path has no retry loop, so a no-JSON / truncated response surfaces
+        // via its own onFailure (a clear error, not a stall). Use the non-throwing extractor + the
+        // shared truncation signal so the message tells the user WHY it failed (cut off vs no JSON)
+        // rather than a generic "No JSON found". B08/B09 build on this same hardened seam.
+        val cleanJson = extractJsonOrNull(responseText)
+            ?: throw IllegalStateException(
+                if (isLikelyTruncated(responseText, response.stopReason))
+                    "Couldn't generate $dayName — the response was cut off before a plan was produced. Please try again."
+                else
+                    "Couldn't generate a valid plan for $dayName. Please try again."
+            )
         val exercises = parseProgram(cleanJson).filter { it.dayOfWeek == dayOfWeek }
         if (exercises.isEmpty()) throw IllegalStateException("No exercises returned for $dayName")
         // Re-stamp correct weekStart (parseProgram calls thisMonday() internally)

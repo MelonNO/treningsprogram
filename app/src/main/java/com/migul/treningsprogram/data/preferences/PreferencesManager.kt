@@ -65,6 +65,19 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_SEPARATE_CARDIO_DAYS, false)
         set(value) { prefs.edit().putBoolean(KEY_SEPARATE_CARDIO_DAYS, value).apply() }
 
+    // B08: day-selection mode is encoded entirely by this CSV of REST weekday ints (1=Mon … 7=Sun).
+    //  - NON-BLANK (e.g. "6,7") ⇒ REST-DAY mode: the user picked these as rest days; training is
+    //    planned on the remaining weekdays and days/week is DERIVED (7 − rest days).
+    //  - BLANK ("") ⇒ COUNT mode: the user picks a NUMBER of training days ([daysPerWeek]) and the
+    //    AI chooses which days are rest (the pre-B08 behaviour).
+    //
+    // Keying the mode off this one value makes the migration safe with no extra flag: an EXISTING
+    // user (who never set rest days) has a blank CSV ⇒ stays in count mode with their saved
+    // [daysPerWeek] until they opt in. A new user picks rest days in setup ⇒ non-blank ⇒ rest mode.
+    var restDaysCsv: String
+        get() = prefs.getString(KEY_REST_DAYS, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_REST_DAYS, value).apply() }
+
     // B1: ISO-week key of the last week an automatic weekly coach summary was generated.
     // Guards the once-per-week trigger (mirrors lastAutoGenerateWeek for plan generation).
     var lastWeeklySummaryWeek: String
@@ -138,6 +151,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_GYM_PRESET = "selected_gym_preset_id"
         private const val KEY_LAST_AUTO_GENERATE_WEEK = "last_auto_generate_week"
         private const val KEY_SEPARATE_CARDIO_DAYS = "separate_cardio_days"
+        private const val KEY_REST_DAYS = "rest_days_csv"
         private const val KEY_LAST_WEEKLY_SUMMARY_WEEK = "last_weekly_summary_week"
         private const val KEY_LAST_GEN_ATTEMPTS = "last_generation_attempt_count"
         private const val KEY_ONBOARDING_DONE = "onboarding_completed"

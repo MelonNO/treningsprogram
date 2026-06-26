@@ -20,3 +20,6 @@ tkn
 *.key
 *.token
 .claude/
+
+# Kotlin build artifacts (not source)
+.kotlin/

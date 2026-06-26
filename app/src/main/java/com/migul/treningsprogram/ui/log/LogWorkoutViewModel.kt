@@ -273,6 +273,35 @@ class LogWorkoutViewModel @Inject constructor(
             return list.mapIndexed { i, ex -> if (ex.orderInDay != i) ex.copy(orderInDay = i) else ex }
         }
 
+        /**
+         * B02 — resolves the weight to pre-fill when an exercise becomes current, with NO
+         * cross-exercise bleed. Returns the weight to show, or null meaning "clear the field
+         * → show empty/BW". The previous exercise's value is never an input here, so a fresh
+         * bodyweight exercise (no saved draft, no own history, no AI target) resolves to null
+         * → "BW" instead of inheriting whatever was last typed in the field.
+         *
+         * Priority (highest first):
+         *  1. [savedDraftWeight] — value the user typed for THIS exercise but hasn't logged
+         *     yet (draft restore must survive — never override it).
+         *  2. [ownLastLoggedWeight] — THIS exercise's own most recent logged weight. Preserves
+         *     legitimately added weight on bodyweight work (weighted pull-ups/dips). May be
+         *     null on the synchronous first pass before the DB lookup completes.
+         *  3. [aiTargetWeightKg] — the planned/AI suggestion, used only when > 0.
+         *  4. else null → fresh bodyweight default, shown as empty/"BW".
+         *
+         * Pure so it is unit-testable off-device.
+         */
+        fun resolveWeightDefault(
+            savedDraftWeight: Float?,
+            ownLastLoggedWeight: Float?,
+            aiTargetWeightKg: Float
+        ): Float? = when {
+            savedDraftWeight != null      -> savedDraftWeight
+            ownLastLoggedWeight != null   -> ownLastLoggedWeight
+            aiTargetWeightKg > 0f         -> aiTargetWeightKg
+            else                          -> null
+        }
+
         fun resumeIndexFor(plan: List<PlannedExercise>, loggedSets: List<WorkoutSet>): Int {
             if (plan.isEmpty()) return 0
             if (loggedSets.isEmpty()) return 0

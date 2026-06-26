@@ -156,10 +156,13 @@ class LogWorkoutFragment : Fragment() {
         binding.btnTimerRecall.setOnClickListener { openTimerRecall() }
         binding.btnPauseWorkout.setOnClickListener { showPauseDialog() }
 
-        // Item 6 — tap the "Exercise X / Y" progress bar to open the quick-access menu
-        val openQuickAccess = View.OnClickListener { if (!freestyleMode) showQuickAccessMenu() }
-        binding.tvExerciseCounter.setOnClickListener(openQuickAccess)
-        binding.progressSession.setOnClickListener(openQuickAccess)
+        // Item 6 / B01 — tap the "Exercise X / Y" progress region to open the quick-access menu.
+        // The listener is on the whole header container (layout_session_progress) so the tap
+        // target is the entire counter row + bar area, not just the thin bar or narrow label.
+        // The pause button is a child that consumes its own taps, so it is unaffected.
+        binding.layoutSessionProgress.setOnClickListener {
+            if (!freestyleMode) showQuickAccessMenu()
+        }
 
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,
             object : androidx.activity.OnBackPressedCallback(true) {
@@ -212,6 +215,8 @@ class LogWorkoutFragment : Fragment() {
                                 freestyleMode = true
                                 binding.tvExerciseCounter.text = "Free Session"
                                 binding.progressSession.visibility = View.GONE
+                                // No jump menu in freestyle: drop the ripple/click on the header.
+                                binding.layoutSessionProgress.isClickable = false
                                 binding.btnNextExercise.text = "Complete"
                                 binding.btnPrevExercise.visibility = View.GONE
                                 binding.tilFreestyleExercise.visibility = View.VISIBLE
@@ -223,6 +228,7 @@ class LogWorkoutFragment : Fragment() {
                                 freestyleMode = false
                                 binding.tilFreestyleExercise.visibility = View.GONE
                                 binding.progressSession.visibility = View.VISIBLE
+                                binding.layoutSessionProgress.isClickable = true
                                 binding.btnPrevExercise.visibility = View.VISIBLE
                             }
                         }
@@ -377,13 +383,18 @@ class LogWorkoutFragment : Fragment() {
                 ColorStateList.valueOf(Color.parseColor(color))
         } catch (_: Exception) {}
 
-        // Set weight: saved value > AI suggestion (last actual checked async below)
+        // Set weight (B02): saved draft > own last-logged (async, below) > AI suggestion > BW.
+        // Resolve synchronously WITHOUT the previous exercise's value as an input so a fresh
+        // bodyweight exercise clears the field (→ "BW" hint) instead of inheriting the weight
+        // that was sitting in the field from the previously viewed exercise. The own last-logged
+        // weight isn't known yet on this pass; the async block below re-resolves with it.
         val savedWeight = viewModel.getSavedWeight(exercise.exerciseName)
-        if (savedWeight != null) {
-            binding.etWeight.setText(formatWeight(savedWeight))
-        } else if (exercise.targetWeightKg > 0f) {
-            binding.etWeight.setText(formatWeight(exercise.targetWeightKg))
-        }
+        val syncWeight = LogWorkoutViewModel.resolveWeightDefault(
+            savedDraftWeight = savedWeight,
+            ownLastLoggedWeight = null,
+            aiTargetWeightKg = exercise.targetWeightKg
+        )
+        binding.etWeight.setText(syncWeight?.let { formatWeight(it) } ?: "")
 
         // Set reps: saved value > AI suggestion
         val savedReps = viewModel.getSavedReps(exercise.exerciseName)
@@ -401,10 +412,16 @@ class LogWorkoutFragment : Fragment() {
                 val summary = lastSets.joinToString("  •  ") { "S${it.setNumber}: ${it.reps} reps @ ${formatWeight(it.weightKg)}kg" }
                 binding.tvLastSession.text = "Last: $summary"
                 binding.tvLastSession.visibility = View.VISIBLE
-                // Prefill from last session only if user hasn't entered their own value yet
-                if (viewModel.getSavedWeight(exercise.exerciseName) == null) {
-                    binding.etWeight.setText(formatWeight(lastSets.last().weightKg))
-                }
+                // B02: re-resolve now that this exercise's OWN last-logged weight is known.
+                // saved draft still wins (draft-restore preserved); otherwise the exercise's
+                // own last weight prefills — including legitimate added weight on bodyweight
+                // work. This is its OWN history, never the previous exercise's value.
+                val resolved = LogWorkoutViewModel.resolveWeightDefault(
+                    savedDraftWeight = viewModel.getSavedWeight(exercise.exerciseName),
+                    ownLastLoggedWeight = lastSets.last().weightKg,
+                    aiTargetWeightKg = exercise.targetWeightKg
+                )
+                binding.etWeight.setText(resolved?.let { formatWeight(it) } ?: "")
             } else {
                 binding.tvLastSession.visibility = View.GONE
             }

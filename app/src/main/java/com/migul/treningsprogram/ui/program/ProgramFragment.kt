@@ -731,8 +731,10 @@ class ProgramFragment : Fragment() {
         val active = viewModel.activeProgram.value ?: return
         val options = mutableListOf<String>()
         options.add("Rename")
-        // E2: full deload-aware regeneration (the reachable stall→deload trigger).
-        options.add("Regenerate program now")
+        // B09: the default regenerate now PRESERVES days you've already logged and only rebuilds the
+        // rest of the week (rebalanced around your logged work). Full fresh-week regen lives in
+        // Settings → AI & Program.
+        options.add("Regenerate (keep logged days)")
         // Mesocycle toggle.
         options.add(if (active.mesocycleWeeks > 0) "Turn off mesocycle block" else "Make a mesocycle block")
         // Frozen toggle (assumption N).
@@ -744,9 +746,9 @@ class ProgramFragment : Fragment() {
             .setItems(options.toTypedArray()) { _, which ->
                 when (options[which]) {
                     "Rename" -> showRenameProgramDialog(active)
-                    "Regenerate program now" -> {
+                    "Regenerate (keep logged days)" -> {
                         val presetId = viewModel.currentPresetId
-                        viewModel.regenerateFullProgram(
+                        viewModel.regeneratePreservingLoggedDays(
                             equipment = viewModel.getEquipmentForPreset(presetId),
                             equipmentNotes = viewModel.getNotesForPreset(presetId)
                         )

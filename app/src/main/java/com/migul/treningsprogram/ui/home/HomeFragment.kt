@@ -410,7 +410,9 @@ class HomeFragment : Fragment() {
                 // Tap: navigate to the last session that trained this muscle
                 setOnClickListener {
                     if (!isAdded || _binding == null) return@setOnClickListener
-                    recapTarget.request(item.lastSessionId)
+                    // B06: pass the tapped fine-muscle label so Recap highlights the
+                    // exercise(s) in that session that drove this muscle's fatigue.
+                    recapTarget.request(item.lastSessionId, highlightMuscle = item.muscleLabel)
                     requireActivity()
                         .findViewById<BottomNavigationView>(R.id.bottom_nav)
                         ?.selectedItemId = R.id.historyFragment

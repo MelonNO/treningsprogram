@@ -19,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.databinding.FragmentSetupWizardBinding
+import com.migul.treningsprogram.domain.TrainingDaySelection
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import android.widget.LinearLayout
@@ -127,6 +128,12 @@ class SetupWizardFragment : Fragment() {
             }
         }
 
+        // B08: day-selection mode. Default (switch OFF) = pick rest days; ON = pick a number of days
+        // and let the AI choose which are rest. Toggle which control is shown + keep the hint live.
+        binding.switchLetAiChooseDays.setOnCheckedChangeListener { _, _ -> updateDayModeUi() }
+        binding.chipGroupRestDays.setOnCheckedStateChangeListener { _, _ -> updateTrainingDaysHint() }
+        updateDayModeUi()
+
         // Severity selector: reveal only while injuries field is non-blank
         binding.etWizardInjuries.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -220,6 +227,38 @@ class SetupWizardFragment : Fragment() {
                 }
             }
         }
+    }
+
+    // ── B08: day-selection mode ─────────────────────────────────────────────────────────────────
+
+    /** True when the user is choosing specific rest days (switch OFF, the default mode). */
+    private fun isRestDayMode(): Boolean = !binding.switchLetAiChooseDays.isChecked
+
+    /** Rest weekdays currently selected (1=Mon … 7=Sun). */
+    private fun selectedRestDays(): Set<Int> = buildSet {
+        if (binding.chipRest1.isChecked) add(1)
+        if (binding.chipRest2.isChecked) add(2)
+        if (binding.chipRest3.isChecked) add(3)
+        if (binding.chipRest4.isChecked) add(4)
+        if (binding.chipRest5.isChecked) add(5)
+        if (binding.chipRest6.isChecked) add(6)
+        if (binding.chipRest7.isChecked) add(7)
+    }
+
+    private fun updateDayModeUi() {
+        val restMode = isRestDayMode()
+        binding.layoutRestMode.visibility = if (restMode) View.VISIBLE else View.GONE
+        binding.layoutCountMode.visibility = if (restMode) View.GONE else View.VISIBLE
+        if (restMode) updateTrainingDaysHint()
+    }
+
+    private fun updateTrainingDaysHint() {
+        val rest = selectedRestDays()
+        val training = TrainingDaySelection.trainingDaysFrom(rest)
+        binding.tvTrainingDaysHint.text = if (training.isEmpty())
+            "Pick at least one training day (leave a day un-selected)."
+        else
+            "Training ${training.size} day${if (training.size == 1) "" else "s"}/week: ${TrainingDaySelection.dayNames(training)}"
     }
 
     private fun setWizardSeverityVisible(visible: Boolean) {
@@ -387,6 +426,20 @@ class SetupWizardFragment : Fragment() {
                         return
                     }
                     selectedDuration = custom
+                }
+                // B08: persist the day-selection mode. Rest-day mode ⇒ store the chosen rest days and
+                // derive the training-day count; count mode ⇒ clear rest days (selectedDays already
+                // tracked by the count chip group).
+                if (isRestDayMode()) {
+                    val rest = selectedRestDays()
+                    if (rest.size >= 7) {
+                        Snackbar.make(binding.root, "Pick at least one training day (leave one day un-selected).", Snackbar.LENGTH_SHORT).show()
+                        return
+                    }
+                    viewModel.prefs.restDaysCsv = TrainingDaySelection.formatRestDays(rest)
+                    selectedDays = TrainingDaySelection.daysPerWeekFrom(rest)
+                } else {
+                    viewModel.prefs.restDaysCsv = ""
                 }
                 nextStep()
             }

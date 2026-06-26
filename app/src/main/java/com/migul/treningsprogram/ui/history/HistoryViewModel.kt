@@ -95,7 +95,15 @@ class HistoryViewModel @Inject constructor(
     val selectedExercise = MutableStateFlow("")
     val timeWindowMonths = MutableStateFlow(0)
 
-    suspend fun getExerciseNames(): List<String> = workoutRepository.getDistinctExerciseNames()
+    /**
+     * Exercise names for the Progress-tab picker, ordered most-trained-first (B03):
+     * by distinct-session count descending, alpha tie-break. Ordering math is the pure
+     * [com.migul.treningsprogram.domain.ExercisePickerSort] helper (unit-tested).
+     */
+    suspend fun getExerciseNames(): List<String> =
+        com.migul.treningsprogram.domain.ExercisePickerSort.order(
+            workoutRepository.getExerciseSessionCounts()
+        )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val strengthHistory: StateFlow<List<StrengthPoint>> =

@@ -47,6 +47,8 @@ class HistoryRecapFragment : Fragment() {
     private val accent = Color.parseColor("#7C67F5")
     private val up = Color.parseColor("#5CCB7E")     // green — improvement
     private val neutral = Color.parseColor("#9A9AB0") // muted — never red, even for a down day
+    // B06: translucent accent fill for a highlighted "culprit" exercise row (recovery-muscle tap).
+    private val highlightFill = Color.parseColor("#332C5BE6")
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -66,7 +68,8 @@ class HistoryRecapFragment : Fragment() {
         val target = recapTarget.pendingSessionId
         if (target != null && sessions.any { it.id == target }) {
             recapTarget.pendingSessionId = null
-            selectSession(target)
+            // B06: one-shot — only highlight when arriving via a recovery-muscle tap.
+            selectSession(target, highlightMuscle = recapTarget.consumeHighlightMuscle())
         }
     }
 
@@ -92,8 +95,12 @@ class HistoryRecapFragment : Fragment() {
             }
             // Pick the requested session (from an entry point) or default to the latest.
             val requested = recapTarget.pendingSessionId?.also { recapTarget.pendingSessionId = null }
-            val initial = requested?.takeIf { id -> sessions.any { it.id == id } } ?: sessions.first().id
-            selectSession(initial)
+            val matched = requested?.takeIf { id -> sessions.any { it.id == id } }
+            val initial = matched ?: sessions.first().id
+            // B06: one-shot highlight only when this open came from a recovery-muscle tap
+            // (i.e. an explicit requested session was matched), never for the default latest.
+            val highlight = if (matched != null) recapTarget.consumeHighlightMuscle() else null
+            selectSession(initial, highlightMuscle = highlight)
         }
     }
 
@@ -108,10 +115,18 @@ class HistoryRecapFragment : Fragment() {
             val muscles = viewModel.getMuscleRows()
             if (_binding == null) return@launch
             binding.layoutOverview.removeAllViews()
+            // B07: build only the cards that have data; empty ones are skipped (hidden) rather than
+            // showing per-field "log more to see X" copy. The Overview header (and the whole layout)
+            // appears only if at least one overview card is present.
+            val cards = listOfNotNull(
+                buildVolumeOverTimeCard(volume),
+                buildFrequencyCard(frequency),
+                buildMuscleDistributionCard(muscles)
+            )
+            binding.layoutOverview.isVisible = cards.isNotEmpty()
+            if (cards.isEmpty()) return@launch
             binding.layoutOverview.addView(overviewHeader())
-            binding.layoutOverview.addView(buildVolumeOverTimeCard(volume))
-            binding.layoutOverview.addView(buildFrequencyCard(frequency))
-            binding.layoutOverview.addView(buildMuscleDistributionCard(muscles))
+            cards.forEach { binding.layoutOverview.addView(it) }
         }
     }
 
@@ -135,7 +150,9 @@ class HistoryRecapFragment : Fragment() {
         return col
     }
 
-    private fun buildVolumeOverTimeCard(points: List<RecapGraphs.WeekPoint>): View {
+    /** B07: returns null (card hidden) when the chart can't draw (< 2 weekly points). */
+    private fun buildVolumeOverTimeCard(points: List<RecapGraphs.WeekPoint>): View? {
+        if (points.size < 2) return null
         val card = card()
         val col = cardColumn(card)
         col.addView(sectionTitle("Volume over time"))
@@ -143,11 +160,13 @@ class HistoryRecapFragment : Fragment() {
             textSize = 12f
             (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
         })
-        addChartOrEmpty(col, points, label = "sets", emptyMsg = "Log a couple of weeks to see your volume trend.")
+        addChart(col, points, label = "sets")
         return card
     }
 
-    private fun buildFrequencyCard(points: List<RecapGraphs.WeekPoint>): View {
+    /** B07: returns null (card hidden) when the chart can't draw (< 2 weekly points). */
+    private fun buildFrequencyCard(points: List<RecapGraphs.WeekPoint>): View? {
+        if (points.size < 2) return null
         val card = card()
         val col = cardColumn(card)
         col.addView(sectionTitle("Training frequency"))
@@ -155,11 +174,13 @@ class HistoryRecapFragment : Fragment() {
             textSize = 12f
             (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
         })
-        addChartOrEmpty(col, points, label = "sessions", emptyMsg = "Train across at least two weeks to see your frequency.")
+        addChart(col, points, label = "sessions")
         return card
     }
 
-    private fun buildMuscleDistributionCard(rows: List<RecapGraphs.MuscleRow>): View {
+    /** B07: returns null (card hidden) when there is no muscle-group data yet. */
+    private fun buildMuscleDistributionCard(rows: List<RecapGraphs.MuscleRow>): View? {
+        if (rows.isEmpty()) return null
         val card = card()
         val col = cardColumn(card)
         col.addView(sectionTitle("Muscle group distribution"))
@@ -167,10 +188,6 @@ class HistoryRecapFragment : Fragment() {
             textSize = 12f
             (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
         })
-        if (rows.isEmpty()) {
-            col.addView(mutedText("Complete a workout to see which muscle groups you train most."))
-            return card
-        }
         // Categorical data → labelled horizontal bars (clearer than a line chart for categories).
         val maxSets = rows.maxOf { it.sets }.coerceAtLeast(1)
         rows.forEach { (muscle, sets) -> col.addView(muscleBarRow(muscle, sets, maxSets)) }
@@ -212,20 +229,15 @@ class HistoryRecapFragment : Fragment() {
     }
 
     /**
-     * Adds a [StrengthChartView] for [points], or a friendly message when there is too little data.
-     * StrengthChartView itself draws "Not enough data yet" for <2 points, but we show our own
-     * guidance text instead so new users get an actionable hint rather than a chart-internal string.
+     * Adds a [StrengthChartView] for [points]. B07: callers only invoke this when the card has
+     * enough data to draw (>= 2 points), so there is no per-field empty branch here — an empty
+     * card is simply not built (the whole card is hidden instead of showing guidance copy).
      */
-    private fun addChartOrEmpty(
+    private fun addChart(
         col: LinearLayout,
         points: List<RecapGraphs.WeekPoint>,
-        label: String,
-        emptyMsg: String
+        label: String
     ) {
-        if (points.size < 2) {
-            col.addView(mutedText(emptyMsg))
-            return
-        }
         val chart = StrengthChartView(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(168)
@@ -240,10 +252,10 @@ class HistoryRecapFragment : Fragment() {
         col.addView(chart)
     }
 
-    private fun selectSession(sessionId: Long) {
+    private fun selectSession(sessionId: Long, highlightMuscle: String? = null) {
         val idx = sessions.indexOfFirst { it.id == sessionId }.takeIf { it >= 0 } ?: 0
         binding.acSession.setText(sessionLabel(sessions[idx]), false)
-        renderRecap(sessions[idx].id)
+        renderRecap(sessions[idx].id, highlightMuscle)
     }
 
     private fun sessionLabel(s: WorkoutSession): String {
@@ -251,7 +263,7 @@ class HistoryRecapFragment : Fragment() {
         return "${dateFmt.format(Date(s.dateMs))}$dur"
     }
 
-    private fun renderRecap(sessionId: Long) {
+    private fun renderRecap(sessionId: Long, highlightMuscle: String? = null) {
         viewLifecycleOwner.lifecycleScope.launch {
             val recap = viewModel.buildRecap(sessionId)
             if (_binding == null) return@launch
@@ -260,8 +272,12 @@ class HistoryRecapFragment : Fragment() {
                 binding.layoutRecap.addView(mutedText("This session has no logged sets."))
                 return@launch
             }
+            // B06: when arriving via a recovery-muscle tap, work out which exercises in this
+            // session hit the tapped muscle so the deltas section can highlight them.
+            val highlightNames = if (highlightMuscle.isNullOrBlank()) emptySet()
+                else exercisesHittingMuscle(recap.exercises.map { it.exerciseName }, highlightMuscle)
             buildHeader(recap)
-            buildDeltas(recap)
+            val firstHighlightedRow = buildDeltas(recap, highlightNames)
             buildPrs(recap)
             buildMuscleVolume(recap)
             buildEffort(recap)
@@ -269,6 +285,24 @@ class HistoryRecapFragment : Fragment() {
             buildDuration(recap)
             buildPacing(recap)
             buildTotals(recap)
+            // Scroll the first highlighted exercise into view once layout is complete.
+            firstHighlightedRow?.let { scrollRowIntoView(it) }
+        }
+    }
+
+    /** Scrolls the recap's NestedScrollView so [row] is comfortably visible. */
+    private fun scrollRowIntoView(row: View) {
+        row.post {
+            if (_binding == null) return@post
+            val scroll = binding.root as? androidx.core.widget.NestedScrollView ?: return@post
+            // Sum offsets up the view tree to get the row's top within the scroll content.
+            var y = 0
+            var v: View? = row
+            while (v != null && v !== scroll) {
+                y += v.top
+                v = v.parent as? View
+            }
+            scroll.smoothScrollTo(0, (y - dp(12)).coerceAtLeast(0))
         }
     }
 
@@ -295,21 +329,41 @@ class HistoryRecapFragment : Fragment() {
         binding.layoutRecap.addView(card)
     }
 
-    private fun buildDeltas(r: SessionRecap) {
+    /**
+     * Builds the "Vs. last time" card. When [highlightNames] is non-empty (B06: arriving from a
+     * recovery-muscle tap), every matching exercise row is visually highlighted. Returns the first
+     * highlighted row (or null) so the caller can scroll it into view.
+     */
+    private fun buildDeltas(r: SessionRecap, highlightNames: Set<String> = emptySet()): View? {
         val card = card()
         val col = cardColumn(card)
         col.addView(sectionTitle("Vs. last time"))
-        r.exercises.forEach { ex -> col.addView(deltaRow(ex, r)) }
+        var firstHighlighted: View? = null
+        r.exercises.forEach { ex ->
+            val highlighted = ex.exerciseName in highlightNames
+            val row = deltaRow(ex, r, highlighted)
+            if (highlighted && firstHighlighted == null) firstHighlighted = row
+            col.addView(row)
+        }
         binding.layoutRecap.addView(card)
+        return firstHighlighted
     }
 
-    private fun deltaRow(ex: ExerciseRecap, r: SessionRecap): View {
+    private fun deltaRow(ex: ExerciseRecap, r: SessionRecap, highlighted: Boolean = false): View {
         val row = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(8), 0, dp(8))
             isClickable = true
             isFocusable = true
             setOnClickListener { openTrends(ex.exerciseName, r.session.dateMs) }
+        }
+        if (highlighted) {
+            // B06: tint + left accent bar so the muscle's "culprit" exercises stand out.
+            row.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(highlightFill)
+                cornerRadius = dp(8).toFloat()
+            }
+            row.setPadding(dp(10), dp(8), dp(10), dp(8))
         }
         val top = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -613,5 +667,22 @@ class HistoryRecapFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    companion object {
+        /**
+         * B06 (pure, unit-tested): given the exercise names logged in a session and a tapped
+         * fine-grain [muscle] label, returns the subset of names whose [MuscleClassifier.finerMusclesFor]
+         * attribution includes that muscle — i.e. the exercises that drove that muscle's fatigue and
+         * should be highlighted in the session view. Match is case-insensitive on the muscle label;
+         * a blank muscle yields an empty set.
+         */
+        fun exercisesHittingMuscle(exerciseNames: List<String>, muscle: String?): Set<String> {
+            val target = muscle?.trim().orEmpty()
+            if (target.isEmpty()) return emptySet()
+            return exerciseNames.filter { name ->
+                MuscleClassifier.finerMusclesFor(name).any { (label, _) -> label.equals(target, ignoreCase = true) }
+            }.toSet()
+        }
     }
 }

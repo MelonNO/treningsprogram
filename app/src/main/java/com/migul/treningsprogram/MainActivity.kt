@@ -149,6 +149,17 @@ class MainActivity : AppCompatActivity() {
             checkAndGenerateWeeklySummary()
         }
 
+        // B05: clean up leftover downloaded update APKs on launch. Android doesn't reliably signal
+        // install-finished, so we sweep at startup and delete only the app's own
+        // treningsprogram-*.apk files whose version is already installed (or older). An APK carrying
+        // a NEWER version (failed/partial install) is preserved so the user can retry.
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val currentVersion = try {
+                packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
+            } catch (_: Exception) { "0" }
+            ApkCleanup.cleanup(currentVersion)
+        }
+
         lifecycleScope.launch {
             val release = UpdateChecker.fetchLatest()
             val currentVersion = try {
@@ -279,8 +290,14 @@ class MainActivity : AppCompatActivity() {
                 )
             } ?: MesocycleContext(isDeload = isDeload, stalledLifts = stalledLifts)
 
+            // B08: honour pinned rest days (rest-day mode derives days/week; count mode unchanged).
+            // This is the automatic start-of-week generation — B09 leaves its preserve behaviour
+            // untouched; only the day placement now respects the user's chosen rest days.
+            val eff = com.migul.treningsprogram.domain.TrainingDaySelection.effective(
+                prefsManager.restDaysCsv, prefsManager.daysPerWeek
+            )
             val result = aiRepository.generateAdaptedProgram(
-                daysPerWeek = prefsManager.daysPerWeek,
+                daysPerWeek = eff.daysPerWeek,
                 goal = prefsManager.fitnessGoal,
                 experience = prefsManager.experienceLevel,
                 sessionDurationMinutes = prefsManager.sessionDurationMinutes,
@@ -292,7 +309,8 @@ class MainActivity : AppCompatActivity() {
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
                 onboardingContext = prefsManager.onboardingContext,
-                mesocycle = mesocycle
+                mesocycle = mesocycle,
+                restDays = eff.restDays
             )
             result.onSuccess { generationResult ->
                 // B2: stamp the week's rationale onto every row so any row of the week carries it.

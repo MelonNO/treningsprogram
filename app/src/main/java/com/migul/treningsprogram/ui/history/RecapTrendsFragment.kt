@@ -14,6 +14,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.migul.treningsprogram.data.db.dao.StrengthPoint
 import com.migul.treningsprogram.databinding.FragmentRecapTrendsBinding
+import com.migul.treningsprogram.domain.DataScreenEmptyState
 import com.migul.treningsprogram.domain.Epley
 import com.migul.treningsprogram.domain.OneRmTrend
 import dagger.hilt.android.AndroidEntryPoint
@@ -70,6 +71,18 @@ class RecapTrendsFragment : Fragment() {
     private fun render() {
         if (_binding == null) return
 
+        // B07 whole-screen empty state: when this exercise has no recorded history at all, show the
+        // single top-level line and hide every card. Cards below appear individually as data exists.
+        val screenEmpty = DataScreenEmptyState.isTrendsEmpty(allHistory.size)
+        binding.tvTrendEmpty.isVisible = screenEmpty
+        binding.cardTrendThisSession.isVisible = !screenEmpty
+        if (screenEmpty) {
+            binding.cardTrendMaxWeight.isVisible = false
+            binding.cardTrendE1rm.isVisible = false
+            binding.cardTrendPrHistory.isVisible = false
+            return
+        }
+
         // This-session callout — the recorded point on the session's day.
         val sessionPoint = allHistory.minByOrNull { kotlin.math.abs(it.dateMs - sessionDateMs) }
         binding.tvTrendThisSession.text = when {
@@ -82,6 +95,9 @@ class RecapTrendsFragment : Fragment() {
             allHistory.filter { it.dateMs >= cutoff }
         }
 
+        // B07: hide the max-weight chart card when it can't draw (StrengthChartView needs >= 2
+        // points) rather than show its internal "Not enough data yet" message.
+        binding.cardTrendMaxWeight.isVisible = windowed.size >= 2
         binding.chartTrend.setData(
             windowed.map { StrengthChartView.Entry(it.dateMs, it.maxWeight) },
             "kg",
@@ -89,15 +105,14 @@ class RecapTrendsFragment : Fragment() {
         )
 
         // Estimated-1RM trend (Epley, per session) — its own chart on the windowed history.
+        // B07: hide the whole card below 2 points instead of showing per-field empty copy.
         val e1rmTrend = OneRmTrend.trendPoints(windowed)
+        binding.cardTrendE1rm.isVisible = e1rmTrend.size >= 2
         binding.chartTrendE1rm.setData(
             e1rmTrend.map { StrengthChartView.Entry(it.dateMs, it.e1rm.toFloat()) },
             "kg",
             sessionDateMs
         )
-        // StrengthChartView needs >= 2 points to draw a line; below that, show the empty state.
-        binding.tvTrendE1rmEmpty.isVisible = e1rmTrend.size < 2
-        binding.chartTrendE1rm.isVisible = e1rmTrend.size >= 2
 
         // e1RM estimate (Epley) from the best set in the window.
         val best = windowed.filter { it.bestReps in 1 until 20 }
@@ -117,15 +132,10 @@ class RecapTrendsFragment : Fragment() {
         binding.layoutTrendPrHistory.removeAllViews()
         // PRs tracked by estimated 1RM (Epley) across all sessions — a weight PR OR a rep-PR
         // at equal weight both register. Warm-ups are already excluded upstream.
+        // B07: hide the whole PR card when there is no PR history rather than show empty copy.
         val prs = OneRmTrend.prTimeline(allHistory)
-        if (prs.isEmpty()) {
-            binding.layoutTrendPrHistory.addView(TextView(requireContext()).apply {
-                text = "No PR history yet — log a few sessions to build it."
-                textSize = 13f
-                setTextColor(Color.parseColor("#9A9AB0"))
-            })
-            return
-        }
+        binding.cardTrendPrHistory.isVisible = prs.isNotEmpty()
+        if (prs.isEmpty()) return
         // Most recent PR first.
         prs.asReversed().forEach { pr ->
             val row = LinearLayout(requireContext()).apply {

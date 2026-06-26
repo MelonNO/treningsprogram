@@ -328,8 +328,14 @@ class SettingsViewModel @Inject constructor(
                     gson.fromJson<List<String>>(it.equipmentJson, type)
                 }.getOrElse { emptyList() }
             } ?: emptyList()
+            // B08: honour the user's rest-day selection (rest-day mode derives days/week; count mode
+            // falls back to the passed-in count). B09: this Settings path is the FULL-FRESH regen
+            // (replaces every day, including logged ones); make it deload-aware like the auto-gen path.
+            val monday = thisMonday()
+            val eff = com.migul.treningsprogram.domain.TrainingDaySelection.effective(prefs.restDaysCsv, daysPerWeek)
+            val mesocycle = workoutRepository.buildRegenMesocycle(monday)
             val result = aiRepository.generateAdaptedProgram(
-                daysPerWeek = daysPerWeek,
+                daysPerWeek = eff.daysPerWeek,
                 goal = goal,
                 experience = experience,
                 sessionDurationMinutes = sessionDurationMinutes,
@@ -341,6 +347,8 @@ class SettingsViewModel @Inject constructor(
                 priorityMuscles = prefs.priorityMuscles,
                 dislikedExercises = prefs.dislikedExercises,
                 onboardingContext = prefs.onboardingContext,
+                mesocycle = mesocycle,
+                restDays = eff.restDays,
                 onProgress = { msg ->
                     _generateStatus.value = msg
                     val prefix = "Attempt "
@@ -353,9 +361,10 @@ class SettingsViewModel @Inject constructor(
             result.onSuccess { generationResult ->
                 // B2: stamp the week's rationale onto every row so any row of the week carries it.
                 workoutRepository.savePlan(
-                    thisMonday(),
+                    monday,
                     generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
                 )
+                workoutRepository.setActiveDeload(mesocycle.isDeload)
                 prefs.lastAutoGenerateWeek = autoGenWeekKey()
                 prefs.lastGenerationAttemptCount = generationResult.attemptCount
                 _lastAttemptCount.value = generationResult.attemptCount

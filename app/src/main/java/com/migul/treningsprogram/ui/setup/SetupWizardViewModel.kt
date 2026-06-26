@@ -81,16 +81,22 @@ class SetupWizardViewModel @Inject constructor(
             prefs.apiKey = apiKey
             prefs.fitnessGoal = goal
             prefs.experienceLevel = experience
-            prefs.daysPerWeek = daysPerWeek
             prefs.sessionDurationMinutes = sessionDurationMinutes
             prefs.separateCardioDays = separateCardioDays
+
+            // B08: the fragment has already persisted prefs.restDaysCsv for the chosen mode. Resolve
+            // the effective selection: rest-day mode derives days/week from the rest days; count mode
+            // uses the passed-in count. Persist the (possibly derived) count so the rest of the app
+            // and future auto-generations agree.
+            val eff = com.migul.treningsprogram.domain.TrainingDaySelection.effective(prefs.restDaysCsv, daysPerWeek)
+            prefs.daysPerWeek = eff.daysPerWeek
 
             val preset = gymPresetDao.getById(prefs.selectedGymPresetId)
             val equipment = getEquipmentFromSelectedPreset()
             prefs.wizardEquipment = equipment.joinToString(",")
 
             aiRepository.generateAdaptedProgram(
-                daysPerWeek = daysPerWeek,
+                daysPerWeek = eff.daysPerWeek,
                 goal = goal,
                 experience = experience,
                 sessionDurationMinutes = sessionDurationMinutes,
@@ -101,6 +107,7 @@ class SetupWizardViewModel @Inject constructor(
                 injurySeverity = prefs.injurySeverity,
                 priorityMuscles = prefs.priorityMuscles,
                 dislikedExercises = prefs.dislikedExercises,
+                restDays = eff.restDays,
                 onProgress = { _generationStatus.value = it }
             ).onSuccess { result ->
                 // B2: stamp the week's rationale onto every row so any row of the week carries it.
