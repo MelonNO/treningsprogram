@@ -1092,6 +1092,9 @@ OR
         lockedExercises: List<PlannedExercise> = emptyList()
     ): String {
         val goalLower = goal.lowercase()
+        // FIX-B (v1.10.4): BLUNT hypertrophy-scoped 120 s-rest directive (empty for other goals). Live
+        // testing proved the soft "raise rest toward the band max" wording does not move the model.
+        val hypertrophyRest = hypertrophyRestDirective(goal, sessionDurationMinutes)
         // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
         val restDayBlock = buildRestDayBlock(restDays)
         // B09: already-trained days this week, fed back as fixed context so the model reproduces them
@@ -1324,9 +1327,9 @@ The session target is $sessionDurationMinutes min. EACH training day MUST estima
 - Per strength exercise ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N.
 - Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
 - A day's estimate = the sum of its exercises.
-REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days — most days that come in under the floor clear it on rest ALONE. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of this goal's allowed rest band BEFORE you conclude the day is finished (hypertrophy: up to 120 s, never beyond; strength: the longer heavy/accessory rests this goal already allows; endurance / weight-loss: stay inside their shorter bands). Do not exceed the goal's rest ceiling.
-UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until it reaches about $sessionDurationMinutes min. NEVER leave a day short just because you are near a cap — rest and reps still have room even at the working-set cap:
-  1. RAISE inter-set rest toward this goal's band maximum (hypertrophy ≤120 s).
+${if (hypertrophyRest.isNotBlank()) "$hypertrophyRest\n" else ""}REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days — most days that come in under the floor clear it on rest ALONE. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of this goal's allowed rest band BEFORE you conclude the day is finished (hypertrophy: 120 s on EVERY set INCLUDING isolation, never beyond; strength: the longer heavy/accessory rests this goal already allows; endurance / weight-loss: stay inside their shorter bands). Do not exceed the goal's rest ceiling.
+UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until it CLEARS the ${sessionDurationMinutes - 10}-min floor. NEVER leave a day short just because you are near a cap — rest and reps still have room even at the working-set cap:
+  1. Set inter-set rest to this goal's band maximum on EVERY set (hypertrophy: 120 s on ALL sets INCLUDING isolation — short isolation rest is the #1 cause of under-time days).
   2. RAISE reps toward the TOP of each exercise's role range.
   3. ADD 1 set to an accessory/isolation exercise.
   4. ADD one more accessory exercise (respecting the experience exercise-count cap — Intermediate ≤7 — and the ~18–20 total working-set / ~8–10 per-muscle caps).
@@ -1379,7 +1382,7 @@ Keep notes concise, but they MUST contain the target effort (RIR/RPE) AND the pr
 ══════════════════════════════════════════
 SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
-- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min (aim $sessionDurationMinutes). Actually COMPUTE every day silently with the TIME BUDGET formula above — do NOT eyeball it. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: raise REST toward the goal's band max FIRST (it is the #1 lever — hypertrophy ≤120 s), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding.
+- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. Actually COMPUTE every day silently with the TIME BUDGET formula above — do NOT eyeball it. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: set REST to the goal's band max FIRST (it is the #1 lever${if (hypertrophyRest.isNotBlank()) "; hypertrophy: 120 s on EVERY set INCLUDING isolation" else " — do not exceed the goal's rest ceiling"}), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. ${if (hypertrophyRest.isNotBlank()) "CLEAR the ${sessionDurationMinutes - 10}-min floor (land a few minutes inside the window) — do NOT chase the centre $sessionDurationMinutes min by exceeding the ~18–20 working-set cap; 120 s rest is the hypertrophy ceiling." else "Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding."}
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone).
 - Every exercise's notes carry an RIR/RPE target AND a progression rule.
@@ -1510,6 +1513,8 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             goal.lowercase().contains("loss") || goal.lowercase().contains("weight") -> "compounds 8–12 (barbell hinges ≤8), accessories 10–15, isolation 12–20"
             else -> "primary compounds 6–10, accessories 8–12, isolation 10–15 (hypertrophy)"
         }
+        // FIX-B (v1.10.4): blunt 120 s-rest directive for a hypertrophy single-day regen (empty otherwise).
+        val singleDayHypertrophyRest = hypertrophyRestDirective(goal, sessionDurationMinutes)
 
         val prompt = buildString {
             appendLine("You are an expert personal trainer. Generate a single training day workout for $dayName.")
@@ -1517,7 +1522,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward this goal's band max (hypertrophy up to 120 s, never beyond; respect the goal's rest ceiling), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Stay within ~10 sets/muscle and ~18–20 working sets total, and aim for the CENTRE ($sessionDurationMinutes), not the edge.")
+            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. ${if (singleDayHypertrophyRest.isNotBlank()) "$singleDayHypertrophyRest " else ""}REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward this goal's band max (hypertrophy: 120 s on EVERY set INCLUDING isolation, never beyond; respect the goal's rest ceiling), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Stay within ~10 sets/muscle and ~18–20 working sets total, and ${if (singleDayHypertrophyRest.isNotBlank()) "CLEAR the ${sessionDurationMinutes - 10}-min floor — do NOT chase the centre by exceeding the ~18–20 working-set cap" else "aim for the CENTRE ($sessionDurationMinutes), not the edge"}.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
