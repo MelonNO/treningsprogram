@@ -25,14 +25,19 @@ object NetworkModule {
     fun provideOkHttpClient(preferencesManager: PreferencesManager): OkHttpClient =
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
+            // H4 (v1.10.4): generation now STREAMS (Server-Sent Events). With streaming, readTimeout is
+            // an INTER-EVENT stall guard, NOT a time-to-first-byte deadline: Anthropic emits continuous
+            // content_block_delta + periodic ping events, so a healthy long generation never goes 180 s
+            // without a read, while a genuinely hung stream still trips it. Previously (non-streaming)
+            // time-to-first-byte ≈ the WHOLE generation time, so a heavy/slow generation crossed this
+            // read deadline and timed out — the v1.10.3 regression this fix addresses.
             .readTimeout(180, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
-            // Hard ceiling per call: if the TCP read is stuck for 180 s the read timeout fires,
-            // but a callTimeout also guards against the rare case the whole call (connect +
-            // waiting for first byte + streaming body) drags on beyond a reasonable wall-clock
-            // limit. 240 s gives the model time to produce a large response on a slow link
-            // while still guaranteeing the coroutine is eventually unblocked.
-            .callTimeout(240, TimeUnit.SECONDS)
+            // Whole-call wall-clock ceiling. A healthy long STREAM must not be cut here, so this was
+            // raised 240 s → 300 s (the per-read inter-event readTimeout above is the real stall guard;
+            // this is only a belt-and-suspenders upper bound). The app-level generation deadline
+            // (GENERATION_OVERALL_DEADLINE_MS = 360 s) still bounds the full multi-attempt flow above this.
+            .callTimeout(300, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val key = preferencesManager.apiKey.filter { it.code in 0x20..0x7E }
                 val request = chain.request().newBuilder()
