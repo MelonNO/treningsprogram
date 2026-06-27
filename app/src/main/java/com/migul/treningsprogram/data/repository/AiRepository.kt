@@ -15,6 +15,9 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.domain.StallDetector
 import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -202,6 +205,18 @@ internal fun parseClaudeStream(sse: String): ClaudeResponse {
         stopReason = stopReason
     )
 }
+
+// ── H5: consume the streaming body OFF the main thread ────────────────────────────────────────────
+//
+// `claudeApi.sendMessageStreaming` is a Retrofit SUSPEND call returning a `@Streaming`
+// [okhttp3.ResponseBody]. A suspend call resumes on the CALLER's dispatcher, and generation is launched
+// from `viewModelScope` (Dispatchers.Main), so the BLOCKING `.string()` read of the streaming body would
+// otherwise run on the main thread for the whole ~60–180 s generation → ANR. This helper forces the
+// blocking read onto the supplied IO dispatcher and CLOSES the body with `use {}` (so the connection is
+// always released, even on a parse exception). Kept package-level (like [parseClaudeStream]) so the
+// dispatcher contract is unit-testable WITHOUT an [AiRepository] instance.
+internal suspend fun consumeClaudeStream(body: okhttp3.ResponseBody, io: CoroutineDispatcher): ClaudeResponse =
+    withContext(io) { body.use { parseClaudeStream(it.string()) } }
 
 // ── S3: robust extraction of a JSON object from raw model output ─────────────────────────────────
 //
@@ -583,9 +598,18 @@ class AiRepository @Inject constructor(
      * shape-identical to the non-streaming endpoint's, so all callers (text(), stopReason, extraction,
      * truncation detection, parseProgram) are unchanged. There is no reactive/Flow UI — the stream is
      * consumed server-side only; streaming exists purely to make readTimeout an inter-event stall guard.
+     *
+     * H5 (v1.10.5): the WHOLE call runs inside `withContext(Dispatchers.IO)`. A Retrofit suspend call
+     * resumes on the CALLER's dispatcher (here Dispatchers.Main via `viewModelScope`), so without this the
+     * blocking `.string()` read of the `@Streaming` body would block the main thread for the full ~60–180 s
+     * generation → ANR (the app dies; in-app logging on the frozen main thread captures nothing). Wrapping
+     * the network suspend call AND the blocking read in `withContext(Dispatchers.IO)` keeps both off Main;
+     * [consumeClaudeStream] additionally closes the body via `use {}`.
      */
     private suspend fun sendStreaming(req: ClaudeRequest): ClaudeResponse =
-        parseClaudeStream(claudeApi.sendMessageStreaming(req.copy(stream = true)).string())
+        withContext(Dispatchers.IO) {
+            consumeClaudeStream(claudeApi.sendMessageStreaming(req.copy(stream = true)), Dispatchers.IO)
+        }
 
     suspend fun getOnboardingQuestions(
         goal: String,
