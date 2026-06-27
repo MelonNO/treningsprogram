@@ -1,6 +1,7 @@
 package com.migul.treningsprogram.data.repository
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import com.migul.treningsprogram.data.ExerciseDbResolver
 import com.migul.treningsprogram.data.PromptLog
@@ -8,6 +9,7 @@ import com.migul.treningsprogram.data.RejectionLog
 import com.migul.treningsprogram.data.ResolveHints
 import com.migul.treningsprogram.data.api.ClaudeApiService
 import com.migul.treningsprogram.data.api.model.ClaudeRequest
+import com.migul.treningsprogram.data.api.model.ClaudeResponse
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.domain.StallDetector
@@ -144,6 +146,61 @@ internal suspend fun <T> withGenerationDeadline(
     kotlinx.coroutines.withTimeout(timeoutMs) { block() }
 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
     throw IllegalStateException(GENERATION_TIMEOUT_MESSAGE)
+}
+
+// ── H4: parse an Anthropic SSE stream back into a ClaudeResponse ──────────────────────────────────
+//
+// Full-program generation is sent with stream=true (FIX-A: the non-streaming time-to-first-byte ≈ the
+// whole generation time was crossing OkHttp's 180 s readTimeout on heavier state; streaming turns the
+// readTimeout into an inter-event stall guard instead). This pure parser reconstructs the SAME
+// ClaudeResponse the non-streaming endpoint would have returned, so EVERY downstream consumer
+// (extractJsonOrNull, isLikelyTruncated, .text(), .stopReason, parseProgram) is unchanged. Kept
+// package-level + pure (no AiRepository / no network) so it is unit-testable in isolation, mirroring the
+// F3 / S3 / B10 helper pattern.
+//
+// SSE shape (validated live): each event is an `event:`/`data:` line pair. We only read `data:` lines;
+//   - blank / `[DONE]` payloads are ignored;
+//   - {type:"content_block_delta", delta:{type:"text_delta", text:…}} → append the text;
+//   - {type:"message_delta", delta:{stop_reason:…}} → capture stop_reason;
+//   - {type:"error", …} → throw IOException so it flows through the existing transient/retry +
+//     friendly-error handling (IOException is classified transient);
+//   - message_start / content_block_start / content_block_stop / ping / message_stop → ignored.
+// A `data:` line whose JSON is incomplete (a stream cut mid-event) fails to parse and is skipped, so a
+// truncated stream still yields the partial accumulated text (downstream truncation detection handles it).
+internal fun parseClaudeStream(sse: String): ClaudeResponse {
+    val accumulated = StringBuilder()
+    var stopReason: String? = null
+    for (rawLine in sse.lineSequence()) {
+        val line = rawLine.trim()
+        if (!line.startsWith("data:")) continue
+        val payload = line.substring("data:".length).trim()
+        if (payload.isEmpty() || payload == "[DONE]") continue
+        val obj = runCatching { JsonParser.parseString(payload).asJsonObject }.getOrNull() ?: continue
+        when (obj.get("type")?.asString) {
+            "content_block_delta" -> {
+                val delta = obj.get("delta")?.takeIf { it.isJsonObject }?.asJsonObject
+                if (delta?.get("type")?.asString == "text_delta") {
+                    accumulated.append(delta.get("text")?.asString ?: "")
+                }
+            }
+            "message_delta" -> {
+                val sr = obj.get("delta")?.takeIf { it.isJsonObject }?.asJsonObject?.get("stop_reason")
+                if (sr != null && !sr.isJsonNull) stopReason = sr.asString
+            }
+            "error" -> {
+                val errObj = obj.get("error")?.takeIf { it.isJsonObject }?.asJsonObject
+                val msg = errObj?.get("message")?.asString
+                    ?: errObj?.get("type")?.asString
+                    ?: "AI stream error"
+                throw IOException("Claude streaming error: $msg")
+            }
+            else -> { /* message_start, content_block_start/stop, ping, message_stop → ignore */ }
+        }
+    }
+    return ClaudeResponse(
+        content = listOf(ClaudeResponse.ContentBlock(type = "text", text = accumulated.toString())),
+        stopReason = stopReason
+    )
 }
 
 // ── S3: robust extraction of a JSON object from raw model output ─────────────────────────────────
@@ -318,26 +375,68 @@ internal fun isLikelyTruncated(text: String, stopReason: String?): Boolean {
 // window. So the strict gate is untouched — only the wording the model sees on the next attempt
 // changes. Package-level + pure so it is unit-testable without an AiRepository instance (matching
 // the F3 / S3 / B10 helper pattern).
-internal fun dayDurationFeedback(day: Int, estimateMinutes: Int, targetMinutes: Int): String? {
+//
+// FIX-B (v1.10.4): the under-time REST directive is now BLUNT. Live testing proved the soft "raise rest
+// toward the band max" wording does NOT move the model — it keeps standard short isolation rest (60–90 s)
+// and the day stays under the floor. For HYPERTROPHY (the only goal whose band reaches 120 s) the message
+// now flatly instructs recommendedRestSeconds=120 on EVERY set INCLUDING isolation at ~18–20 sets, which
+// lands the day ~42–48 min (clearing the floor INSIDE the cap). Non-hypertrophy goals keep their existing
+// shorter-band guidance (telling endurance/weight-loss to use 120 s would violate their rest ceiling and
+// the LLM review). The reject CONDITION (est < low || est > high) and the over-time branch are unchanged.
+internal fun dayDurationFeedback(
+    day: Int,
+    estimateMinutes: Int,
+    targetMinutes: Int,
+    hypertrophy: Boolean = true
+): String? {
     val low = targetMinutes - 10
     val high = targetMinutes + 10
+    val firstLever = if (hypertrophy)
+        "FIRST set recommendedRestSeconds to 120 on ALL sets in this day INCLUDING isolation (120 s " +
+            "is the hypertrophy maximum and is allowed) and ensure ~18–20 working sets — short isolation " +
+            "REST is the #1 cause of under-time days and is why this day is under"
+    else
+        "FIRST raise inter-set REST toward this goal's band maximum — rest is the #1 time lever and " +
+            "short rest is the main cause of under-time days (do not exceed the goal's rest ceiling)"
     return when {
         estimateMinutes < low ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
-                "($low–$high min, aim $targetMinutes). ADD work to this day so it reaches about " +
-                "$targetMinutes min, in THIS order until it lands in-window: (1) FIRST raise inter-set " +
-                "REST toward this goal's band maximum — rest is the #1 time lever and short rest is the " +
-                "main cause of under-time days (hypertrophy up to 120 s; do not exceed the goal's rest " +
-                "ceiling); (2) raise reps toward the TOP of each exercise's role range; (3) add a set to " +
-                "an accessory/isolation exercise; (4) add one more accessory exercise. Stay within the " +
-                "per-muscle ~8–10 and per-session ~18–20 working-set caps and the exercise-count cap; do " +
-                "NOT pad with junk volume. Do NOT shorten it — it is already too short."
+                "($low–$high min, aim $targetMinutes). ADD work to this day so it CLEARS the $low-min " +
+                "floor, in THIS order until it lands in-window: (1) $firstLever; (2) raise reps toward " +
+                "the TOP of each exercise's role range; (3) add a set to an accessory/isolation exercise; " +
+                "(4) add one more accessory exercise. Stay within the per-muscle ~8–10 and per-session " +
+                "~18–20 working-set caps and the exercise-count cap; CLEAR the floor — do NOT pad with " +
+                "junk volume or exceed the ~18–20 working-set cap. Do NOT shorten it — it is already too short."
         estimateMinutes > high ->
             "Day $day estimates ~$estimateMinutes min — that is OVER the target window " +
                 "($low–$high min, aim $targetMinutes). TRIM this day so it drops to about " +
                 "$targetMinutes min: remove an accessory exercise, or reduce sets or shorten rest."
         else -> null
     }
+}
+
+// ── FIX-B (v1.10.4): blunt, hypertrophy-scoped REST steering for the generation prompt ────────────
+//
+// Live result: 8/8 hypertrophy generations under-filled (days 30–44 min, never all inside the window)
+// because the model keeps standard SHORT isolation rest (60–90 s) at ~16–18 sets, so the strict gate
+// rejected every attempt → "Program rejected after 3 attempts" → user blocked. The PROVEN fix (2/2 live
+// runs landed ALL days in-window) is to force recommendedRestSeconds=120 on EVERY working set (incl.
+// isolation) at ~18–20 sets ⇒ days land ~42–48 min, clearing the 40-min floor WITHIN the volume caps.
+// validateProgram explicitly allows hypertrophy rest ≤120 s, so this passes review. NOTE: the centre
+// target needs ~149 s avg rest (over the 120 s cap) so it is UNREACHABLE within the 20-set cap — steer
+// to CLEAR THE FLOOR (~42–48), do NOT chase the centre (that pushes the model past the 20-set cap).
+// Empty for non-hypertrophy goals (they keep their existing shorter rest bands). Pure + package-level so
+// the wording is unit-testable without an [AiRepository] instance (mirrors [dayDurationFeedback]).
+internal fun hypertrophyRestDirective(goal: String, sessionDurationMinutes: Int): String {
+    if (!goal.lowercase().contains("hypertrophy")) return ""
+    val low = sessionDurationMinutes - 10
+    val high = sessionDurationMinutes + 10
+    return "For HYPERTROPHY: set recommendedRestSeconds=120 on EVERY working set — compounds, accessories " +
+        "AND isolation. Standard short isolation rest (60–90 s) UNDER-fills the day and is the #1 cause of " +
+        "rejection; 120 s is the hypertrophy maximum and is allowed (the quality review permits hypertrophy " +
+        "rest ≤120 s). With 120 s rest and ~18–20 working sets a day lands ~42–48 min, INSIDE the $low–$high " +
+        "min window. CLEAR the $low-min floor — do NOT chase $sessionDurationMinutes min by exceeding the " +
+        "~18–20 working-set cap (that breaks the volume cap)."
 }
 
 // ── H2: build the generation EXERCISE BLACKLIST from STRUCTURED names ─────────────────────────────
@@ -473,6 +572,19 @@ class AiRepository @Inject constructor(
         const val MAX_GENERATION_ATTEMPTS = 3
     }
 
+    /**
+     * H4 (v1.10.4): send [req] as an SSE stream and reconstruct the equivalent [ClaudeResponse].
+     *
+     * Forces `stream = true`, reads the WHOLE response body with [okhttp3.ResponseBody.string] (simplest
+     * and correct — the read timeout still applies per network read, so a mid-stream stall still trips
+     * OkHttp's readTimeout) and parses it with the pure [parseClaudeStream]. The reconstructed response is
+     * shape-identical to the non-streaming endpoint's, so all callers (text(), stopReason, extraction,
+     * truncation detection, parseProgram) are unchanged. There is no reactive/Flow UI — the stream is
+     * consumed server-side only; streaming exists purely to make readTimeout an inter-event stall guard.
+     */
+    private suspend fun sendStreaming(req: ClaudeRequest): ClaudeResponse =
+        parseClaudeStream(claudeApi.sendMessageStreaming(req.copy(stream = true)).string())
+
     suspend fun getOnboardingQuestions(
         goal: String,
         experience: String,
@@ -509,7 +621,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         """.trimIndent()
 
         val responseText = withAiRetry {
-            claudeApi.sendMessage(
+            sendStreaming(
                 ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
             ).text()
         }
@@ -569,6 +681,8 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         // DEADLINE_MS for the arithmetic. Body indentation is left as-is to keep this a minimal diff.
         withGenerationDeadline {
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
+        // FIX-B: hypertrophy gets the BLUNT 120 s-rest under-time directive; other goals keep their bands.
+        val goalIsHypertrophy = goal.lowercase().contains("hypertrophy")
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
         val previousPlanCtx = buildPreviousPlanContext()
@@ -593,12 +707,22 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 restDays, lockedExercises
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
-            // (it would just time out again, burning a second 240s). Real transient blips (5xx/429,
+            // (it would just time out again, burning a second callTimeout). Real transient blips (5xx/429,
             // connection-reset IOException) still retry. Other AI callers keep the default policy.
-            val response = withAiRetry(isRetryable = ::isTransientGenerationError) {
-                claudeApi.sendMessage(
-                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-                )
+            // H4: the call now STREAMS (sendStreaming) so a slow-but-healthy long generation no longer
+            // crosses the read timeout (see parseClaudeStream / NetworkModule).
+            // FIX-C: log the attempt EVEN when the call throws (timeout/failure). Previously promptLog.add
+            // ran only AFTER a response returned, so a timed-out attempt logged NOTHING and the user saw an
+            // empty Prompt Log. Record the failed attempt, then rethrow so the existing error path is intact.
+            val response = try {
+                withAiRetry(isRetryable = ::isTransientGenerationError) {
+                    sendStreaming(
+                        ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                    )
+                }
+            } catch (e: Throwable) {
+                promptLog.add("generate_attempt_$attempt", prompt, "<request failed: ${e.message}>")
+                throw e
             }
             val responseText = response.text()
             promptLog.add("generate_attempt_$attempt", prompt, responseText)
@@ -674,7 +798,8 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                     // G1: direction-aware feedback — under-time days are told to ADD work, over-time
                     // days to TRIM. The reject CONDITION (the ±10 window) is unchanged; only the
                     // wording fed back to the next attempt differs, so the strict gate is untouched.
-                    dayDurationFeedback(day, est, sessionDurationMinutes)
+                    // FIX-B: pass the hypertrophy flag so the under-time directive is the blunt 120 s one.
+                    dayDurationFeedback(day, est, sessionDurationMinutes, goalIsHypertrophy)
                 }
                 .joinToString(" ")
 
@@ -759,10 +884,16 @@ $history
 Respond with ONLY the summary text — no JSON, no markdown fences, no preamble like "Here is your summary".
         """.trimIndent()
 
-        val responseText = withAiRetry {
-            claudeApi.sendMessage(
-                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            ).text()
+        // H4: stream; FIX-C: log the attempt even on failure.
+        val responseText = try {
+            withAiRetry {
+                sendStreaming(
+                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                ).text()
+            }
+        } catch (e: Throwable) {
+            promptLog.add("weekly_summary", prompt, "<request failed: ${e.message}>")
+            throw e
         }
         promptLog.add("weekly_summary", prompt, responseText)
         val summary = responseText.trim()
@@ -824,8 +955,9 @@ OR
         """.trimIndent()
 
         return runCatching {
+            // H4: route the quality-review call through streaming too (same readTimeout benefit).
             val responseText = withAiRetry {
-                claudeApi.sendMessage(
+                sendStreaming(
                     ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
                 ).text()
             }
@@ -1443,10 +1575,16 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":90}]}]}""")
         }
 
-        val response = withAiRetry {
-            claudeApi.sendMessage(
-                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-            )
+        // H4: stream; FIX-C: log the attempt even on failure.
+        val response = try {
+            withAiRetry {
+                sendStreaming(
+                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                )
+            }
+        } catch (e: Throwable) {
+            promptLog.add("single_day_${dayName.lowercase()}", prompt, "<request failed: ${e.message}>")
+            throw e
         }
         val responseText = response.text()
         promptLog.add("single_day_${dayName.lowercase()}", prompt, responseText)
