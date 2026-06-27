@@ -28,16 +28,21 @@ class H4BluntSteeringTest {
 
     // ── hypertrophyRestDirective ────────────────────────────────────────────────────────────────────
 
-    @Test fun hypertrophyDirective_isBlunt_forces120_everySet_andClearsFloor() {
+    @Test fun hypertrophyDirective_forcesBoth120Rest_andFullSetCount() {
         val d = hypertrophyRestDirective("Hypertrophy", target)
         assertTrue("directive must be present for hypertrophy", d.isNotBlank())
+        // Lever 1: 120 s rest on EVERY working set incl. isolation.
         assertTrue("must force 120 s rest: $d", d.contains("120"))
         assertTrue("must scope to EVERY working set: $d", d.contains("EVERY working set"))
         assertTrue("must name isolation explicitly: $d", d.contains("isolation"))
-        assertTrue("must steer to CLEAR the floor: $d", d.contains("CLEAR the"))
-        assertTrue("must warn NOT to chase the centre/target: $d", d.contains("do NOT chase"))
-        // Floor-clearing wording references the goal's actual floor (target − 10).
+        // Lever 2 (the live-proven addition): FORCE the full set count — aim higher, don't minimize.
+        assertTrue("must push a FULL ~19–20 working sets: $d", d.contains("19–20"))
+        assertTrue("must forbid under-filling at 15–17 sets: $d", d.contains("15–17"))
+        assertTrue("must AIM for ~46–47 min, above the floor: $d", d.contains("46–47"))
         assertTrue("must name the actual floor: $d", d.contains("${target - 10}-min floor"))
+        // The failed "minimize to clear the floor" framing must be GONE.
+        assertFalse("must not tell the model to merely clear the floor: $d", d.contains("CLEAR the"))
+        assertFalse("must not warn against chasing the target (that minimized volume): $d", d.contains("do NOT chase"))
     }
 
     @Test fun nonHypertrophyGoals_getNoBluntDirective() {
@@ -49,12 +54,15 @@ class H4BluntSteeringTest {
 
     // ── dayDurationFeedback: under-time wording is now blunt (hypertrophy) ──────────────────────────
 
-    @Test fun underTimeFeedback_hypertrophy_names120AndRest_stillAddsNotTrim() {
+    @Test fun underTimeFeedback_hypertrophy_names120Rest_andFullSetCount_stillAddsNotTrim() {
         val msg = dayDurationFeedback(day = 3, estimateMinutes = 33, targetMinutes = target, hypertrophy = true)
         requireNotNull(msg)
         assertTrue("must name the 120 s rest directive: $msg", msg.contains("120"))
         assertTrue("must name REST as the lever: $msg", msg.contains("REST", ignoreCase = true))
         assertTrue("must name isolation explicitly: $msg", msg.contains("isolation", ignoreCase = true))
+        // Live-proven addition: the under-time feedback must also push the FULL set count, not just rest.
+        assertTrue("must push a FULL ~19–20 working sets: $msg", msg.contains("19–20"))
+        assertTrue("must forbid stopping at 15–17 sets: $msg", msg.contains("15–17"))
         // The G1/H3 contract is preserved: still ADD, still UNDER, never TRIM, names day + estimate.
         assertTrue("must still instruct ADD: $msg", msg.contains("ADD"))
         assertTrue("must still say UNDER: $msg", msg.contains("UNDER"))
