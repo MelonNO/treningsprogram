@@ -340,6 +340,25 @@ internal fun dayDurationFeedback(day: Int, estimateMinutes: Int, targetMinutes: 
     }
 }
 
+// ── H2: build the generation EXERCISE BLACKLIST from STRUCTURED names ─────────────────────────────
+//
+// The blacklist was previously rebuilt by RE-PARSING the rendered previous-plan string — splitting the
+// text after each ":" on commas. That shattered exercise names containing a comma (e.g. "Dumbbell Push
+// Press (Seated, Alternating)" → "Dumbbell Push Press (Seated" + "Alternating)") and the greedy
+// ":\s*(.+)" also harvested the day-prefixed line after the "LAST GENERATED PROGRAM …:" header, yielding
+// junk like "Mon: Barbell Bench Press". The fix is to never re-parse the formatted string: merge the
+// already-clean recent-session names with the clean previous-plan exercise names (whole PlannedExercise
+// .exerciseName values), so commas are preserved and no header/junk lines can leak in. Package-level +
+// pure so it is unit-testable without an [AiRepository] instance.
+internal fun buildBlacklistNames(
+    recentExercises: Set<String>,
+    previousPlanNames: Set<String>
+): java.util.SortedSet<String> =
+    (recentExercises + previousPlanNames)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .toSortedSet()
+
 // Onboarding question JSON model
 private data class OQJson(
     val id: String = "",
@@ -552,7 +571,8 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
-        val previousPlan = buildPreviousPlanContext()
+        val previousPlanCtx = buildPreviousPlanContext()
+        val previousPlan = previousPlanCtx.text
         val variationTheme = variationThemes.random()
         val splitSuggestion = splitSuggestions[daysPerWeek]?.random()
             ?: splitSuggestions.entries.minByOrNull { kotlin.math.abs(it.key - daysPerWeek) }?.value?.random() ?: ""
@@ -569,7 +589,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 sessionDurationMinutes, equipment, equipmentNotes,
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
-                previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle,
+                previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
                 restDays, lockedExercises
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
@@ -887,14 +907,20 @@ OR
         return Pair("$sessionDetails\n$trends$stallBlock", recentExercises)
     }
 
-    private suspend fun buildPreviousPlanContext(): String {
-        val weekStart = workoutRepository.getLatestPlanWeekStart() ?: return ""
+    // H2: returns BOTH the rendered reference text AND the clean set of whole exercise names from the
+    // structured rows. The blacklist is built from [exerciseNames] (commas preserved, no header/junk),
+    // not by re-parsing [text]. Empty/no-plan ⇒ blank text + empty set.
+    private data class PreviousPlanContext(val text: String, val exerciseNames: Set<String>)
+
+    private suspend fun buildPreviousPlanContext(): PreviousPlanContext {
+        val weekStart = workoutRepository.getLatestPlanWeekStart()
+            ?: return PreviousPlanContext("", emptySet())
         // E2: previous-plan context must come from the ACTIVE program only, so generation varies
         // against the right program's last week (not another program's rows sharing the weekStart).
         val forWeek = workoutRepository.getActiveProgramPlanForWeek(weekStart)
-        if (forWeek.isEmpty()) return ""
+        if (forWeek.isEmpty()) return PreviousPlanContext("", emptySet())
         val dayNames = mapOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
-        return buildString {
+        val text = buildString {
             appendLine("LAST GENERATED PROGRAM (exercises used — vary these in the new plan):")
             forWeek.groupBy { it.dayOfWeek }.toSortedMap().forEach { (day, exList) ->
                 val label = dayNames[day] ?: "Day $day"
@@ -902,6 +928,9 @@ OR
                 appendLine("  $label: $names")
             }
         }.trim()
+        // Clean whole names straight from the structured rows — NO comma-splitting, NO header line.
+        val exerciseNames = forWeek.map { it.exerciseName.trim() }.filter { it.isNotBlank() }.toSet()
+        return PreviousPlanContext(text, exerciseNames)
     }
 
     private fun buildPrompt(
@@ -920,6 +949,9 @@ OR
         dislikedExercises: String = "",
         onboardingContext: String = "",
         previousPlan: String = "",
+        // H2: clean whole exercise names from the PREVIOUS plan's structured rows (commas preserved,
+        // no header/junk) — used to build the blacklist instead of re-parsing [previousPlan]'s text.
+        previousPlanExerciseNames: Set<String> = emptySet(),
         recentExercises: Set<String> = emptySet(),
         variationTheme: String = "",
         splitSuggestion: String = "",
@@ -989,13 +1021,9 @@ Your new plan must directly address this. A plan with the same flaw will be reje
 
 """ else ""
 
-        // Merge recent logged exercises + last generated plan exercises into one blacklist
-        val planExercises = if (previousPlan.isNotBlank()) {
-            Regex(":\\s*(.+)").findAll(previousPlan).flatMap { m ->
-                m.groupValues[1].split(",").map { it.trim() }
-            }.filter { it.isNotBlank() }.toSet()
-        } else emptySet()
-        val blacklist = (recentExercises + planExercises).toSortedSet()
+        // H2: merge recent logged exercises + the PREVIOUS plan's clean structured names into one
+        // blacklist. Built from whole names (no comma-splitting, no header/junk) — see buildBlacklistNames.
+        val blacklist = buildBlacklistNames(recentExercises, previousPlanExerciseNames)
 
         val blacklistBlock = if (blacklist.isNotEmpty()) """
 ══════════════════════════════════════════
