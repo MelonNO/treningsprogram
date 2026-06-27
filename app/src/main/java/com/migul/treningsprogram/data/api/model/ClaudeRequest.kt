@@ -16,6 +16,11 @@ data class ClaudeRequest(
     // content_block_delta + periodic ping events keep the connection live) rather than a single
     // time-to-first-byte deadline that a slow-but-healthy long generation would cross. Default false
     // keeps the non-streaming path byte-for-byte for any caller that does not opt in.
+    // G2 (Phase 3, REVERTED): adaptive thinking was live A/B-tested on the generation call and REMOVED — it
+    // regressed hard (unbounded adaptive thinking on this large prompt starved the JSON: 0/3 saves, ~522 s/gen
+    // over the 360 s deadline, the full token budget burned on thinking with NO JSON emitted, ~10× cost). No
+    // caller sends a `thinking` field; the proven path is no thinking + the efficiency prompt fix (which keeps
+    // generation output ~2200 tokens, so the 16384 default is ample).
     @SerializedName("stream") val stream: Boolean = false
 ) {
     data class Message(

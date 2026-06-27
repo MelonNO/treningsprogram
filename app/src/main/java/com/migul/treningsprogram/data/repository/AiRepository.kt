@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import com.migul.treningsprogram.data.ExerciseDbResolver
+import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.data.PromptLog
 import com.migul.treningsprogram.data.RejectionLog
 import com.migul.treningsprogram.data.ResolveHints
@@ -456,6 +457,128 @@ internal fun hypertrophyRestDirective(goal: String, sessionDurationMinutes: Int)
         "rest (ceiling)."
 }
 
+// ── Phase-2 SALVAGE: deterministic auto-trim of OVER-target days back into the window ──────────────
+//
+// The user reversed the earlier "no salvage" stance (2026-06-27): when an attempt produces a complete,
+// otherwise-valid plan that fails the strict gate ONLY because some day(s) ESTIMATE OVER the ceiling,
+// the app should deterministically TRIM those days back into [target-10, target+10] and SAVE, instead of
+// looping to a no-save failure. This is layered STRICTLY AFTER the gate's estimate — it NEVER alters
+// [WorkoutTimeEstimator], the ±10-min window, or any threshold (the gate math stays byte-for-byte). It
+// only ever (1) lowers recommendedRestSeconds DOWNWARD toward a 60 s floor (never below 60, never above the
+// original), (2) drops whole SETS, and (3) removes whole trailing exercises; it NEVER edits reps / weight /
+// notes, so it cannot introduce a rep-range-by-role or notes violation. UNDER-time days are left untouched
+// (under-fill stays the model's job — we never auto-add volume); locked (already-logged) days are skipped.
+//
+// For each NON-locked day estimating > high, in this LEVER ORDER, re-estimating after every step until
+// est <= high. REST goes FIRST because it reclaims the most minutes with ZERO loss of exercises/sets/muscle
+// coverage, and validateProgram never penalises low rest (60 s is the hypertrophy/weight-loss band minimum)
+// — live-verified as the most reliable salvage (4/4 vs 3/4 for sets+removal alone):
+//   (1) lower recommendedRestSeconds of the exercise with the CURRENT highest rest by 15 s (floor 60),
+//       repeating until no exercise is above 60 s.
+//   (2) drop ONE set from the trailing exercise (highest orderInDay) that still has sets > 2 and is NOT
+//       the day's primary (lowest orderInDay); re-pick the trailing eligible exercise each pass.
+//   (3) if still over and no safe set-drop remains, remove a whole trailing non-primary exercise ONLY IF
+//       (i) its muscle group [MuscleClassifier.displayName] is still covered by another remaining exercise
+//       that day, (ii) the day stays >= low after removal, and (iii) the day keeps >= 4 exercises.
+//
+// Returns the trimmed list when EVERY non-locked day lands in [low, high]; otherwise null (an over-day
+// could not reach <= high without dropping under the floor / running out of safe trims, OR some day is
+// UNDER the floor) — the caller treats null as a genuine no-save failure. Pure + package-level so it is
+// unit-testable without an [AiRepository] instance (mirrors [dayDurationFeedback] / [hypertrophyRestDirective]).
+private const val TRIM_REST_FLOOR_SECONDS = 60
+private const val TRIM_REST_STEP_SECONDS = 15
+internal fun trimOverflowToWindow(
+    exercises: List<PlannedExercise>,
+    targetMinutes: Int,
+    lockedDays: Set<Int>
+): List<PlannedExercise>? {
+    val low = targetMinutes - 10
+    val high = targetMinutes + 10
+
+    val resultByDay = LinkedHashMap<Int, List<PlannedExercise>>()
+
+    for ((day, rawDay) in exercises.groupBy { it.dayOfWeek }) {
+        val ordered = rawDay.sortedBy { it.orderInDay }
+        // Locked (already-logged) days are preserved verbatim and never gated/trimmed here.
+        if (day in lockedDays) {
+            resultByDay[day] = ordered
+            continue
+        }
+
+        var working = ordered
+        var est = WorkoutTimeEstimator.estimateDayMinutes(working)
+        // Only OVER days are trimmed. In-window AND under-window days are returned unchanged (an under
+        // day makes the whole plan un-salvageable — caught by the final window check below).
+        if (est <= high) {
+            resultByDay[day] = working
+            continue
+        }
+
+        var removedAny = false
+
+        // (1) REST DOWN to the 60 s floor — lower the CURRENT highest-rest exercise by 15 s each pass,
+        // until no exercise is above 60 s. Reclaims the most minutes with ZERO loss of sets/exercises/
+        // coverage; rest only ever DECREASES (never < 60, never above its original value). A single 15 s
+        // step is far smaller than the 20-min window, so this lever never undershoots the floor.
+        while (est > high) {
+            val restTarget = working
+                .filter { it.recommendedRestSeconds > TRIM_REST_FLOOR_SECONDS }
+                .maxByOrNull { it.recommendedRestSeconds }
+                ?: break
+            val newRest = maxOf(TRIM_REST_FLOOR_SECONDS, restTarget.recommendedRestSeconds - TRIM_REST_STEP_SECONDS)
+            working = working.map { if (it === restTarget) it.copy(recommendedRestSeconds = newRest) else it }
+            est = WorkoutTimeEstimator.estimateDayMinutes(working)
+        }
+
+        // (2) Still over → drop ONE set at a time from the TRAILING eligible exercise.
+        while (est > high) {
+            val primaryOrder = working.minOf { it.orderInDay }
+            val trimTarget = working
+                .filter { it.orderInDay != primaryOrder && it.sets > 2 }
+                .maxByOrNull { it.orderInDay }
+                ?: break
+            working = working.map { if (it === trimTarget) it.copy(sets = it.sets - 1) else it }
+            est = WorkoutTimeEstimator.estimateDayMinutes(working)
+        }
+
+        // (3) Still over → remove a whole TRAILING non-primary exercise, guarded.
+        while (est > high) {
+            val primaryOrder = working.minOf { it.orderInDay }
+            val removable = working
+                .filter { it.orderInDay != primaryOrder }
+                .sortedByDescending { it.orderInDay }
+                .firstOrNull { cand ->
+                    val remaining = working.filter { it !== cand }
+                    val group = MuscleClassifier.displayName(cand.exerciseName)
+                    val stillCovered = remaining.any { MuscleClassifier.displayName(it.exerciseName) == group }
+                    val keepsFourPlus = remaining.size >= 4
+                    val staysAtOrAboveLow = WorkoutTimeEstimator.estimateDayMinutes(remaining) >= low
+                    stillCovered && keepsFourPlus && staysAtOrAboveLow
+                }
+                ?: break
+            working = working.filter { it !== removable }
+            est = WorkoutTimeEstimator.estimateDayMinutes(working)
+            removedAny = true
+        }
+
+        // Removing an exercise can leave a gap in orderInDay; re-number contiguously (preserving order)
+        // so the saved/serialized day stays 0-based like a freshly parsed plan. Set-drop-only days keep
+        // their original (already-contiguous) numbering.
+        resultByDay[day] = if (removedAny)
+            working.sortedBy { it.orderInDay }.mapIndexed { idx, ex -> ex.copy(orderInDay = idx) }
+        else working
+    }
+
+    // Salvage succeeds only if EVERY non-locked day now estimates within the strict window. Any day still
+    // over (un-trimmable within the guards) OR under the floor (never auto-filled) ⇒ un-salvageable (null).
+    val allInWindow = resultByDay.all { (day, list) ->
+        day in lockedDays || WorkoutTimeEstimator.estimateDayMinutes(list) in low..high
+    }
+    if (!allInWindow) return null
+
+    return resultByDay.values.flatten()
+}
+
 // ── H2: build the generation EXERCISE BLACKLIST from STRUCTURED names ─────────────────────────────
 //
 // The blacklist was previously rebuilt by RE-PARSING the rendered previous-plan string — splitting the
@@ -509,6 +632,16 @@ data class GenerationResult(
     val attemptCount: Int,
     val rejectionReasons: List<String> = emptyList(),
     val rationale: String = ""
+)
+
+// Phase-2 SALVAGE: an attempt whose plan failed the gate ONLY because some non-locked day(s) ESTIMATE
+// OVER the ceiling (none under) and is otherwise valid. We remember the best (smallest total overshoot)
+// such candidate across attempts; if every attempt fails, the loop auto-trims it back into the window
+// (see [trimOverflowToWindow]) and, if the trimmed plan passes peer review, saves it instead of failing.
+private data class SalvageCandidate(
+    val exercises: List<PlannedExercise>,
+    val rationale: String,
+    val totalOvershoot: Int
 )
 
 /**
@@ -718,6 +851,52 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             ?: splitSuggestions.entries.minByOrNull { kotlin.math.abs(it.key - daysPerWeek) }?.value?.random() ?: ""
         val rejectionReasons = mutableListOf<String>()
 
+        // Phase-2 SALVAGE: best OVER-only duration-rejected candidate across attempts (smallest overshoot).
+        var salvageCandidate: SalvageCandidate? = null
+
+        // Terminal handler shared by both MAX-attempt rejection paths. The model's own clean plan is still
+        // preferred (it returns earlier in the loop); ONLY here, after every attempt failed, do we attempt
+        // deterministic auto-trim on the best OVER-only candidate. We never alter the estimate/window/
+        // thresholds — the trim is layered strictly after the gate — and the trimmed plan must still pass
+        // peer review (the overshoot attempt was never LLM-reviewed because the gate short-circuits it).
+        suspend fun finalizeOrSalvage(rejections: List<String>, candidate: SalvageCandidate?): GenerationResult {
+            if (candidate != null) {
+                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, lockedDays)
+                if (trimmed != null) {
+                    onProgress("Trimming an over-target day to fit your $sessionDurationMinutes-min target…")
+                    val trimmedJson = buildProgramJsonForValidation(trimmed, candidate.rationale)
+                    val validation = validateProgram(
+                        trimmedJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity
+                    )
+                    if (validation.accepted) {
+                        val salvageAttempts = rejections.mapIndexed { i, r ->
+                            RejectionLog.Attempt(i + 1, r, finalFailure = false)
+                        } + RejectionLog.Attempt(
+                            rejections.size + 1,
+                            "Auto-trimmed an over-target day into the ±10-min window; trimmed plan passed review and was saved.",
+                            finalFailure = false
+                        )
+                        rejectionLog.addSession(salvageAttempts, succeeded = true)
+                        promptLog.add(
+                            "auto_trim_salvage", trimmedJson,
+                            "accepted=true (deterministic over-day trim → peer review passed)"
+                        )
+                        val note = " (Note: one or more days were automatically trimmed to fit your " +
+                            "$sessionDurationMinutes-min session target.)"
+                        val rationale = (candidate.rationale.trim() + note).trim()
+                        return GenerationResult(trimmed, MAX_GENERATION_ATTEMPTS, rejections.toList(), rationale)
+                    }
+                    promptLog.add("auto_trim_salvage", trimmedJson, "accepted=false: ${validation.reason}")
+                }
+            }
+            val logAttempts = rejections.mapIndexed { i, r ->
+                RejectionLog.Attempt(i + 1, r, i == rejections.lastIndex)
+            }
+            rejectionLog.addSession(logAttempts, succeeded = false)
+            val reasons = rejections.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
+            throw IllegalStateException("Program rejected after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
+        }
+
         for (attempt in 1..MAX_GENERATION_ATTEMPTS) {
             if (attempt == 1) {
                 onProgress("Generating your plan…")
@@ -743,6 +922,12 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             val response = try {
                 withAiRetry(isRetryable = ::isTransientGenerationError) {
                     sendStreaming(
+                        // G2: adaptive thinking + a 32000-token budget were live A/B-tested on this call and
+                        // REMOVED — they regressed hard (unbounded adaptive thinking on this large prompt
+                        // starved the JSON: 0/3 saves, ~522 s/gen over the 360 s deadline, the full budget
+                        // burned on thinking with NO JSON emitted, ~10× cost vs the proven path). With no
+                        // thinking and the efficiency prompt fix, generation output is ~2200 tokens, so the
+                        // ClaudeRequest default max_tokens=16384 is ample. NO thinking field is sent.
                         ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
                     )
                 }
@@ -782,12 +967,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 rejectionReasons.add(parseRejectionReason)
                 onProgress("Attempt $attempt rejected: $parseRejectionReason")
                 if (attempt == MAX_GENERATION_ATTEMPTS) {
-                    val logAttempts = rejectionReasons.mapIndexed { i, r ->
-                        RejectionLog.Attempt(i + 1, r, i == rejectionReasons.lastIndex)
-                    }
-                    rejectionLog.addSession(logAttempts, succeeded = false)
-                    val reasons = rejectionReasons.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
-                    throw IllegalStateException("Program rejected after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
+                    return@withGenerationDeadline finalizeOrSalvage(rejectionReasons, salvageCandidate)
                 }
                 continue
             }
@@ -829,6 +1009,31 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 }
                 .joinToString(" ")
 
+            // ── Phase-2 SALVAGE candidate capture ─────────────────────────────────
+            // If THIS attempt's plan fails the gate ONLY on duration AND every non-locked out-of-window
+            // day is OVER the ceiling (none under) AND there is no empty-plan or rest-day violation, keep
+            // it as a salvage candidate. We prefer the model's own clean plan (handled below); only if all
+            // attempts fail do we auto-trim the SMALLEST-overshoot candidate (see finalizeOrSalvage). The
+            // estimate/window/thresholds are never touched — trimming is layered strictly after the gate.
+            run {
+                val low = sessionDurationMinutes - 10
+                val high = sessionDurationMinutes + 10
+                val nonLockedDayMinutes = exercises
+                    .groupBy { it.dayOfWeek }
+                    .filterKeys { it !in lockedDays }
+                    .mapValues { (_, dayEx) -> WorkoutTimeEstimator.estimateDayMinutes(dayEx) }
+                val anyUnderWindow = nonLockedDayMinutes.values.any { it < low }
+                val isOverOnlyDurationMiss = emptyPlanReason.isEmpty() && restDayReason.isEmpty() &&
+                    durationReason.isNotEmpty() && !anyUnderWindow
+                if (isOverOnlyDurationMiss) {
+                    val overshoot = nonLockedDayMinutes.values.sumOf { maxOf(0, it - high) }
+                    val best = salvageCandidate
+                    if (best == null || overshoot < best.totalOvershoot) {
+                        salvageCandidate = SalvageCandidate(exercises, parseRationale(cleanJson), overshoot)
+                    }
+                }
+            }
+
             // Deterministic (Kotlin) rejections, in priority order: empty plan, B08 rest-day violation,
             // then the ±10-min duration miss. Any of these makes the plan un-acceptable regardless of
             // the LLM review, so we surface the most critical one AND skip the costly review when set.
@@ -859,12 +1064,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             rejectionReasons.add(rejectionReason)
             onProgress("Attempt $attempt rejected: $rejectionReason")
             if (attempt == MAX_GENERATION_ATTEMPTS) {
-                val logAttempts = rejectionReasons.mapIndexed { i, r ->
-                    RejectionLog.Attempt(i + 1, r, i == rejectionReasons.lastIndex)
-                }
-                rejectionLog.addSession(logAttempts, succeeded = false)
-                val reasons = rejectionReasons.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
-                throw IllegalStateException("Program rejected after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
+                return@withGenerationDeadline finalizeOrSalvage(rejectionReasons, salvageCandidate)
             }
         }
         throw IllegalStateException("Unexpected state")
@@ -1401,14 +1601,14 @@ For cardio exercises, use these name conventions so the app can identify them: E
 Cardio JSON fields: sets=1, targetReps = duration or distance only (e.g. "30 min", "5 km", "6×400m"), targetWeightKg=0, recommendedRestSeconds=60.
 
 ══════════════════════════════════════════
-NOTES FIELD
+NOTES FIELD — ONE short clause per exercise
 ══════════════════════════════════════════
-Keep notes concise, but they MUST contain the target effort (RIR/RPE) AND the progression rule. Common exercise names are fine ("lateral raise", "calf raise"), but NEVER assert incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest", "increases bicep peak"). Do NOT use "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch"). "Peak contraction" as a squeeze cue (hold the shortened position) IS allowed.
+Each exercise's "notes" must be TERSE — a single short clause, NOT sentences. It MUST still carry exactly (a) a target effort as RIR or RPE AND (b) a concrete progression rule, and nothing more. Follow this shape: "RPE 8 (~2 RIR); double progression +reps then +load". Do NOT add form cues, anatomy, coaching prose, or mechanism claims. NEVER assert an incorrect mechanism (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest", "increases bicep peak") and NEVER use "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch") — "peak contraction" as a squeeze cue is the only allowed use of that word.
 
 ══════════════════════════════════════════
-SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
+BUILD RULES — every day must satisfy ALL of these; apply them as you build, do NOT narrate or restate them in the output
 ══════════════════════════════════════════
-- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. Actually COMPUTE every day silently with the TIME BUDGET formula above — do NOT eyeball it. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: set REST to the goal's band max FIRST (it is the #1 lever${if (hypertrophyRest.isNotBlank()) "; hypertrophy: 120 s on EVERY set INCLUDING isolation" else " — do not exceed the goal's rest ceiling"}), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. ${if (hypertrophyRest.isNotBlank()) "Fill each day to a FULL ~19–20 working sets at 120 s rest so it estimates ~46–47 min (a few min above the ${sessionDurationMinutes - 10}-min floor); do NOT under-fill with 15–17 sets, and do NOT exceed the 20-set cap." else "Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding."}
+- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: set REST to the goal's band max FIRST (it is the #1 lever${if (hypertrophyRest.isNotBlank()) "; hypertrophy: 120 s on EVERY set INCLUDING isolation" else " — do not exceed the goal's rest ceiling"}), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. ${if (hypertrophyRest.isNotBlank()) "Fill each day to a FULL ~19–20 working sets at 120 s rest so it estimates ~46–47 min (a few min above the ${sessionDurationMinutes - 10}-min floor); do NOT under-fill with 15–17 sets, and do NOT exceed the 20-set cap." else "Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding."}
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone).
 - Every exercise's notes carry an RIR/RPE target AND a progression rule.
@@ -1421,8 +1621,8 @@ SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
 OUTPUT — valid JSON only, no prose, no markdown fences
 ══════════════════════════════════════════
-Do your reasoning silently (or fold it into the "rationale" field below) — do NOT write a long visible planning preamble before the JSON. Your FIRST output character must be the opening "{" of the JSON object, and you must emit the ENTIRE object through its closing "}" in one go. A response that runs out of room before the JSON is complete cannot be used.
-ALSO include a top-level "rationale" string (a sibling of "days"): a concise, plain-language explanation (2–4 sentences) of WHAT changed in this plan versus the user's recent training / last week's plan and WHY — your own coaching reasoning, referencing the ACTUAL exercises and changes in the plan you just produced (e.g. "Added posterior-chain volume because your hamstrings lagged; swapped barbell bench for dumbbell to ease the flagged shoulder; bumped squat load after three progressing sessions."). Speak directly to the user, no jargon. If there is no meaningful history to compare against (new user), briefly explain how the plan was built for their goal instead.
+Output ONLY the JSON object — nothing before it, nothing after it. Your VERY FIRST output character MUST be the opening "{" and the VERY LAST MUST be its closing "}". Do NOT write any visible planning preamble, step-by-step reasoning, per-day time-budget arithmetic, set-by-set or blacklist cross-checking, or self-check narration before, around, or after the JSON. Do NOT open with lines like "I'll plan silently" or "Let me compute the days" — just emit the JSON. Apply every rule above internally as you build the plan; the ONLY place any reasoning belongs is the short "rationale" field. Narrating your planning burns the output budget and makes the response run out of room before the JSON closes — a truncated, unclosed JSON object cannot be used.
+ALSO include a top-level "rationale" string (a sibling of "days"): keep it to AT MOST 2 short sentences — a brief, plain-language note on WHAT changed in this plan versus the user's recent training / last week and WHY, referencing the ACTUAL exercises (e.g. "Swapped barbell bench for dumbbell to ease your flagged shoulder and added posterior-chain volume for your lagging hamstrings."). Speak directly to the user, no jargon, no essay. For a new user with no history, one short sentence on how the plan fits their goal.
 {
   "rationale": "Short plain-language explanation of what changed in this plan and why.",
   "days": [
@@ -1435,7 +1635,7 @@ ALSO include a top-level "rationale" string (a sibling of "days"): a concise, pl
           "sets": 4,
           "targetReps": "8-10",
           "targetWeightKg": 80.0,
-          "notes": "RPE 8 (~2 RIR). Double progression: build to 10 reps across all sets, then +2.5 kg and reset to 8.",
+          "notes": "RPE 8 (~2 RIR); double progression +reps then +2.5 kg",
           "recommendedRestSeconds": 120
         }
       ]
@@ -1673,6 +1873,33 @@ Rebalance the remaining days against this already-trained work: manage recovery 
     private fun parseRationale(cleanJson: String): String =
         runCatching { gson.fromJson(cleanJson, ProgramJson::class.java).rationale.trim() }
             .getOrDefault("")
+
+    // Phase-2 SALVAGE: re-serialize a (possibly auto-trimmed) PlannedExercise list back to the generation
+    // program-JSON shape so [validateProgram] can peer-review it. The salvage candidate's raw response is
+    // the UN-trimmed plan, so after trimming we must review the TRIMMED plan, not the original. Groups by
+    // day (sorted), preserves per-day order; field names match the model's schema via ExJson @SerializedName.
+    private fun buildProgramJsonForValidation(exercises: List<PlannedExercise>, rationale: String): String {
+        val days = exercises
+            .groupBy { it.dayOfWeek }
+            .toSortedMap()
+            .map { (day, dayExercises) ->
+                DayJson(
+                    dayOfWeek = day,
+                    name = "",
+                    exercises = dayExercises.sortedBy { it.orderInDay }.map { ex ->
+                        ExJson(
+                            name = ex.exerciseName,
+                            sets = ex.sets,
+                            targetReps = ex.targetReps,
+                            targetWeightKg = ex.targetWeightKg,
+                            notes = ex.notes,
+                            recommendedRestSeconds = ex.recommendedRestSeconds
+                        )
+                    }
+                )
+            }
+        return gson.toJson(ProgramJson(days = days, rationale = rationale))
+    }
 
     /** E2 (L1 + M2): the mesocycle / deload directive injected into the generation prompt. */
     private fun buildMesocycleBlock(m: MesocycleContext): String = m.promptBlock()
