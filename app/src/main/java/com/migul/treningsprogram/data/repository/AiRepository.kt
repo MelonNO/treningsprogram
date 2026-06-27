@@ -260,9 +260,13 @@ internal fun dayDurationFeedback(day: Int, estimateMinutes: Int, targetMinutes: 
         estimateMinutes < low ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it reaches about " +
-                "$targetMinutes min: add an accessory exercise, or add sets/reps to the exercises it " +
-                "already has (stay within the per-muscle ~8–10 and per-session ~18–20 working-set " +
-                "caps; do NOT pad with junk volume). Do NOT trim it — it is already too short."
+                "$targetMinutes min, in THIS order until it lands in-window: (1) FIRST raise inter-set " +
+                "REST toward this goal's band maximum — rest is the #1 time lever and short rest is the " +
+                "main cause of under-time days (hypertrophy up to 120 s; do not exceed the goal's rest " +
+                "ceiling); (2) raise reps toward the TOP of each exercise's role range; (3) add a set to " +
+                "an accessory/isolation exercise; (4) add one more accessory exercise. Stay within the " +
+                "per-muscle ~8–10 and per-session ~18–20 working-set caps and the exercise-count cap; do " +
+                "NOT pad with junk volume. Do NOT shorten it — it is already too short."
         estimateMinutes > high ->
             "Day $day estimates ~$estimateMinutes min — that is OVER the target window " +
                 "($low–$high min, aim $targetMinutes). TRIM this day so it drops to about " +
@@ -1086,7 +1090,13 @@ The session target is $sessionDurationMinutes min. EACH training day MUST estima
 - Per strength exercise ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N.
 - Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
 - A day's estimate = the sum of its exercises.
-After sizing each day: if it lands under ${sessionDurationMinutes - 10} min, ADD an accessory exercise or add sets/reps until it estimates close to $sessionDurationMinutes min; if it lands over ${sessionDurationMinutes + 10} min, remove an accessory or shorten rest until it estimates close to $sessionDurationMinutes min. Aim for the CENTRE of the window ($sessionDurationMinutes min), not its edge, so small rounding does not tip a day out. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — fill or trim within those limits, and never pad with junk volume.
+REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days — most days that come in under the floor clear it on rest ALONE. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of this goal's allowed rest band BEFORE you conclude the day is finished (hypertrophy: up to 120 s, never beyond; strength: the longer heavy/accessory rests this goal already allows; endurance / weight-loss: stay inside their shorter bands). Do not exceed the goal's rest ceiling.
+UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until it reaches about $sessionDurationMinutes min. NEVER leave a day short just because you are near a cap — rest and reps still have room even at the working-set cap:
+  1. RAISE inter-set rest toward this goal's band maximum (hypertrophy ≤120 s).
+  2. RAISE reps toward the TOP of each exercise's role range.
+  3. ADD 1 set to an accessory/isolation exercise.
+  4. ADD one more accessory exercise (respecting the experience exercise-count cap — Intermediate ≤7 — and the ~18–20 total working-set / ~8–10 per-muscle caps).
+If a day lands over ${sessionDurationMinutes + 10} min, TRIM: remove an accessory or shorten rest until it estimates close to $sessionDurationMinutes min. Aim for the CENTRE of the window ($sessionDurationMinutes min), NOT its edge — a day parked at the low edge tips back UNDER ${sessionDurationMinutes - 10} min on small rounding. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — fill or trim within those limits, and never pad with junk volume.
 
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -1135,7 +1145,7 @@ Keep notes concise, but they MUST contain the target effort (RIR/RPE) AND the pr
 ══════════════════════════════════════════
 SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
-- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min (aim $sessionDurationMinutes) using the TIME BUDGET formula above — ADD work to any day under ${sessionDurationMinutes - 10} min, trim any over ${sessionDurationMinutes + 10} min.
+- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min (aim $sessionDurationMinutes). Actually COMPUTE every day silently with the TIME BUDGET formula above — do NOT eyeball it. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: raise REST toward the goal's band max FIRST (it is the #1 lever — hypertrophy ≤120 s), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding.
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone).
 - Every exercise's notes carry an RIR/RPE target AND a progression rule.
@@ -1273,7 +1283,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. If short, ADD an accessory or sets/reps; if long, trim — without exceeding ~10 sets/muscle or ~18–20 working sets total.")
+            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward this goal's band max (hypertrophy up to 120 s, never beyond; respect the goal's rest ceiling), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Stay within ~10 sets/muscle and ~18–20 working sets total, and aim for the CENTRE ($sessionDurationMinutes), not the edge.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
