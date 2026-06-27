@@ -42,6 +42,22 @@ fun isTransientAiError(t: Throwable): Boolean = when (t) {
 }
 
 /**
+ * H1: retry policy for the GENERATION call specifically. Identical to [isTransientAiError] EXCEPT a
+ * [SocketTimeoutException] is NOT retryable.
+ *
+ * A generation request is non-streaming with a large output budget (maxTokens=16384). If a call hits
+ * the OkHttp callTimeout (240s) it means the model was still generating a too-large/too-slow response —
+ * re-issuing it IMMEDIATELY with no backoff just times out again, burning ~2×240≈480s (~8 min) before
+ * any error surfaces (the observed "stuck on Attempt 2 of 3" stall). Treating a SocketTimeout as
+ * NON-retryable makes that case fail fast at ONE callTimeout with a specific, user-visible "timed out"
+ * error. Genuine transient blips (5xx / 429 / a fast-failing IOException like a connection reset) are
+ * STILL retried, so reliability for real hiccups is unchanged. Used ONLY by the generation call; every
+ * other caller keeps the default [isTransientAiError].
+ */
+fun isTransientGenerationError(t: Throwable): Boolean =
+    isTransientAiError(t) && t !is SocketTimeoutException
+
+/**
  * Returns a concise, user-friendly message for an AI network failure. Avoids surfacing raw Java
  * exception class names to the user.
  */
@@ -67,18 +83,67 @@ fun friendlyAiErrorMessage(t: Throwable): String = when {
  * Package-level (non-member) so it can be called from any suspend context and unit-tested
  * independently of [AiRepository].
  */
-suspend fun <T> withAiRetry(maxAttempts: Int = 2, block: suspend () -> T): T {
+suspend fun <T> withAiRetry(
+    maxAttempts: Int = 2,
+    isRetryable: (Throwable) -> Boolean = ::isTransientAiError,
+    block: suspend () -> T
+): T {
     var lastException: Throwable? = null
     repeat(maxAttempts) { attempt ->
         try {
             return block()
         } catch (t: Throwable) {
-            if (!isTransientAiError(t)) throw t   // non-transient: fail fast
+            if (!isRetryable(t)) throw t   // non-retryable: fail fast
             lastException = t
             // On last attempt fall through to re-throw; otherwise retry immediately
         }
     }
     throw lastException!!
+}
+
+// ── H1: overall generation wall-clock deadline ───────────────────────────────────────────────────
+//
+// Generation must ALWAYS reach a terminal outcome — never sit on "Attempt N of 3" indefinitely. OkHttp
+// callTimeout (240s) bounds each individual call, but an immediate no-backoff retry of a timed-out
+// generation call could burn ~2×240s, and across attempts the wall-clock could stack much higher. We
+// cap the WHOLE generate flow with a single overall deadline and convert a timeout into a clear,
+// terminal, user-visible error via the existing onFailure path (instead of a frozen progress counter).
+
+/** Friendly, terminal message shown when the overall generation deadline is hit. */
+internal const val GENERATION_TIMEOUT_MESSAGE =
+    "Generation took too long and was stopped. Please check your connection and try again."
+
+/**
+ * Overall wall-clock budget for one [AiRepository.generateAdaptedProgram] call (all attempts).
+ *
+ * Arithmetic: a NORMAL run makes 2 sequential API calls (attempt-1 generate + the LLM quality review);
+ * a fully-rejected run makes ≤3 generate calls (the verify step is skipped whenever a deterministic
+ * check fails) plus at most one verify. Each call is bounded by OkHttp callTimeout=240s, but a
+ * SUCCESSFUL call returns far faster than that pathological ceiling — even on a slow link 2–3 successful
+ * calls land comfortably inside 360s. The degenerate case (a stalled generate call) is now handled
+ * primarily by [isTransientGenerationError] (a timed-out generate is NOT re-issued, so it fails fast at
+ * one 240s callTimeout with a specific error); this 360s ceiling is the belt-and-suspenders backstop —
+ * well under the previously observed ~8 min (~480s+) stall — for any residual accumulation or non-network
+ * hang. 360s leaves margin so a legitimate slow-link multi-attempt run is not falsely cut off.
+ */
+internal const val GENERATION_OVERALL_DEADLINE_MS: Long = 360_000L
+
+/**
+ * Runs [block] under an overall [timeoutMs] wall-clock deadline. A timeout is converted into a
+ * terminal, friendly [IllegalStateException] (NOT a raw [kotlinx.coroutines.TimeoutCancellationException])
+ * so the caller's `runCatching` turns it into `Result.failure` and the existing onFailure path shows a
+ * clear message. The catch is intentionally NARROW (only [kotlinx.coroutines.TimeoutCancellationException]):
+ * a genuine external cancellation propagates as an ordinary [kotlinx.coroutines.CancellationException],
+ * which this does NOT catch, so normal coroutine cancellation is never swallowed here. Package-level +
+ * generic so the timeout-to-message contract is unit-testable without an [AiRepository] instance.
+ */
+internal suspend fun <T> withGenerationDeadline(
+    timeoutMs: Long = GENERATION_OVERALL_DEADLINE_MS,
+    block: suspend () -> T
+): T = try {
+    kotlinx.coroutines.withTimeout(timeoutMs) { block() }
+} catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+    throw IllegalStateException(GENERATION_TIMEOUT_MESSAGE)
 }
 
 // ── S3: robust extraction of a JSON object from raw model output ─────────────────────────────────
@@ -260,9 +325,13 @@ internal fun dayDurationFeedback(day: Int, estimateMinutes: Int, targetMinutes: 
         estimateMinutes < low ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it reaches about " +
-                "$targetMinutes min: add an accessory exercise, or add sets/reps to the exercises it " +
-                "already has (stay within the per-muscle ~8–10 and per-session ~18–20 working-set " +
-                "caps; do NOT pad with junk volume). Do NOT trim it — it is already too short."
+                "$targetMinutes min, in THIS order until it lands in-window: (1) FIRST raise inter-set " +
+                "REST toward this goal's band maximum — rest is the #1 time lever and short rest is the " +
+                "main cause of under-time days (hypertrophy up to 120 s; do not exceed the goal's rest " +
+                "ceiling); (2) raise reps toward the TOP of each exercise's role range; (3) add a set to " +
+                "an accessory/isolation exercise; (4) add one more accessory exercise. Stay within the " +
+                "per-muscle ~8–10 and per-session ~18–20 working-set caps and the exercise-count cap; do " +
+                "NOT pad with junk volume. Do NOT shorten it — it is already too short."
         estimateMinutes > high ->
             "Day $day estimates ~$estimateMinutes min — that is OVER the target window " +
                 "($low–$high min, aim $targetMinutes). TRIM this day so it drops to about " +
@@ -270,6 +339,25 @@ internal fun dayDurationFeedback(day: Int, estimateMinutes: Int, targetMinutes: 
         else -> null
     }
 }
+
+// ── H2: build the generation EXERCISE BLACKLIST from STRUCTURED names ─────────────────────────────
+//
+// The blacklist was previously rebuilt by RE-PARSING the rendered previous-plan string — splitting the
+// text after each ":" on commas. That shattered exercise names containing a comma (e.g. "Dumbbell Push
+// Press (Seated, Alternating)" → "Dumbbell Push Press (Seated" + "Alternating)") and the greedy
+// ":\s*(.+)" also harvested the day-prefixed line after the "LAST GENERATED PROGRAM …:" header, yielding
+// junk like "Mon: Barbell Bench Press". The fix is to never re-parse the formatted string: merge the
+// already-clean recent-session names with the clean previous-plan exercise names (whole PlannedExercise
+// .exerciseName values), so commas are preserved and no header/junk lines can leak in. Package-level +
+// pure so it is unit-testable without an [AiRepository] instance.
+internal fun buildBlacklistNames(
+    recentExercises: Set<String>,
+    previousPlanNames: Set<String>
+): java.util.SortedSet<String> =
+    (recentExercises + previousPlanNames)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .toSortedSet()
 
 // Onboarding question JSON model
 private data class OQJson(
@@ -475,10 +563,16 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         lockedExercises: List<PlannedExercise> = emptyList(),
         onProgress: (String) -> Unit = {}
     ): Result<GenerationResult> = runCatching {
+        // H1: bound the WHOLE generate flow (all attempts) with one overall wall-clock deadline so it
+        // ALWAYS reaches a terminal outcome — a timeout becomes a clear thrown error (→ Result.failure
+        // → the existing onFailure message), never a frozen "Attempt N of 3". See GENERATION_OVERALL_
+        // DEADLINE_MS for the arithmetic. Body indentation is left as-is to keep this a minimal diff.
+        withGenerationDeadline {
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
-        val previousPlan = buildPreviousPlanContext()
+        val previousPlanCtx = buildPreviousPlanContext()
+        val previousPlan = previousPlanCtx.text
         val variationTheme = variationThemes.random()
         val splitSuggestion = splitSuggestions[daysPerWeek]?.random()
             ?: splitSuggestions.entries.minByOrNull { kotlin.math.abs(it.key - daysPerWeek) }?.value?.random() ?: ""
@@ -495,10 +589,13 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 sessionDurationMinutes, equipment, equipmentNotes,
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
-                previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle,
+                previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
                 restDays, lockedExercises
             )
-            val response = withAiRetry {
+            // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
+            // (it would just time out again, burning a second 240s). Real transient blips (5xx/429,
+            // connection-reset IOException) still retry. Other AI callers keep the default policy.
+            val response = withAiRetry(isRetryable = ::isTransientGenerationError) {
                 claudeApi.sendMessage(
                     ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
                 )
@@ -604,7 +701,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 rejectionLog.addSession(logAttempts, succeeded = true)
                 // B2: extract the model's own rationale from the SAME accepted response.
                 val rationale = parseRationale(cleanJson)
-                return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
+                return@withGenerationDeadline GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
             }
             // Prefer the named deterministic reason; fall back to the LLM validator reason.
             val rejectionReason = deterministicReason.ifEmpty { validation.reason }
@@ -620,6 +717,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             }
         }
         throw IllegalStateException("Unexpected state")
+        } // withGenerationDeadline
     }
 
     /**
@@ -809,14 +907,20 @@ OR
         return Pair("$sessionDetails\n$trends$stallBlock", recentExercises)
     }
 
-    private suspend fun buildPreviousPlanContext(): String {
-        val weekStart = workoutRepository.getLatestPlanWeekStart() ?: return ""
+    // H2: returns BOTH the rendered reference text AND the clean set of whole exercise names from the
+    // structured rows. The blacklist is built from [exerciseNames] (commas preserved, no header/junk),
+    // not by re-parsing [text]. Empty/no-plan ⇒ blank text + empty set.
+    private data class PreviousPlanContext(val text: String, val exerciseNames: Set<String>)
+
+    private suspend fun buildPreviousPlanContext(): PreviousPlanContext {
+        val weekStart = workoutRepository.getLatestPlanWeekStart()
+            ?: return PreviousPlanContext("", emptySet())
         // E2: previous-plan context must come from the ACTIVE program only, so generation varies
         // against the right program's last week (not another program's rows sharing the weekStart).
         val forWeek = workoutRepository.getActiveProgramPlanForWeek(weekStart)
-        if (forWeek.isEmpty()) return ""
+        if (forWeek.isEmpty()) return PreviousPlanContext("", emptySet())
         val dayNames = mapOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
-        return buildString {
+        val text = buildString {
             appendLine("LAST GENERATED PROGRAM (exercises used — vary these in the new plan):")
             forWeek.groupBy { it.dayOfWeek }.toSortedMap().forEach { (day, exList) ->
                 val label = dayNames[day] ?: "Day $day"
@@ -824,6 +928,9 @@ OR
                 appendLine("  $label: $names")
             }
         }.trim()
+        // Clean whole names straight from the structured rows — NO comma-splitting, NO header line.
+        val exerciseNames = forWeek.map { it.exerciseName.trim() }.filter { it.isNotBlank() }.toSet()
+        return PreviousPlanContext(text, exerciseNames)
     }
 
     private fun buildPrompt(
@@ -842,6 +949,9 @@ OR
         dislikedExercises: String = "",
         onboardingContext: String = "",
         previousPlan: String = "",
+        // H2: clean whole exercise names from the PREVIOUS plan's structured rows (commas preserved,
+        // no header/junk) — used to build the blacklist instead of re-parsing [previousPlan]'s text.
+        previousPlanExerciseNames: Set<String> = emptySet(),
         recentExercises: Set<String> = emptySet(),
         variationTheme: String = "",
         splitSuggestion: String = "",
@@ -911,13 +1021,9 @@ Your new plan must directly address this. A plan with the same flaw will be reje
 
 """ else ""
 
-        // Merge recent logged exercises + last generated plan exercises into one blacklist
-        val planExercises = if (previousPlan.isNotBlank()) {
-            Regex(":\\s*(.+)").findAll(previousPlan).flatMap { m ->
-                m.groupValues[1].split(",").map { it.trim() }
-            }.filter { it.isNotBlank() }.toSet()
-        } else emptySet()
-        val blacklist = (recentExercises + planExercises).toSortedSet()
+        // H2: merge recent logged exercises + the PREVIOUS plan's clean structured names into one
+        // blacklist. Built from whole names (no comma-splitting, no header/junk) — see buildBlacklistNames.
+        val blacklist = buildBlacklistNames(recentExercises, previousPlanExerciseNames)
 
         val blacklistBlock = if (blacklist.isNotEmpty()) """
 ══════════════════════════════════════════
@@ -1086,7 +1192,13 @@ The session target is $sessionDurationMinutes min. EACH training day MUST estima
 - Per strength exercise ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N.
 - Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
 - A day's estimate = the sum of its exercises.
-After sizing each day: if it lands under ${sessionDurationMinutes - 10} min, ADD an accessory exercise or add sets/reps until it estimates close to $sessionDurationMinutes min; if it lands over ${sessionDurationMinutes + 10} min, remove an accessory or shorten rest until it estimates close to $sessionDurationMinutes min. Aim for the CENTRE of the window ($sessionDurationMinutes min), not its edge, so small rounding does not tip a day out. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — fill or trim within those limits, and never pad with junk volume.
+REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days — most days that come in under the floor clear it on rest ALONE. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of this goal's allowed rest band BEFORE you conclude the day is finished (hypertrophy: up to 120 s, never beyond; strength: the longer heavy/accessory rests this goal already allows; endurance / weight-loss: stay inside their shorter bands). Do not exceed the goal's rest ceiling.
+UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until it reaches about $sessionDurationMinutes min. NEVER leave a day short just because you are near a cap — rest and reps still have room even at the working-set cap:
+  1. RAISE inter-set rest toward this goal's band maximum (hypertrophy ≤120 s).
+  2. RAISE reps toward the TOP of each exercise's role range.
+  3. ADD 1 set to an accessory/isolation exercise.
+  4. ADD one more accessory exercise (respecting the experience exercise-count cap — Intermediate ≤7 — and the ~18–20 total working-set / ~8–10 per-muscle caps).
+If a day lands over ${sessionDurationMinutes + 10} min, TRIM: remove an accessory or shorten rest until it estimates close to $sessionDurationMinutes min. Aim for the CENTRE of the window ($sessionDurationMinutes min), NOT its edge — a day parked at the low edge tips back UNDER ${sessionDurationMinutes - 10} min on small rounding. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — fill or trim within those limits, and never pad with junk volume.
 
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -1135,7 +1247,7 @@ Keep notes concise, but they MUST contain the target effort (RIR/RPE) AND the pr
 ══════════════════════════════════════════
 SELF-CHECK BEFORE OUTPUT — silently fix any failures, then emit
 ══════════════════════════════════════════
-- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min (aim $sessionDurationMinutes) using the TIME BUDGET formula above — ADD work to any day under ${sessionDurationMinutes - 10} min, trim any over ${sessionDurationMinutes + 10} min.
+- Each training day estimates within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min (aim $sessionDurationMinutes). Actually COMPUTE every day silently with the TIME BUDGET formula above — do NOT eyeball it. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: raise REST toward the goal's band max FIRST (it is the #1 lever — hypertrophy ≤120 s), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding.
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone).
 - Every exercise's notes carry an RIR/RPE target AND a progression rule.
@@ -1273,7 +1385,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. If short, ADD an accessory or sets/reps; if long, trim — without exceeding ~10 sets/muscle or ~18–20 working sets total.")
+            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward this goal's band max (hypertrophy up to 120 s, never beyond; respect the goal's rest ceiling), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Stay within ~10 sets/muscle and ~18–20 working sets total, and aim for the CENTRE ($sessionDurationMinutes), not the edge.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
