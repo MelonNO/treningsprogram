@@ -1172,7 +1172,7 @@ Check ALL of the following. Reject on genuine violations — do not penalise rea
 $injuryCheck
 11. EXERCISE COUNT: Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session.
 12. NOTES: Notes assert no incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest"). Reject any use of "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch", "increases bicep peak"). "Peak contraction" as a squeeze cue (hold the shortened position) is allowed.
-13. TIME BUDGET (belt-and-suspenders; a deterministic Kotlin check is authoritative): each training day should estimate within ±10 min of $sessionDurationMinutes min (window ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}). Rough per-exercise estimate ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); cardio ≈ its duration (targetReps minutes/distance) + ~60 s. A day that clearly runs far over OR under that window should be flagged.
+13. TIME BUDGET — DO NOT EVALUATE THIS. Per-day session length is ALREADY enforced by an authoritative deterministic check that has PASSED before this review runs, so every training day is guaranteed to be within the allowed ±10-min window. Do NOT estimate or calculate session duration, and NEVER reject on time-budget, session-length, "too long", "too short", or any duration grounds. Disregard session length entirely when deciding accepted true/false.
 
 Respond with ONLY valid JSON — no prose, no markdown fences:
 {"accepted": true}
