@@ -42,6 +42,22 @@ fun isTransientAiError(t: Throwable): Boolean = when (t) {
 }
 
 /**
+ * H1: retry policy for the GENERATION call specifically. Identical to [isTransientAiError] EXCEPT a
+ * [SocketTimeoutException] is NOT retryable.
+ *
+ * A generation request is non-streaming with a large output budget (maxTokens=16384). If a call hits
+ * the OkHttp callTimeout (240s) it means the model was still generating a too-large/too-slow response —
+ * re-issuing it IMMEDIATELY with no backoff just times out again, burning ~2×240≈480s (~8 min) before
+ * any error surfaces (the observed "stuck on Attempt 2 of 3" stall). Treating a SocketTimeout as
+ * NON-retryable makes that case fail fast at ONE callTimeout with a specific, user-visible "timed out"
+ * error. Genuine transient blips (5xx / 429 / a fast-failing IOException like a connection reset) are
+ * STILL retried, so reliability for real hiccups is unchanged. Used ONLY by the generation call; every
+ * other caller keeps the default [isTransientAiError].
+ */
+fun isTransientGenerationError(t: Throwable): Boolean =
+    isTransientAiError(t) && t !is SocketTimeoutException
+
+/**
  * Returns a concise, user-friendly message for an AI network failure. Avoids surfacing raw Java
  * exception class names to the user.
  */
@@ -67,18 +83,67 @@ fun friendlyAiErrorMessage(t: Throwable): String = when {
  * Package-level (non-member) so it can be called from any suspend context and unit-tested
  * independently of [AiRepository].
  */
-suspend fun <T> withAiRetry(maxAttempts: Int = 2, block: suspend () -> T): T {
+suspend fun <T> withAiRetry(
+    maxAttempts: Int = 2,
+    isRetryable: (Throwable) -> Boolean = ::isTransientAiError,
+    block: suspend () -> T
+): T {
     var lastException: Throwable? = null
     repeat(maxAttempts) { attempt ->
         try {
             return block()
         } catch (t: Throwable) {
-            if (!isTransientAiError(t)) throw t   // non-transient: fail fast
+            if (!isRetryable(t)) throw t   // non-retryable: fail fast
             lastException = t
             // On last attempt fall through to re-throw; otherwise retry immediately
         }
     }
     throw lastException!!
+}
+
+// ── H1: overall generation wall-clock deadline ───────────────────────────────────────────────────
+//
+// Generation must ALWAYS reach a terminal outcome — never sit on "Attempt N of 3" indefinitely. OkHttp
+// callTimeout (240s) bounds each individual call, but an immediate no-backoff retry of a timed-out
+// generation call could burn ~2×240s, and across attempts the wall-clock could stack much higher. We
+// cap the WHOLE generate flow with a single overall deadline and convert a timeout into a clear,
+// terminal, user-visible error via the existing onFailure path (instead of a frozen progress counter).
+
+/** Friendly, terminal message shown when the overall generation deadline is hit. */
+internal const val GENERATION_TIMEOUT_MESSAGE =
+    "Generation took too long and was stopped. Please check your connection and try again."
+
+/**
+ * Overall wall-clock budget for one [AiRepository.generateAdaptedProgram] call (all attempts).
+ *
+ * Arithmetic: a NORMAL run makes 2 sequential API calls (attempt-1 generate + the LLM quality review);
+ * a fully-rejected run makes ≤3 generate calls (the verify step is skipped whenever a deterministic
+ * check fails) plus at most one verify. Each call is bounded by OkHttp callTimeout=240s, but a
+ * SUCCESSFUL call returns far faster than that pathological ceiling — even on a slow link 2–3 successful
+ * calls land comfortably inside 360s. The degenerate case (a stalled generate call) is now handled
+ * primarily by [isTransientGenerationError] (a timed-out generate is NOT re-issued, so it fails fast at
+ * one 240s callTimeout with a specific error); this 360s ceiling is the belt-and-suspenders backstop —
+ * well under the previously observed ~8 min (~480s+) stall — for any residual accumulation or non-network
+ * hang. 360s leaves margin so a legitimate slow-link multi-attempt run is not falsely cut off.
+ */
+internal const val GENERATION_OVERALL_DEADLINE_MS: Long = 360_000L
+
+/**
+ * Runs [block] under an overall [timeoutMs] wall-clock deadline. A timeout is converted into a
+ * terminal, friendly [IllegalStateException] (NOT a raw [kotlinx.coroutines.TimeoutCancellationException])
+ * so the caller's `runCatching` turns it into `Result.failure` and the existing onFailure path shows a
+ * clear message. The catch is intentionally NARROW (only [kotlinx.coroutines.TimeoutCancellationException]):
+ * a genuine external cancellation propagates as an ordinary [kotlinx.coroutines.CancellationException],
+ * which this does NOT catch, so normal coroutine cancellation is never swallowed here. Package-level +
+ * generic so the timeout-to-message contract is unit-testable without an [AiRepository] instance.
+ */
+internal suspend fun <T> withGenerationDeadline(
+    timeoutMs: Long = GENERATION_OVERALL_DEADLINE_MS,
+    block: suspend () -> T
+): T = try {
+    kotlinx.coroutines.withTimeout(timeoutMs) { block() }
+} catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+    throw IllegalStateException(GENERATION_TIMEOUT_MESSAGE)
 }
 
 // ── S3: robust extraction of a JSON object from raw model output ─────────────────────────────────
@@ -479,6 +544,11 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         lockedExercises: List<PlannedExercise> = emptyList(),
         onProgress: (String) -> Unit = {}
     ): Result<GenerationResult> = runCatching {
+        // H1: bound the WHOLE generate flow (all attempts) with one overall wall-clock deadline so it
+        // ALWAYS reaches a terminal outcome — a timeout becomes a clear thrown error (→ Result.failure
+        // → the existing onFailure message), never a frozen "Attempt N of 3". See GENERATION_OVERALL_
+        // DEADLINE_MS for the arithmetic. Body indentation is left as-is to keep this a minimal diff.
+        withGenerationDeadline {
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
@@ -502,7 +572,10 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 previousPlan, recentExercises, variationTheme, splitSuggestion, mesocycle,
                 restDays, lockedExercises
             )
-            val response = withAiRetry {
+            // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
+            // (it would just time out again, burning a second 240s). Real transient blips (5xx/429,
+            // connection-reset IOException) still retry. Other AI callers keep the default policy.
+            val response = withAiRetry(isRetryable = ::isTransientGenerationError) {
                 claudeApi.sendMessage(
                     ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
                 )
@@ -608,7 +681,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 rejectionLog.addSession(logAttempts, succeeded = true)
                 // B2: extract the model's own rationale from the SAME accepted response.
                 val rationale = parseRationale(cleanJson)
-                return@runCatching GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
+                return@withGenerationDeadline GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
             }
             // Prefer the named deterministic reason; fall back to the LLM validator reason.
             val rejectionReason = deterministicReason.ifEmpty { validation.reason }
@@ -624,6 +697,7 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
             }
         }
         throw IllegalStateException("Unexpected state")
+        } // withGenerationDeadline
     }
 
     /**
