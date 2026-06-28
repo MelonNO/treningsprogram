@@ -21,6 +21,7 @@ import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.databinding.FragmentSetupWizardBinding
 import com.migul.treningsprogram.domain.TrainingDaySelection
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.widget.LinearLayout
 
@@ -183,6 +184,21 @@ class SetupWizardFragment : Fragment() {
                 launch {
                     viewModel.generationStatus.collect { status ->
                         if (status.isNotBlank()) binding.tvGeneratingDetail.text = status
+                    }
+                }
+
+                // P5: rotate friendly/informative wait copy below the real status line while the
+                // wizard generates the first program. The real status (tvGeneratingDetail) stays above.
+                launch {
+                    viewModel.isGenerating.collectLatest { generating ->
+                        binding.tvGeneratingTip.visibility = if (generating) View.VISIBLE else View.GONE
+                        if (!generating) return@collectLatest
+                        var i = 0
+                        while (true) {
+                            binding.tvGeneratingTip.text =
+                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            kotlinx.coroutines.delay(4500)
+                        }
                     }
                 }
 

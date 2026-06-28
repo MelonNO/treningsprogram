@@ -74,11 +74,13 @@ class LogWorkoutFragment : Fragment() {
 
         val sessionId = arguments?.getLong("sessionId", -1L) ?: -1L
         val dayOfWeek = arguments?.getInt("dayOfWeek", -1) ?: -1
+        // P2: when set, perform THIS source day's planned workout as today's session.
+        val moveFromDay = arguments?.getInt("moveFromDay", 0) ?: 0
 
         if (sessionId > 0L) {
-            viewModel.loadSession(sessionId, dayOfWeek)
+            viewModel.loadSession(sessionId, dayOfWeek, moveFromDay)
         } else {
-            viewModel.resumeSession(dayOfWeek)
+            viewModel.resumeSession(dayOfWeek, moveFromDay)
         }
 
         // +/- weight buttons
@@ -662,6 +664,8 @@ class LogWorkoutFragment : Fragment() {
         viewModel.clearResult()
         val day = viewModel.workoutDayOfWeek.let { if (it > 0) it else currentDayOfWeek() }
         sharedResultVm.setResult(result, day)
+        // P2: a completed move commits the week change; flag the Program tab to rebalance the week.
+        if (viewModel.consumeMoveCommitted()) sharedResultVm.setMoveRebalancePending()
         val prevDestId = findNavController().previousBackStackEntry?.destination?.id
         // Pop logWorkoutFragment so it doesn't persist in any tab's back stack
         findNavController().popBackStack()

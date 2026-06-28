@@ -35,6 +35,7 @@ import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.ui.log.ExerciseInfoBottomSheet
 import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -162,6 +163,19 @@ class ProgramFragment : Fragment() {
                         binding.tvRegenStatus.text = status
                     }
                 }
+                // P5: rotate friendly/informative wait copy under the real status line while a day
+                // regen / rebalance runs. The real status (tvRegenStatus) always stays visible above it.
+                launch {
+                    viewModel.isDayGenerating.collectLatest { generating ->
+                        if (!generating) return@collectLatest
+                        var i = 0
+                        while (true) {
+                            binding.tvRegenTip.text =
+                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            kotlinx.coroutines.delay(4500)
+                        }
+                    }
+                }
                 launch {
                     viewModel.dayGenerationError.collect { error ->
                         if (error != null) {
@@ -178,7 +192,17 @@ class ProgramFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        val result = sharedResultVm.consumeForProgram() ?: return
+        // P2: a completed "do another day today" move routes back here — rebalance the week (always,
+        // regardless of the P1 toggle) and stay on the Program tab to show it, instead of the normal
+        // completion animation that hops to Home.
+        val pendingMove = sharedResultVm.consumeMoveRebalancePending()
+        val result = sharedResultVm.consumeForProgram()
+        if (pendingMove) {
+            viewModel.selectDay(currentDayOfWeek())
+            viewModel.rebalanceAfterDayMove()
+            return
+        }
+        if (result == null) return
         binding.root.post { playCompletionAnimation() }
     }
 
@@ -374,10 +398,24 @@ class ProgramFragment : Fragment() {
                 if (findNavController().currentDestination?.id == R.id.programFragment)
                     findNavController().navigate(R.id.action_program_to_log, bundle)
             }
+
+            // P2: "Do this workout today" — offered for an eligible OTHER day (not today, not yet
+            // logged) while today itself is not already logged. Performing+completing it moves the
+            // workout into today and rebalances the week (see brief-P2 / [P2-A4]).
+            val today = currentDayOfWeek()
+            val dayIsLogged = exercises.any { it.isLogged }
+            val todayPlan = viewModel.weekPlan.value.filter { it.dayOfWeek == today }
+            val todayAlreadyLogged = todayPlan.any { it.isLogged }
+            val eligibleForMove = day != today && !dayIsLogged && !todayAlreadyLogged
+            binding.btnDoToday.visibility = if (eligibleForMove) View.VISIBLE else View.GONE
+            if (eligibleForMove) {
+                binding.btnDoToday.setOnClickListener { confirmDoToday(day) }
+            }
         } else {
             binding.tvDayCompletion.text = ""
             binding.tvWorkoutType.text = "Take it easy today"
             binding.tvTotalTime.text = ""
+            binding.btnDoToday.visibility = View.GONE
         }
 
         binding.btnRegenerateDay.visibility = View.VISIBLE
@@ -475,6 +513,34 @@ class ProgramFragment : Fragment() {
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    /**
+     * P2: confirm moving another day's workout into today. The move/discard/rebalance commit ONLY on
+     * completion (brief P2 / [P2-A1]) — this just opens the log screen performing that day's plan,
+     * attributed to today. Abandoning leaves the week unchanged.
+     */
+    private fun confirmDoToday(sourceDay: Int) {
+        val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        val dayName = dayNames.getOrElse(sourceDay - 1) { "Day $sourceDay" }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Do $dayName's workout today?")
+            .setMessage(
+                "You'll perform and log $dayName's planned workout now. When you finish, it becomes " +
+                    "today's session, today's original plan is dropped, and the rest of the week rebalances. " +
+                    "If you don't finish, nothing changes."
+            )
+            .setPositiveButton("Start it") { _, _ ->
+                val bundle = Bundle().apply {
+                    putLong("sessionId", -1L)
+                    putInt("dayOfWeek", currentDayOfWeek())
+                    putInt("moveFromDay", sourceDay)
+                }
+                if (findNavController().currentDestination?.id == R.id.programFragment)
+                    findNavController().navigate(R.id.action_program_to_log, bundle)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun showRegenerateDayDialog(dayOfWeek: Int) {
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -737,6 +803,8 @@ class ProgramFragment : Fragment() {
         options.add("Regenerate (keep logged days)")
         // Mesocycle toggle.
         options.add(if (active.mesocycleWeeks > 0) "Turn off mesocycle block" else "Make a mesocycle block")
+        // P1: auto-rebalance toggle — when ON, changing a day's primary muscle focus rebalances the week.
+        options.add(if (viewModel.autoRebalanceEnabled) "Auto-rebalance week: ON" else "Auto-rebalance week: OFF")
         // Frozen toggle (assumption N).
         options.add(if (active.isFrozen) "Unfreeze (resume weekly AI adaptation)" else "Freeze (stop weekly AI adaptation)")
         if (viewModel.programs.value.size > 1) options.add("Delete this program")
@@ -755,6 +823,7 @@ class ProgramFragment : Fragment() {
                     }
                     "Make a mesocycle block" -> showMesocycleDialog()
                     "Turn off mesocycle block" -> viewModel.setMesocycle(0)
+                    "Auto-rebalance week: ON", "Auto-rebalance week: OFF" -> showAutoRebalanceDialog()
                     "Freeze (stop weekly AI adaptation)" -> viewModel.setFrozen(true)
                     "Unfreeze (resume weekly AI adaptation)" -> viewModel.setFrozen(false)
                     "Delete this program" -> confirmDeleteProgram(active)
@@ -782,6 +851,28 @@ class ProgramFragment : Fragment() {
             .setPositiveButton("Save") { _, _ ->
                 val name = input.text?.toString()?.trim().orEmpty()
                 if (name.isNotBlank()) viewModel.renameActiveProgram(name)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showAutoRebalanceDialog() {
+        val enabled = viewModel.autoRebalanceEnabled
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Auto-rebalance the week")
+            .setMessage(
+                "When ON, changing a day's primary muscle focus — by editing it or regenerating it with " +
+                    "a new focus — automatically rebalances the rest of the week's non-logged days around " +
+                    "the changed day. Logged days are never touched. When OFF, only the day you change " +
+                    "changes."
+            )
+            .setPositiveButton(if (enabled) "Turn OFF" else "Turn ON") { _, _ ->
+                viewModel.setAutoRebalanceEnabled(!enabled)
+                Snackbar.make(
+                    binding.root,
+                    if (!enabled) "Auto-rebalance is ON" else "Auto-rebalance is OFF",
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
             .setNegativeButton("Cancel", null)
             .show()

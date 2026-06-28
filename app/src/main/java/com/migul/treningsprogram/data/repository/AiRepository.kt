@@ -716,7 +716,11 @@ class AiRepository @Inject constructor(
     private val gson: Gson,
     private val resolver: ExerciseDbResolver,
     private val promptLog: PromptLog,
-    private val rejectionLog: RejectionLog
+    private val rejectionLog: RejectionLog,
+    // P3: posts a backgrounded "generation finished" notification at every program-generation
+    // terminal outcome. Injected here so ALL entry points (weekly + single-day, and the P1/P2
+    // rebalances that route through generateAdaptedProgram) are covered from one seam.
+    private val generationNotifier: com.migul.treningsprogram.notify.GenerationNotifier
 ) {
     companion object {
         const val MAX_GENERATION_ATTEMPTS = 3
@@ -1069,6 +1073,10 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         }
         throw IllegalStateException("Unexpected state")
         } // withGenerationDeadline
+    }.also {
+        // P3: terminal outcome of a full program generation (success OR terminal failure after all
+        // attempts/timeout) → a backgrounded-only system notification.
+        generationNotifier.notifyProgramGenerationComplete(it.isSuccess)
     }
 
     /**
@@ -1714,13 +1722,37 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         muscleFocus: String = "",
         onProgress: (String) -> Unit = {}
     ): Result<List<PlannedExercise>> = runCatching {
+        // P4: bound the whole single-day flow with the same overall deadline as the weekly path so it
+        // always reaches a terminal outcome (never a frozen progress line).
+        withGenerationDeadline {
         val weekStart = thisMonday()
         // Effective severity (only used when injuries non-blank). Legacy/unspecified ⇒ cautious Moderate.
         val sev = injurySeverity.ifBlank { "Moderate" }
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
         val dayName = dayNames.getOrElse(dayOfWeek - 1) { "Day $dayOfWeek" }
+        val goalIsHypertrophy = goal.lowercase().contains("hypertrophy")
 
-        val weekContext = existingWeekPlan.filter { it.dayOfWeek != dayOfWeek }
+        // P4: WEEKLY PARITY — pull real workout history so target weights are history-driven and
+        // progressed. (Bug fix: the old single-day prompt sent NO history and the return-shape example
+        // hard-coded targetWeightKg:0, so the model echoed 0 for every exercise → all-bodyweight.)
+        val sessions = workoutRepository.getRecentSessions(12)
+        val (history, recentExercises) = buildSessionHistory(sessions)
+
+        // P4: variety WITHIN the fixed focus. (Bug fix: the old path excluded the current day and passed
+        // no history/variation signal, so a fixed focus re-rolled the same canonical list every time.)
+        // Blacklist the day's CURRENT exercises plus recently-trained names, and inject a variation
+        // directive — the same levers the weekly generator uses.
+        val currentDayExerciseNames = existingWeekPlan.filter { it.dayOfWeek == dayOfWeek }
+            .map { it.exerciseName.trim() }.filter { it.isNotBlank() }.toSet()
+        val singleDayBlacklist = buildBlacklistNames(recentExercises, currentDayExerciseNames)
+        val variationTheme = variationThemes.random()
+
+        val otherDays = existingWeekPlan.filter { it.dayOfWeek != dayOfWeek }
+        // Peer review runs on the RESULTING full week so its weekly checks (recovery between days,
+        // weekly balance, day count) are meaningful for the regenerated day in context.
+        val resultingDayCount = (otherDays.map { it.dayOfWeek }.toSet() + dayOfWeek).size
+
+        val weekContext = otherDays
             .groupBy { it.dayOfWeek }
             .entries.sortedBy { it.key }
             .joinToString("\n") { (day, exs) ->
@@ -1731,8 +1763,6 @@ Rebalance the remaining days against this already-trained work: manage recovery 
 
         val equipStr = if (equipment.isEmpty()) "Bodyweight only — no equipment" else equipment.joinToString(", ")
 
-        onProgress("Generating $dayName exercises…")
-
         val repRange = when {
             goal.lowercase().contains("strength") -> "primary compounds 3–6, accessories 6–10, isolation 8–12"
             goal.lowercase().contains("endurance") -> "compounds 8–12 (barbell hinges ≤8), isolation 15–20, shorter rest"
@@ -1742,9 +1772,13 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         // FIX-B (v1.10.4): blunt 120 s-rest directive for a hypertrophy single-day regen (empty otherwise).
         val singleDayHypertrophyRest = hypertrophyRestDirective(goal, sessionDurationMinutes)
 
-        val prompt = buildString {
+        fun buildSingleDayPrompt(previousRejectionReason: String): String = buildString {
             appendLine("You are an expert personal trainer. Generate a single training day workout for $dayName.")
             appendLine()
+            if (previousRejectionReason.isNotBlank()) {
+                appendLine("PREVIOUS ATTEMPT REJECTED — FIX THIS FIRST: \"$previousRejectionReason\". Your new plan must directly address this or it will be rejected again.")
+                appendLine()
+            }
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
@@ -1752,6 +1786,16 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
+            appendLine()
+            appendLine("WORKOUT HISTORY (most recent first — use this to set REAL starting weights and progress them):")
+            appendLine(history)
+            appendLine()
+            appendLine("WEIGHT SELECTION (use the history above — do NOT default loaded exercises to 0/bodyweight):")
+            appendLine("- Progressing (load rising across sessions): add 2.5 kg (intermediate/advanced) or 5 kg (beginner) to the last weight.")
+            appendLine("- Plateaued (same weight 3+ sessions): keep the load, push reps to the top of the range first.")
+            appendLine("- Regressing: reduce 5–10% and note \"deload — rebuild form\".")
+            appendLine("- No history for a lift: set a sensible working weight (~55–65% est. 1RM) for this user — NOT 0.")
+            appendLine("- ONLY genuine bodyweight movements (push-ups, pull-ups, dips, planks, bodyweight lunges/squats) use targetWeightKg 0; every loaded movement MUST carry a real kg target.")
             appendLine()
             appendLine("HARD SAFETY RULES (never violate):")
             appendLine("- Loaded hip-hinge rep caps (three tiers): barbell hinges (deadlift, RDL, sumo DL, good morning) ≤8 reps; loaded DUMBBELL hinges (DB RDL, DB stiff-leg, DB good morning) ≤12 reps; bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, KB swing) is exempt and may run high-rep. For higher-rep posterior chain, route to the exempt list — never to a barbell pull. Never output barbell deadlift/RDL at 9+ reps.")
@@ -1785,6 +1829,11 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("REST OF THE WEEK (already scheduled — avoid training the SAME primary muscle group on immediately adjacent days):")
             appendLine(weekContext)
             appendLine()
+            appendLine("VARIETY DIRECTIVE: $variationTheme")
+            if (singleDayBlacklist.isNotEmpty()) {
+                appendLine("Do NOT just re-use the exercises this day already had or recent sessions used — pick DIFFERENT movements that still match the muscle focus. Already used (vary away from these): ${singleDayBlacklist.joinToString(", ")}")
+            }
+            appendLine()
             if (muscleFocus.isNotBlank() && muscleFocus != "Full body") {
                 appendLine("MUSCLE FOCUS FOR THIS DAY: $muscleFocus")
                 appendLine("All exercises must primarily target $muscleFocus (complementary muscles are fine as secondary). Do not spread across unrelated muscle groups.")
@@ -1802,39 +1851,123 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("- Set/rep targets must match the role-based rep ranges above; cap any single muscle at ~10 hard sets, and keep total working sets for the session ≤ ~18–20 (cardio/prehab excluded)")
             appendLine("- Every exercise's notes MUST include a target effort (RIR/RPE) AND a progression rule (default: double progression). Notes may use common exercise names but must not assert incorrect mechanisms, and must NOT use \"peak\" as a noun for muscle shape (\"bicep peak\", \"peak stretch\"); \"peak contraction\" as a squeeze cue is allowed.")
             appendLine()
-            append("Return ONLY valid JSON, no prose, no markdown fences:")
-            appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":3,"targetReps":"8-12","targetWeightKg":0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":90}]}]}""")
+            append("Return ONLY valid JSON, no prose, no markdown fences (use REAL history-based weights, not the example's number):")
+            appendLine("""{"days":[{"dayOfWeek":$dayOfWeek,"name":"$dayName","exercises":[{"name":"Exercise Name","sets":4,"targetReps":"8-12","targetWeightKg":40.0,"notes":"RPE 8 (~2 RIR); double progression: +reps to top of range, then +load","recommendedRestSeconds":120}]}]}""")
         }
 
-        // H4: stream; FIX-C: log the attempt even on failure.
-        val response = try {
-            withAiRetry {
-                sendStreaming(
-                    ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
-                )
+        // P4: WEEKLY-PARITY retry loop + strict per-day time-budget gate + validateProgram peer review.
+        val rejectionReasons = mutableListOf<String>()
+        // Phase-2 SALVAGE parity: best OVER-only duration-rejected candidate (smallest overshoot).
+        var salvageCandidate: SalvageCandidate? = null
+
+        // Terminal handler: after every attempt failed, attempt the same deterministic auto-trim the
+        // weekly path uses on the best OVER-only candidate (strict gate untouched — trim is layered
+        // strictly after it), then peer-review the trimmed day in full-week context; else throw.
+        suspend fun finalizeSingleDay(): List<PlannedExercise> {
+            val candidate = salvageCandidate
+            if (candidate != null) {
+                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, emptySet())
+                if (trimmed != null) {
+                    onProgress("Trimming $dayName to fit your $sessionDurationMinutes-min target…")
+                    val fullWeekJson = buildProgramJsonForValidation(otherDays + trimmed, candidate.rationale)
+                    val validation = validateProgram(
+                        fullWeekJson, resultingDayCount, sessionDurationMinutes, goal, experience, injuries, injurySeverity
+                    )
+                    if (validation.accepted) {
+                        rejectionLog.addSession(
+                            rejectionReasons.mapIndexed { i, r -> RejectionLog.Attempt(i + 1, r, finalFailure = false) },
+                            succeeded = true
+                        )
+                        promptLog.add("single_day_${dayName.lowercase()}_auto_trim", fullWeekJson,
+                            "accepted=true (deterministic over-day trim → peer review passed)")
+                        return trimmed.map { it.copy(weekStart = weekStart) }
+                    }
+                    promptLog.add("single_day_${dayName.lowercase()}_auto_trim", fullWeekJson, "accepted=false: ${validation.reason}")
+                }
             }
-        } catch (e: Throwable) {
-            promptLog.add("single_day_${dayName.lowercase()}", prompt, "<request failed: ${e.message}>")
-            throw e
-        }
-        val responseText = response.text()
-        promptLog.add("single_day_${dayName.lowercase()}", prompt, responseText)
-
-        // B10: this single-attempt path has no retry loop, so a no-JSON / truncated response surfaces
-        // via its own onFailure (a clear error, not a stall). Use the non-throwing extractor + the
-        // shared truncation signal so the message tells the user WHY it failed (cut off vs no JSON)
-        // rather than a generic "No JSON found". B08/B09 build on this same hardened seam.
-        val cleanJson = extractJsonOrNull(responseText)
-            ?: throw IllegalStateException(
-                if (isLikelyTruncated(responseText, response.stopReason))
-                    "Couldn't generate $dayName — the response was cut off before a plan was produced. Please try again."
-                else
-                    "Couldn't generate a valid plan for $dayName. Please try again."
+            rejectionLog.addSession(
+                rejectionReasons.mapIndexed { i, r -> RejectionLog.Attempt(i + 1, r, i == rejectionReasons.lastIndex) },
+                succeeded = false
             )
-        val exercises = parseProgram(cleanJson).filter { it.dayOfWeek == dayOfWeek }
-        if (exercises.isEmpty()) throw IllegalStateException("No exercises returned for $dayName")
-        // Re-stamp correct weekStart (parseProgram calls thisMonday() internally)
-        exercises.map { it.copy(weekStart = weekStart) }
+            val reasons = rejectionReasons.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
+            throw IllegalStateException("Couldn't generate $dayName after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
+        }
+
+        for (attempt in 1..MAX_GENERATION_ATTEMPTS) {
+            if (attempt == 1) onProgress("Generating $dayName exercises…")
+            else onProgress("Attempt $attempt of $MAX_GENERATION_ATTEMPTS: refining $dayName…")
+            val prompt = buildSingleDayPrompt(rejectionReasons.lastOrNull() ?: "")
+
+            // H1/H4: generation-specific retry (a timed-out generate is NOT re-issued) + streaming.
+            // FIX-C: log the attempt even when the call throws.
+            val response = try {
+                withAiRetry(isRetryable = ::isTransientGenerationError) {
+                    sendStreaming(ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt))))
+                }
+            } catch (e: Throwable) {
+                promptLog.add("single_day_${dayName.lowercase()}", prompt, "<request failed: ${e.message}>")
+                throw e
+            }
+            val responseText = response.text()
+            promptLog.add("single_day_${dayName.lowercase()}", prompt, responseText)
+
+            // No-JSON / truncated / unparseable → retryable rejection (matches the weekly loop).
+            val cleanJson = extractJsonOrNull(responseText)
+            val exercises = cleanJson?.let { runCatching { parseProgram(it) }.getOrNull() }
+                ?.filter { it.dayOfWeek == dayOfWeek }
+            if (cleanJson == null || exercises == null || exercises.isEmpty()) {
+                val reason = when {
+                    isLikelyTruncated(responseText, response.stopReason) ->
+                        "The response was cut off before a complete $dayName plan was produced. Lead with the JSON; keep reasoning brief."
+                    cleanJson == null ->
+                        "No usable JSON plan was found for $dayName. Return only the JSON object."
+                    else ->
+                        "The $dayName plan could not be parsed. Return a single valid JSON object matching the required shape."
+                }
+                rejectionReasons.add(reason)
+                onProgress("Attempt $attempt rejected: $reason")
+                if (attempt == MAX_GENERATION_ATTEMPTS) return@withGenerationDeadline finalizeSingleDay()
+                continue
+            }
+
+            // Strict ±10-min per-day duration gate (same formula/window as the weekly path).
+            val est = WorkoutTimeEstimator.estimateDayMinutes(exercises)
+            val durationReason = dayDurationFeedback(dayOfWeek, est, sessionDurationMinutes, goalIsHypertrophy) ?: ""
+
+            // Salvage candidate: an OVER-only duration miss (est > high) that is otherwise valid.
+            if (durationReason.isNotEmpty() && est > sessionDurationMinutes + 10) {
+                val overshoot = est - (sessionDurationMinutes + 10)
+                val best = salvageCandidate
+                if (best == null || overshoot < best.totalOvershoot) {
+                    salvageCandidate = SalvageCandidate(exercises, parseRationale(cleanJson), overshoot)
+                }
+            }
+
+            // Peer review in FULL-WEEK context (skip the costly LLM call when the gate already failed).
+            val validation = if (durationReason.isEmpty()) {
+                onProgress("Reviewing $dayName for quality…")
+                val fullWeekJson = buildProgramJsonForValidation(otherDays + exercises, parseRationale(cleanJson))
+                validateProgram(fullWeekJson, resultingDayCount, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
+            } else ValidationResult(accepted = false, reason = durationReason)
+
+            if (durationReason.isEmpty() && validation.accepted) {
+                rejectionLog.addSession(
+                    rejectionReasons.mapIndexed { i, r -> RejectionLog.Attempt(i + 1, r, false) },
+                    succeeded = true
+                )
+                // Re-stamp weekStart (parseProgram calls thisMonday() internally).
+                return@withGenerationDeadline exercises.map { it.copy(weekStart = weekStart) }
+            }
+            val rejectionReason = durationReason.ifEmpty { validation.reason }
+            rejectionReasons.add(rejectionReason)
+            onProgress("Attempt $attempt rejected: $rejectionReason")
+            if (attempt == MAX_GENERATION_ATTEMPTS) return@withGenerationDeadline finalizeSingleDay()
+        }
+        throw IllegalStateException("Unexpected state")
+        } // withGenerationDeadline
+    }.also {
+        // P3: terminal outcome of a single-day regeneration → backgrounded-only notification.
+        generationNotifier.notifyProgramGenerationComplete(it.isSuccess)
     }
 
     private fun parseProgram(cleanJson: String): List<PlannedExercise> {

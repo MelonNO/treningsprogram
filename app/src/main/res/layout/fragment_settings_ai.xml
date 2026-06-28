@@ -121,6 +121,16 @@
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:visibility="gone" />
 
+                <!-- P5: rotating, informative wait copy shown only while generating (real status above) -->
+                <TextView
+                    android:id="@+id/tv_generate_tip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
+
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

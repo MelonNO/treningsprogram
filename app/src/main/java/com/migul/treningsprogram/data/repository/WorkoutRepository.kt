@@ -385,6 +385,40 @@ class WorkoutRepository @Inject constructor(
         backupScheduler.requestBackup()
     }
 
+    /**
+     * P2: commit a "do another day's workout today" MOVE on workout completion. Moves [sourceDay]'s
+     * plan rows into [targetDay]'s slot (the performed exercises in [performedNames] marked logged),
+     * DISCARDS [targetDay]'s original plan, and CLEARS [sourceDay] (vacated — the caller then runs a
+     * week rebalance that regenerates it and the other non-logged days). Only ever touches
+     * planned_exercises; the logged session/sets live in other tables and are never referenced.
+     *
+     * Atomic + idempotent-ish: a no-op when [sourceDay] has no rows. Mirrors [saveDayPlan]'s
+     * rationale-preservation so the week keeps its "why your program changed" text.
+     */
+    suspend fun commitDayMove(
+        weekStart: Long,
+        sourceDay: Int,
+        targetDay: Int,
+        performedNames: Set<String>
+    ) {
+        if (sourceDay == targetDay) return
+        val programId = ensureActiveProgramId()
+        db.withTransaction {
+            val sourceRows = plannedDao.getForDayInProgramOnce(programId, weekStart, sourceDay)
+            if (sourceRows.isEmpty()) return@withTransaction
+            val weekRows = plannedDao.getForWeekInProgramOnce(programId, weekStart)
+            val weekRationale = weekRows.firstOrNull { it.rationale.isNotBlank() }?.rationale ?: ""
+            // Discard target's original plan and clear the vacated source day.
+            plannedDao.deleteForDayInProgram(programId, weekStart, targetDay)
+            plannedDao.deleteForDayInProgram(programId, weekStart, sourceDay)
+            val moved = com.migul.treningsprogram.domain.DayMovePlanner
+                .movedRows(sourceRows, targetDay, performedNames, weekRationale)
+                .map { it.copy(weekStart = weekStart, programId = programId) }
+            plannedDao.insertAll(moved)
+        }
+        backupScheduler.requestBackup()
+    }
+
     suspend fun saveDayPlan(weekStart: Long, dayOfWeek: Int, exercises: List<PlannedExercise>) {
         val programId = ensureActiveProgramId()
         db.withTransaction {

@@ -77,6 +77,9 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNav.setupWithNavController(navController)
         binding.btnHeaderBack.setOnClickListener { navController.navigateUp() }
 
+        // P3: a tapped "plan generation finished" notification deep-links to the Program tab.
+        handleGenerationDeepLink(intent)
+
         val topLevelIds = setOf(R.id.homeFragment, R.id.historyFragment, R.id.programFragment, R.id.profileFragment)
         // Fragments that manage their own header/toolbar internally
         val selfHeaderIds = setOf(R.id.gymPresetsFragment, R.id.logWorkoutFragment)
@@ -242,6 +245,23 @@ class MainActivity : AppCompatActivity() {
                 Context.RECEIVER_EXPORTED)
         } else {
             registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleGenerationDeepLink(intent)
+    }
+
+    /** P3: open the Program tab when launched from a generation-complete notification. */
+    private fun handleGenerationDeepLink(intent: Intent?) {
+        if (intent?.getBooleanExtra(
+                com.migul.treningsprogram.notify.GenerationNotifier.EXTRA_OPEN_PROGRAM, false
+            ) == true
+        ) {
+            intent.removeExtra(com.migul.treningsprogram.notify.GenerationNotifier.EXTRA_OPEN_PROGRAM)
+            binding.bottomNav.post { binding.bottomNav.selectedItemId = R.id.programFragment }
         }
     }
 

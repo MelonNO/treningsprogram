@@ -65,6 +65,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_SEPARATE_CARDIO_DAYS, false)
         set(value) { prefs.edit().putBoolean(KEY_SEPARATE_CARDIO_DAYS, value).apply() }
 
+    // P1: when ON, changing a day's PRIMARY MUSCLE FOCUS (manually or via single-day regenerate)
+    // auto-rebalances the rest of the current week's non-logged days around the locked changed day.
+    // Default OFF ⇒ changing a day affects only that day (the pre-P1 behaviour). The P2 "do another
+    // day's workout today" rebalance always runs regardless of this toggle.
+    var autoRebalanceEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_REBALANCE, false)
+        set(value) { prefs.edit().putBoolean(KEY_AUTO_REBALANCE, value).apply() }
+
     // B08: day-selection mode is encoded entirely by this CSV of REST weekday ints (1=Mon … 7=Sun).
     //  - NON-BLANK (e.g. "6,7") ⇒ REST-DAY mode: the user picked these as rest days; training is
     //    planned on the remaining weekdays and days/week is DERIVED (7 − rest days).
@@ -151,6 +159,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_GYM_PRESET = "selected_gym_preset_id"
         private const val KEY_LAST_AUTO_GENERATE_WEEK = "last_auto_generate_week"
         private const val KEY_SEPARATE_CARDIO_DAYS = "separate_cardio_days"
+        private const val KEY_AUTO_REBALANCE = "auto_rebalance_enabled"
         private const val KEY_REST_DAYS = "rest_days_csv"
         private const val KEY_LAST_WEEKLY_SUMMARY_WEEK = "last_weekly_summary_week"
         private const val KEY_LAST_GEN_ATTEMPTS = "last_generation_attempt_count"

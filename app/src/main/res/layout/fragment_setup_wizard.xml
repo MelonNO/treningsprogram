@@ -613,6 +613,15 @@
                     android:layout_height="wrap_content"
                     android:text="Claude is analysing your profile and creating a science-based weekly plan."
                     android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurface"
+                    android:gravity="center" />
+                <!-- P5: rotating, informative wait copy below the real status line -->
+                <TextView
+                    android:id="@+id/tv_generating_tip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:gravity="center" />
             </LinearLayout>

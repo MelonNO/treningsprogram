@@ -39,6 +39,17 @@ class LogWorkoutViewModel @Inject constructor(
     private val _dayOfWeek = MutableStateFlow(0)
     val workoutDayOfWeek: Int get() = _dayOfWeek.value
 
+    // P2: when > 0, this session is performing ANOTHER day's planned workout "today". The guided plan
+    // is loaded from this source day, but the session is attributed to _dayOfWeek (today). On
+    // completion the move is committed (source → today logged, today's original discarded, source
+    // vacated); abandoning leaves it 0 so the week is never touched.
+    private var moveFromDay = 0
+    private var moveCommitted = false
+
+    /** P2: true exactly once after completeWorkout committed a day-move — consumed by the fragment to
+     *  ask the Program tab to rebalance the week. */
+    fun consumeMoveCommitted(): Boolean = moveCommitted.also { moveCommitted = false }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val sets: StateFlow<List<WorkoutSet>> = _sessionId
         .filterNotNull()
@@ -204,21 +215,23 @@ class LogWorkoutViewModel @Inject constructor(
         }
     }
 
-    fun loadSession(sessionId: Long, dayOfWeek: Int) {
+    fun loadSession(sessionId: Long, dayOfWeek: Int, moveFromDay: Int = 0) {
         if (_sessionId.value == sessionId) return
         _sessionId.value = sessionId
         hydrateDraft(sessionId)
         val day = if (dayOfWeek > 0) dayOfWeek else currentDayOfWeek()
         _dayOfWeek.value = day
+        this.moveFromDay = if (moveFromDay > 0 && moveFromDay != day) moveFromDay else 0
         viewModelScope.launch {
             val session = workoutRepository.getActiveSession()
             _sessionStartMs.value = session?.dateMs ?: System.currentTimeMillis()
             _todayChallenges.value = dailyChallengeManager.getTodayChallenges()
-            loadGuidedPlan(day)
+            // P2: perform the SOURCE day's plan when a move is active, but attribute to today (_dayOfWeek).
+            loadGuidedPlan(if (this@LogWorkoutViewModel.moveFromDay > 0) this@LogWorkoutViewModel.moveFromDay else day)
         }
     }
 
-    fun resumeSession(dayOfWeek: Int = -1) {
+    fun resumeSession(dayOfWeek: Int = -1, moveFromDay: Int = 0) {
         if (_sessionId.value != null) return
         viewModelScope.launch {
             val id = workoutRepository.startSession()
@@ -228,8 +241,10 @@ class LogWorkoutViewModel @Inject constructor(
             _sessionStartMs.value = session?.dateMs ?: System.currentTimeMillis()
             val day = if (dayOfWeek > 0) dayOfWeek else currentDayOfWeek()
             _dayOfWeek.value = day
+            this@LogWorkoutViewModel.moveFromDay = if (moveFromDay > 0 && moveFromDay != day) moveFromDay else 0
             _todayChallenges.value = dailyChallengeManager.getTodayChallenges()
-            loadGuidedPlan(day)
+            // P2: perform the SOURCE day's plan when a move is active, but attribute to today (_dayOfWeek).
+            loadGuidedPlan(if (this@LogWorkoutViewModel.moveFromDay > 0) this@LogWorkoutViewModel.moveFromDay else day)
         }
     }
 
@@ -436,6 +451,7 @@ class LogWorkoutViewModel @Inject constructor(
             if (sets.value.none { !it.isWarmup }) {
                 workoutRepository.deleteSession(sid)
                 clearDraft(sid)
+                moveFromDay = 0   // P2: abandoned (no working sets) → week left unchanged
                 _sessionAbandoned.value = true
                 return@launch
             }
@@ -444,9 +460,20 @@ class LogWorkoutViewModel @Inject constructor(
             clearDraft(sid)
             // Mark planned exercises done so week progress bar is accurate
             val loggedNames = sets.value.filter { !it.isWarmup }.map { it.exerciseName }.toSet()
-            val plannedToday = workoutRepository.getPlannedForDay(thisMonday(), _dayOfWeek.value).first()
-            plannedToday.filter { it.exerciseName in loggedNames && !it.isLogged }
-                .forEach { workoutRepository.updatePlannedExercise(it.copy(isLogged = true)) }
+            val source = moveFromDay
+            if (source > 0) {
+                // P2: COMMIT the move now (only on completion) — the chosen day's plan becomes today's
+                // logged session, today's original plan is discarded, and the source day is vacated.
+                workoutRepository.commitDayMove(
+                    thisMonday(), sourceDay = source, targetDay = _dayOfWeek.value, performedNames = loggedNames
+                )
+                moveCommitted = true
+                moveFromDay = 0
+            } else {
+                val plannedToday = workoutRepository.getPlannedForDay(thisMonday(), _dayOfWeek.value).first()
+                plannedToday.filter { it.exerciseName in loggedNames && !it.isLogged }
+                    .forEach { workoutRepository.updatePlannedExercise(it.copy(isLogged = true)) }
+            }
             val result = gamificationRepository.processWorkoutCompletion(sid)
             _workoutResult.value = result
         }
@@ -459,6 +486,7 @@ class LogWorkoutViewModel @Inject constructor(
         viewModelScope.launch {
             workoutRepository.deleteSession(sid)
             clearDraft(sid)
+            moveFromDay = 0   // P2: abandoning leaves the week unchanged
             _sessionAbandoned.value = true
         }
     }

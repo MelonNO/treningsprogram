@@ -16,6 +16,7 @@ import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.databinding.FragmentSettingsAiBinding
 import com.migul.treningsprogram.ui.onboarding.OnboardingBottomSheet
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -84,7 +85,21 @@ class SettingsAiFragment : Fragment() {
                 launch {
                     viewModel.isGenerating.collect { loading ->
                         binding.progressGenerate.visibility = if (loading) View.VISIBLE else View.GONE
+                        binding.tvGenerateTip.visibility = if (loading) View.VISIBLE else View.GONE
                         binding.btnGenerateNow.isEnabled = !loading
+                    }
+                }
+                // P5: rotate friendly/informative wait copy while generating; the real status
+                // (tvGenerateStatus) stays on its own line above it.
+                launch {
+                    viewModel.isGenerating.collectLatest { loading ->
+                        if (!loading) return@collectLatest
+                        var i = 0
+                        while (true) {
+                            binding.tvGenerateTip.text =
+                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            kotlinx.coroutines.delay(4500)
+                        }
                     }
                 }
                 launch {

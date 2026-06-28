@@ -148,9 +148,11 @@ class ProgramViewModel @Inject constructor(
 
     fun swapExercise(exercise: PlannedExercise, newName: String) {
         viewModelScope.launch {
+            val beforeNames = currentDayNames(exercise.dayOfWeek)
             workoutRepository.updatePlannedExercise(
                 exercise.copy(exerciseName = newName, isLogged = false, actualWeightKg = 0f, actualReps = "", actualSets = 0)
             )
+            maybeRebalanceAfterManualEdit(exercise.dayOfWeek, beforeNames)
         }
     }
 
@@ -180,15 +182,18 @@ class ProgramViewModel @Inject constructor(
      */
     fun deleteExercise(exercise: PlannedExercise) {
         viewModelScope.launch {
+            val beforeNames = currentDayNames(exercise.dayOfWeek)
             workoutRepository.editDayPlan(thisMonday(), exercise.dayOfWeek) { current ->
                 com.migul.treningsprogram.domain.DayPlanEditor.remove(current, exercise)
             }
+            maybeRebalanceAfterManualEdit(exercise.dayOfWeek, beforeNames)
         }
     }
 
     /** Add a new exercise to the end of [day]'s plan, re-indexing so orderInDay = list position. */
     fun addExercise(day: Int, name: String, sets: Int, reps: String, weight: Float, notes: String) {
         viewModelScope.launch {
+            val beforeNames = currentDayNames(day)
             workoutRepository.editDayPlan(thisMonday(), day) { current ->
                 val newRow = PlannedExercise(
                     weekStart = thisMonday(),
@@ -202,6 +207,7 @@ class ProgramViewModel @Inject constructor(
                 )
                 com.migul.treningsprogram.domain.DayPlanEditor.add(current, newRow)
             }
+            maybeRebalanceAfterManualEdit(day, beforeNames)
         }
     }
 
@@ -235,6 +241,9 @@ class ProgramViewModel @Inject constructor(
             _dayGenerationError.value = null
             val weekStart = thisMonday()
             val currentPlan = weekPlan.value
+            // P1: snapshot the day's focus BEFORE the regen so we can tell if it genuinely changed.
+            val beforeNames = currentDayNames(dayOfWeek)
+            var rebalanced = false
 
             aiRepository.generateSingleDayProgram(
                 dayOfWeek = dayOfWeek,
@@ -253,11 +262,21 @@ class ProgramViewModel @Inject constructor(
             ).onSuccess { exercises ->
                 workoutRepository.saveDayPlan(weekStart, dayOfWeek, exercises)
                 _dayGenerationStatus.value = ""
+                // P1: if auto-rebalance is on and this regen CHANGED the day's primary muscle focus,
+                // rebalance the rest of the week around the (now locked) changed day. runRebalance owns
+                // _isDayGenerating from here so the progress animation stays up with no flicker.
+                if (prefsManager.autoRebalanceEnabled &&
+                    com.migul.treningsprogram.domain.MuscleFocus.changed(beforeNames, exercises.map { it.exerciseName })
+                ) {
+                    val (eq, notes) = resolveEquipment()
+                    runRebalance(setOf(dayOfWeek), eq, notes, showNothingError = false)
+                    rebalanced = true
+                }
             }.onFailure { e ->
                 _dayGenerationError.value = friendlyAiErrorMessage(e)
                 _dayGenerationStatus.value = ""
             }
-            _isDayGenerating.value = false
+            if (!rebalanced) _isDayGenerating.value = false
         }
     }
 
@@ -267,6 +286,110 @@ class ProgramViewModel @Inject constructor(
             prefsManager.restDaysCsv, prefsManager.daysPerWeek
         )
 
+    // ── P1: auto-rebalance toggle ────────────────────────────────────────────────────────────────
+    val autoRebalanceEnabled: Boolean get() = prefsManager.autoRebalanceEnabled
+    fun setAutoRebalanceEnabled(enabled: Boolean) { prefsManager.autoRebalanceEnabled = enabled }
+
+    /** The current names (in order) of a day's plan from the live week, for focus-change detection. */
+    private fun currentDayNames(day: Int): List<String> =
+        weekPlan.value.filter { it.dayOfWeek == day }.sortedBy { it.orderInDay }.map { it.exerciseName }
+
+    /** Equipment + notes for the user's currently-selected gym preset (for internally-triggered regens). */
+    private suspend fun resolveEquipment(): Pair<List<String>, String> {
+        val presetId = prefsManager.selectedGymPresetId
+        if (presetId == -1L) return emptyList<String>() to ""
+        val preset = gymPresetDao.getById(presetId) ?: return emptyList<String>() to ""
+        val equip = runCatching {
+            gson.fromJson<List<String>>(preset.equipmentJson, object : TypeToken<List<String>>() {}.type)
+        }.getOrElse { emptyList() }
+        return (equip ?: emptyList()) to preset.notes
+    }
+
+    /**
+     * P1: after a MANUAL structural edit (add/delete/swap), rebalance the week iff auto-rebalance is on
+     * AND the edit genuinely changed the day's PRIMARY MUSCLE FOCUS. Field-only edits (sets/reps/notes)
+     * and reorders never call this. A day the user has already logged is left alone (preserve-logged).
+     */
+    private suspend fun maybeRebalanceAfterManualEdit(day: Int, beforeNames: List<String>) {
+        if (!prefsManager.autoRebalanceEnabled) return
+        val monday = thisMonday()
+        val afterRows = workoutRepository.getActiveProgramPlanForWeek(monday).filter { it.dayOfWeek == day }
+        if (afterRows.any { it.isLogged }) return  // never auto-rebalance off a logged day
+        val afterNames = afterRows.sortedBy { it.orderInDay }.map { it.exerciseName }
+        if (com.migul.treningsprogram.domain.MuscleFocus.changed(beforeNames, afterNames)) {
+            val (eq, notes) = resolveEquipment()
+            runRebalance(setOf(day), eq, notes, showNothingError = false)
+        }
+    }
+
+    /**
+     * P1/P2: shared week-rebalance — regenerate the current week's NON-locked days around the
+     * locked/logged days, using the normal generation animation. [extraLockedDays] are days to LOCK
+     * beyond the already-logged days (P1 locks the changed day; P2 passes none since today is logged
+     * after the move). Reuses the B09 preserve-logged path, so logged days/sets are never touched.
+     */
+    private suspend fun runRebalance(
+        extraLockedDays: Set<Int>,
+        equipment: List<String>,
+        equipmentNotes: String,
+        showNothingError: Boolean
+    ) {
+        if (prefsManager.apiKey.isBlank()) {
+            if (showNothingError) _dayGenerationError.value = "Set your API key in Profile → Settings first."
+            return
+        }
+        _isDayGenerating.value = true
+        _dayGenerationError.value = null
+        val monday = thisMonday()
+        val currentPlan = workoutRepository.getActiveProgramPlanForWeek(monday)
+        val loggedDays = com.migul.treningsprogram.domain.RegeneratePlanner.loggedDays(currentPlan)
+        val preserveDays = loggedDays + extraLockedDays
+        val lockedExercises = currentPlan.filter { it.dayOfWeek in preserveDays }
+        val eff = effectiveSelection()
+
+        if (com.migul.treningsprogram.domain.RegeneratePlanner.nothingToRegenerate(preserveDays.size, eff.daysPerWeek)) {
+            if (showNothingError) _dayGenerationError.value =
+                "All ${eff.daysPerWeek} of this week's training days are already set — nothing to rebalance."
+            _isDayGenerating.value = false
+            return
+        }
+
+        val mesocycle = workoutRepository.buildRegenMesocycle(monday)
+        aiRepository.generateAdaptedProgram(
+            daysPerWeek = eff.daysPerWeek,
+            goal = prefsManager.fitnessGoal,
+            experience = prefsManager.experienceLevel,
+            sessionDurationMinutes = prefsManager.sessionDurationMinutes,
+            equipment = equipment,
+            equipmentNotes = equipmentNotes,
+            separateCardioDays = prefsManager.separateCardioDays,
+            injuries = prefsManager.injuries,
+            injurySeverity = prefsManager.injurySeverity,
+            priorityMuscles = prefsManager.priorityMuscles,
+            dislikedExercises = prefsManager.dislikedExercises,
+            onboardingContext = prefsManager.onboardingContext,
+            mesocycle = mesocycle,
+            restDays = eff.restDays,
+            lockedExercises = lockedExercises,
+            onProgress = { _dayGenerationStatus.value = it }
+        ).onSuccess { generationResult ->
+            workoutRepository.savePlanPreservingLoggedDays(
+                monday,
+                generationResult.exercises.map { it.copy(rationale = generationResult.rationale) },
+                preserveDays
+            )
+            workoutRepository.setActiveDeload(mesocycle.isDeload)
+            _dayGenerationStatus.value = ""
+        }.onFailure { e ->
+            _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
+                e.message ?: "Program rejected after all attempts"
+            else
+                friendlyAiErrorMessage(e)
+            _dayGenerationStatus.value = ""
+        }
+        _isDayGenerating.value = false
+    }
+
     /**
      * B09: the DEFAULT Program-tab "regenerate" action. Preserves every day that has ≥1 logged
      * exercise (kept exactly as-is, including its logged rows) and regenerates every other day,
@@ -274,60 +397,21 @@ class ProgramViewModel @Inject constructor(
      * Never deletes logged sets/history (only planned_exercises for non-logged days are replaced).
      */
     fun regeneratePreservingLoggedDays(equipment: List<String>, equipmentNotes: String) {
-        if (prefsManager.apiKey.isBlank()) {
-            _dayGenerationError.value = "Set your API key in Profile → Settings first."
-            return
-        }
         viewModelScope.launch {
-            _isDayGenerating.value = true
-            _dayGenerationError.value = null
-            val monday = thisMonday()
-            val currentPlan = weekPlan.value
-            val loggedDays = com.migul.treningsprogram.domain.RegeneratePlanner.loggedDays(currentPlan)
-            val lockedExercises = com.migul.treningsprogram.domain.RegeneratePlanner.lockedExercises(currentPlan)
-            val eff = effectiveSelection()
+            runRebalance(extraLockedDays = emptySet(), equipment = equipment, equipmentNotes = equipmentNotes, showNothingError = true)
+        }
+    }
 
-            if (com.migul.treningsprogram.domain.RegeneratePlanner.nothingToRegenerate(loggedDays.size, eff.daysPerWeek)) {
-                _dayGenerationError.value =
-                    "All ${eff.daysPerWeek} of this week's training days are already logged — nothing to regenerate."
-                _isDayGenerating.value = false
-                return@launch
-            }
-
-            val mesocycle = workoutRepository.buildRegenMesocycle(monday)
-            aiRepository.generateAdaptedProgram(
-                daysPerWeek = eff.daysPerWeek,
-                goal = prefsManager.fitnessGoal,
-                experience = prefsManager.experienceLevel,
-                sessionDurationMinutes = prefsManager.sessionDurationMinutes,
-                equipment = equipment,
-                equipmentNotes = equipmentNotes,
-                separateCardioDays = prefsManager.separateCardioDays,
-                injuries = prefsManager.injuries,
-                injurySeverity = prefsManager.injurySeverity,
-                priorityMuscles = prefsManager.priorityMuscles,
-                dislikedExercises = prefsManager.dislikedExercises,
-                onboardingContext = prefsManager.onboardingContext,
-                mesocycle = mesocycle,
-                restDays = eff.restDays,
-                lockedExercises = lockedExercises,
-                onProgress = { _dayGenerationStatus.value = it }
-            ).onSuccess { generationResult ->
-                workoutRepository.savePlanPreservingLoggedDays(
-                    monday,
-                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) },
-                    loggedDays
-                )
-                workoutRepository.setActiveDeload(mesocycle.isDeload)
-                _dayGenerationStatus.value = ""
-            }.onFailure { e ->
-                _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
-                    e.message ?: "Program rejected after all attempts"
-                else
-                    friendlyAiErrorMessage(e)
-                _dayGenerationStatus.value = ""
-            }
-            _isDayGenerating.value = false
+    /**
+     * P2: after a "do another day's workout today" move is COMMITTED on workout completion, rebalance
+     * the week — ALWAYS, regardless of the P1 auto-rebalance toggle. Today is already a logged day
+     * (the move marked it), so the vacated source day and the other non-logged days regenerate around
+     * the logged days. Triggered when the user returns to the Program tab post-completion.
+     */
+    fun rebalanceAfterDayMove() {
+        viewModelScope.launch {
+            val (eq, notes) = resolveEquipment()
+            runRebalance(extraLockedDays = emptySet(), equipment = eq, equipmentNotes = notes, showNothingError = false)
         }
     }
 }
