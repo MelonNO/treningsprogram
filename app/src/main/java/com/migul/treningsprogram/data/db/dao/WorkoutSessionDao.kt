@@ -23,6 +23,21 @@ interface WorkoutSessionDao {
     """)
     suspend fun getRecentCompleted(limit: Int): List<WorkoutSession>
 
+    /**
+     * History-timeline rows: every completed workout that has at least one working set (the existing
+     * "real workout" definition, unchanged) PLUS every auto-logged REST/MISSED placeholder. Used only
+     * by the History "Log" tab so rest/missed days are visible alongside workouts. Placeholders carry
+     * no sets, so they are surfaced by their `kind` rather than by the working-set sub-select.
+     */
+    @Query("""
+        SELECT * FROM workout_sessions
+        WHERE kind IN ('REST', 'MISSED')
+           OR (isCompleted = 1
+               AND id IN (SELECT DISTINCT sessionId FROM workout_sets WHERE isWarmup = 0))
+        ORDER BY dateMs DESC
+    """)
+    fun getHistoryTimeline(): Flow<List<WorkoutSession>>
+
     @Delete
     suspend fun delete(session: WorkoutSession)
 

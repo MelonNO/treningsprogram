@@ -144,6 +144,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_WORKOUT_DRAFT, "") ?: ""
         set(value) { prefs.edit().putString(KEY_WORKOUT_DRAFT, value).apply() }
 
+    // Auto-rest-day logging: the epoch-millis the feature first ran on this install. Persisted once
+    // (0 = never run). Acts as the floor for the rest/missed backfill window so the first launch after
+    // the update does NOT retroactively invent rest/missed days for the period before the feature
+    // existed; gaps since the last activity ARE filled on later launches.
+    var restDayFeatureFirstRunMs: Long
+        get() = prefs.getLong(KEY_REST_DAY_FIRST_RUN, 0L)
+        set(value) { prefs.edit().putLong(KEY_REST_DAY_FIRST_RUN, value).apply() }
+
     fun clearAll() {
         prefs.edit().clear().apply()
     }
@@ -172,5 +180,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_DISLIKED_EXERCISES = "disliked_exercises"
         private const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"
         private const val KEY_WORKOUT_DRAFT = "workout_inprogress_draft"
+        private const val KEY_REST_DAY_FIRST_RUN = "rest_day_feature_first_run_ms"
     }
 }

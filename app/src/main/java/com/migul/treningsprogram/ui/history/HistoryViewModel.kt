@@ -22,8 +22,16 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
 
     // ── Log tab ──────────────────────────────────────────────────────────
+    // Completed real workouts only — drives the Stats tab totals (totalWorkouts / best streak) and
+    // CSV export, so it must NOT include auto-logged rest/missed placeholders.
     val allSessions: StateFlow<List<WorkoutSession>> =
         workoutRepository.getAllCompletedSessions()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // History "Log" timeline — real workouts PLUS auto-logged REST/MISSED days, so empty days are
+    // visible as distinct entries. Separate from [allSessions] so placeholders never reach the Stats.
+    private val timelineSessions: StateFlow<List<WorkoutSession>> =
+        workoutRepository.getHistoryTimeline()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val searchQuery = MutableStateFlow("")
@@ -32,7 +40,7 @@ class HistoryViewModel @Inject constructor(
     enum class DateFilter { ALL, WEEK, MONTH, THREE_MONTHS }
 
     val filteredSessions: StateFlow<List<WorkoutSession>> =
-        combine(allSessions, searchQuery, dateFilter) { sessions, query, filter ->
+        combine(timelineSessions, searchQuery, dateFilter) { sessions, query, filter ->
             val now = System.currentTimeMillis()
             val cutoff = when (filter) {
                 DateFilter.WEEK -> now - 7 * 86_400_000L

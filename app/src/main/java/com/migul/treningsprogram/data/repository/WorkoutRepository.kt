@@ -7,7 +7,10 @@ import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.*
 import com.migul.treningsprogram.data.db.entity.*
+import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.domain.DayPlanEditor
+import com.migul.treningsprogram.domain.RestDayBackfill
+import com.migul.treningsprogram.domain.TrainingDaySelection
 import com.migul.treningsprogram.domain.model.ExerciseRecap
 import com.migul.treningsprogram.domain.model.SessionPacing
 import com.migul.treningsprogram.domain.model.SessionRecap
@@ -31,7 +34,8 @@ class WorkoutRepository @Inject constructor(
     private val plannedDao: PlannedExerciseDao,
     private val programDao: ProgramDao,
     private val resolver: ExerciseDbResolver,
-    private val backupScheduler: BackupScheduler
+    private val backupScheduler: BackupScheduler,
+    private val preferencesManager: PreferencesManager
 ) {
 
     companion object {
@@ -47,10 +51,20 @@ class WorkoutRepository @Inject constructor(
      * (editExercise) are a single in-place @Update and don't need it.
      */
     private val dayEditMutex = Mutex()
+
+    /**
+     * Serializes [autoLogRestDays] so overlapping launch/foreground triggers (onCreate + onStart, or
+     * a config-change recreate) can't both read the same pre-insert snapshot and double-insert the
+     * same rest/missed day. With the lock, the second caller sees the first's freshly-inserted rows.
+     */
+    private val restDayBackfillMutex = Mutex()
     val allSessions: Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
 
     fun getAllCompletedSessions(): Flow<List<WorkoutSession>> = sessionDao.getAllCompleted()
+
+    /** History-timeline stream: real workouts plus auto-logged REST/MISSED days (Log tab only). */
+    fun getHistoryTimeline(): Flow<List<WorkoutSession>> = sessionDao.getHistoryTimeline()
 
     suspend fun updateSession(session: WorkoutSession) = sessionDao.update(session)
 
@@ -180,6 +194,78 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getLastSetsForExercise(exerciseName: String, excludeSessionId: Long = -1): List<WorkoutSet> =
         setDao.getLastSetsForExercise(exerciseName, excludeSessionId)
+
+    // ── Auto-log rest / missed days ──────────────────────────────────────────────────────────────
+
+    /**
+     * Auto-logs a REST or MISSED placeholder for every past day that has nothing logged, so a day
+     * that passes with no workout still appears in History (clearly as rest vs missed) and the user
+     * can see their consistency. Safe to call on every app launch/foreground:
+     *
+     *  - The window is `max(lastLoggedWorkout, featureFirstRun) + 1 … yesterday` (today excluded);
+     *    [RestDayBackfill.daysToFill] does the day-boundary math.
+     *  - First ever run only stamps [PreferencesManager.restDayFeatureFirstRunMs] and fills nothing
+     *    (the window collapses to empty), so we never invent history before the feature existed.
+     *  - Idempotent: any day that already has a session of ANY kind is skipped, so re-runs never
+     *    duplicate. A [restDayBackfillMutex] guards against concurrent triggers.
+     *  - Placeholders are completed, have no sets, and are marked [WorkoutSession.KIND_REST]/
+     *    [WorkoutSession.KIND_MISSED] so every set-joined aggregate (volume / PR / strength / streaks /
+     *    AI history) naturally excludes them.
+     *
+     * Pure date/classification logic lives in [RestDayBackfill]; this method only does the Android I/O
+     * (read prefs + sessions + plan, convert millis ⇄ local date, batch-insert) off the main thread.
+     */
+    suspend fun autoLogRestDays() = restDayBackfillMutex.withLock {
+        val zone = java.time.ZoneId.systemDefault()
+        fun epochDayOf(ms: Long): Long =
+            java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().toEpochDay()
+
+        // First run: stamp the floor and stop. The window would be empty anyway (firstRun == today),
+        // but returning here keeps the "never backfill before the feature existed" rule explicit.
+        val firstRunMs = preferencesManager.restDayFeatureFirstRunMs
+        if (firstRunMs == 0L) {
+            preferencesManager.restDayFeatureFirstRunMs = System.currentTimeMillis()
+            return@withLock
+        }
+
+        val todayEpoch = java.time.LocalDate.now(zone).toEpochDay()
+        val featureFirstRunEpoch = epochDayOf(firstRunMs)
+
+        val allSessionsOnce = sessionDao.getAllOnce()
+        // Idempotency set: every day that already has a row of ANY kind (workout, in-progress,
+        // rest, missed). Last real workout day = floor for the window (placeholders don't count).
+        val existingEpochs = allSessionsOnce.map { epochDayOf(it.dateMs) }.toSet()
+        val lastLoggedEpoch = allSessionsOnce
+            .filter { !it.isPlaceholder }
+            .maxOfOrNull { epochDayOf(it.dateMs) }
+
+        val daysToFill = RestDayBackfill.daysToFill(
+            todayEpoch = todayEpoch,
+            lastLoggedEpoch = lastLoggedEpoch,
+            featureFirstRunEpoch = featureFirstRunEpoch,
+            existingRecordEpochs = existingEpochs
+        )
+        if (daysToFill.isEmpty()) return@withLock
+
+        // Classification inputs. Rest-day mode keys off restDaysCsv; count mode uses the weekdays the
+        // active program's plan actually trains (planned_exercises.dayOfWeek) as the best signal.
+        val restDays = TrainingDaySelection.parseRestDays(preferencesManager.restDaysCsv)
+        val activeProgramId = programDao.getActiveOnce()?.id
+        val plannedTrainingWeekdays: Set<Int> = plannedDao.getAllOnce()
+            .filter { activeProgramId == null || it.programId == activeProgramId }
+            .map { it.dayOfWeek }
+            .toSet()
+
+        val newRows = daysToFill.map { epoch ->
+            val date = java.time.LocalDate.ofEpochDay(epoch)
+            val weekday = date.dayOfWeek.value // 1 = Monday … 7 = Sunday
+            val kind = RestDayBackfill.classify(weekday, restDays, plannedTrainingWeekdays)
+            // Noon local avoids any day-boundary ambiguity when this dateMs is later mapped back.
+            val dateMs = date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+            WorkoutSession(dateMs = dateMs, isCompleted = true, kind = kind)
+        }
+        sessionDao.insertAll(newRows)
+    }
 
     // ── E2: program model ──────────────────────────────────────────────────────────────────────
 

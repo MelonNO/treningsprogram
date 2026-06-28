@@ -84,6 +84,10 @@ class HistoryLogFragment : Fragment() {
     }
 
     private fun buildSessionCard(inflater: LayoutInflater, session: WorkoutSession): View {
+        // Auto-logged rest / missed days render as a compact, clearly-labelled, non-expandable card
+        // (they carry no sets and no recap), distinct from a real workout card.
+        if (session.isPlaceholder) return buildPlaceholderCard(session)
+
         val card = MaterialCardView(requireContext()).apply {
             radius = 16 * resources.displayMetrics.density
             strokeWidth = (1 * resources.displayMetrics.density).toInt()
@@ -214,6 +218,48 @@ class HistoryLogFragment : Fragment() {
         card.setOnClickListener {
             (requireParentFragment() as? HistoryFragment)?.openRecap(session.id)
         }
+        return card
+    }
+
+    /** Compact card for an auto-logged rest day or missed workout (no sets, no recap, not clickable). */
+    private fun buildPlaceholderCard(session: WorkoutSession): View {
+        val density = resources.displayMetrics.density
+        val card = MaterialCardView(requireContext()).apply {
+            radius = 16 * density
+            strokeWidth = (1 * density).toInt()
+            strokeColor = requireContext().getColor(com.google.android.material.R.color.material_on_background_emphasis_medium)
+            cardElevation = 0f
+            val m = (12 * density).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = m }
+        }
+
+        val row = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            val p = (16 * density).toInt()
+            setPadding(p, p, p, p)
+        }
+
+        val tvDate = TextView(requireContext()).apply {
+            text = dateFmt.format(Date(session.dateMs))
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_background_emphasis_medium))
+        }
+
+        val isMissed = session.isMissedDay
+        val tvLabel = TextView(requireContext()).apply {
+            text = if (isMissed) "Missed workout" else "Rest day"
+            textSize = 12f
+            setTextColor(Color.parseColor(if (isMissed) "#FF9800" else "#90A4AE"))
+        }
+
+        row.addView(tvDate)
+        row.addView(tvLabel)
+        card.addView(row)
         return card
     }
 

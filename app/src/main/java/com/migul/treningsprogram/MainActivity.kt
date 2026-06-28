@@ -177,6 +177,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Auto-log a REST/MISSED placeholder for every empty past day. onStart fires on cold launch
+        // AND on every return-from-background, so gaps are caught up whenever the app is foregrounded.
+        // The call is idempotent + mutex-guarded and runs off the main thread, so re-entry is safe.
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { workoutRepository.autoLogRestDays() }
+        }
+    }
+
     private fun showUpdateDialog(release: UpdateChecker.ReleaseInfo, currentVersion: String) {
         val view = layoutInflater.inflate(R.layout.dialog_update_prompt, null)
 

@@ -22,7 +22,7 @@ import com.migul.treningsprogram.data.db.entity.*
         Program::class,
         XpEvent::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -226,6 +226,18 @@ abstract class AppDatabase : RoomDatabase() {
                         arrayOf<Any?>(group, name)
                     )
                 }
+            }
+        }
+
+        // Auto-rest-day logging: adds a nullable `kind` marker to workout_sessions so an empty past
+        // day can be recorded as a REST or MISSED placeholder, distinct from a real workout. Additive
+        // and non-destructive — existing rows get NULL (= workout), and a NULL column matches what the
+        // entity declares (String?), so Room's open-time schema validation passes. Nullable (no NOT
+        // NULL / DEFAULT) mirrors the backup-safe pattern used for planned_exercises.programId: old
+        // backups whose session JSON omits `kind` deserialize as NULL = workout, never crashing.
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workout_sessions ADD COLUMN kind TEXT")
             }
         }
 
