@@ -134,7 +134,9 @@ class HomeViewModel @Inject constructor(
                         sessionId = row.sessionId,
                         sessionDateMs = row.sessionDateMs,
                         exerciseName = row.exerciseName,
-                        weight = weight
+                        weight = weight,
+                        // Item 12: carry this exercise/session's logged effort so recovery scales by it.
+                        effortLevel = row.effortLevel
                     )
                 )
             }
@@ -145,7 +147,10 @@ class HomeViewModel @Inject constructor(
             .associate { (idx, label) -> label to idx }
 
         return stimuliByMuscle.entries.mapNotNull { (label, stimuli) ->
-            val result = MuscleRecovery.computeRecovery(stimuli, nowMs) ?: return@mapNotNull null
+            // Item 12: per-muscle base recovery window (effort scaling applied inside computeRecovery).
+            val result = MuscleRecovery.computeRecovery(
+                stimuli, nowMs, MuscleRecovery.baseRecoveryMsFor(label)
+            ) ?: return@mapNotNull null
             if (result.state != MuscleRecovery.RecoveryState.RECOVERING) return@mapNotNull null
             MuscleRecoveryItem(
                 muscleLabel = label,

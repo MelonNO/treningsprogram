@@ -182,7 +182,8 @@ class U1WeightedRecoveryTest {
                         sessionId = row.sessionId,
                         sessionDateMs = row.sessionDateMs,
                         exerciseName = row.exerciseName,
-                        weight = weight
+                        weight = weight,
+                        effortLevel = row.effortLevel
                     )
                 )
             }
@@ -190,7 +191,9 @@ class U1WeightedRecoveryTest {
         val orderIndex = MuscleClassifier.ALL_FINE_MUSCLES.withIndex()
             .associate { (idx, label) -> label to idx }
         return stimuliByMuscle.entries.mapNotNull { (label, stimuli) ->
-            val result = MuscleRecovery.computeRecovery(stimuli, nowMs) ?: return@mapNotNull null
+            val result = MuscleRecovery.computeRecovery(
+                stimuli, nowMs, MuscleRecovery.baseRecoveryMsFor(label)
+            ) ?: return@mapNotNull null
             if (result.state != RecoveryState.RECOVERING) return@mapNotNull null
             HomeViewModel.MuscleRecoveryItem(
                 muscleLabel = label,

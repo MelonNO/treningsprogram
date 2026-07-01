@@ -30,7 +30,10 @@ data class MuscleLastTrained(val muscleGroup: String, val lastTrainedMs: Long)
 data class ExerciseSessionRow(
     val exerciseName: String,
     val sessionId: Long,
-    val sessionDateMs: Long
+    val sessionDateMs: Long,
+    // Item 12: highest logged effort (RPE) across this exercise's working sets in the session:
+    // 0 = none/blank, 1 = Easy, 2 = Moderate, 3 = Hard. Drives effort-scaled per-muscle recovery.
+    val effortLevel: Int = 0
 )
 
 data class RepRange(val label: String, val setCount: Int)
@@ -229,12 +232,18 @@ interface WorkoutSetDao {
      * matter for recovery; Room will stream updates whenever sets/sessions change.
      */
     @Query("""
-        SELECT DISTINCT ws.exerciseName AS exerciseName,
+        SELECT ws.exerciseName AS exerciseName,
                ws.sessionId AS sessionId,
-               s.dateMs AS sessionDateMs
+               s.dateMs AS sessionDateMs,
+               MAX(CASE ws.rpeLabel
+                   WHEN 'Hard' THEN 3
+                   WHEN 'Moderate' THEN 2
+                   WHEN 'Easy' THEN 1
+                   ELSE 0 END) AS effortLevel
         FROM workout_sets ws
         JOIN workout_sessions s ON ws.sessionId = s.id
         WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND ws.exerciseName != ''
+        GROUP BY ws.exerciseName, ws.sessionId
         ORDER BY s.dateMs DESC
     """)
     fun observeExerciseSessionRows(): Flow<List<ExerciseSessionRow>>

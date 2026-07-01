@@ -63,6 +63,56 @@ object MuscleRecovery {
     /** <= 7 days effective elapsed -> still within a normal cadence (ready window upper edge). */
     const val READY_UNTIL_MS: Long = 7L * DAY_MS
 
+    // ── Item 12: per-muscle base recovery + effort scaling ────────────────────────────
+    //
+    // The flat 48 h [RECOVERING_UNTIL_MS] above is now only the DEFAULT/legacy window. The Home
+    // recovery card instead uses [baseRecoveryMsFor] (a per-fine-muscle base) scaled by the session's
+    // logged effort ([effortMultiplier]) — bigger/harder-to-recover muscles rest longer, and a harder-
+    // worked muscle (RPE "Hard") lengthens recovery while an easy one shortens it. The computation is
+    // fully deterministic and on-device (no AI/API call), and the numeric effort feeds ONLY the window
+    // scaling — set count / volume / load are deliberately NOT used ([A12-1]).
+
+    /** Logged-effort levels, derived from the per-set RPE label the user chose when logging. */
+    const val EFFORT_UNSPECIFIED = 0
+    const val EFFORT_EASY = 1
+    const val EFFORT_MODERATE = 2
+    const val EFFORT_HARD = 3
+
+    /** Maps a stored [com.migul.treningsprogram.data.db.entity.WorkoutSet.rpeLabel] to an effort level. */
+    fun effortLevelFromLabel(rpeLabel: String): Int = when (rpeLabel.trim().lowercase()) {
+        "easy" -> EFFORT_EASY
+        "moderate" -> EFFORT_MODERATE
+        "hard" -> EFFORT_HARD
+        else -> EFFORT_UNSPECIFIED
+    }
+
+    /**
+     * Effort scaling factor applied to a muscle's base recovery window. Harder sessions lengthen
+     * recovery, easier ones shorten it. **[12a] fallback:** a blank/unspecified effort is treated as
+     * MEDIUM (factor 1.0 — neither lengthen nor shorten), same as an explicit "Moderate".
+     */
+    fun effortMultiplier(effortLevel: Int): Float = when (effortLevel) {
+        EFFORT_EASY -> 0.75f
+        EFFORT_HARD -> 1.30f
+        else        -> 1.0f    // EFFORT_MODERATE + EFFORT_UNSPECIFIED ([12a]: blank = medium)
+    }
+
+    /**
+     * **[12b] fine-grain base-recovery table.** Base "recovering" window per fine muscle, before effort
+     * scaling. Larger, higher-fatigue muscle groups (quads/hamstrings/spinal erectors) recover slower
+     * than small ones (delts/arms/calves/core); cardio recovers fastest. Chest keeps the historical
+     * 48 h baseline. Any unrecognised label falls back to that 48 h baseline.
+     */
+    fun baseRecoveryMsFor(fineMuscle: String): Long = HOUR_MS * when (fineMuscle) {
+        "Quads", "Hamstrings", "Lower Back"   -> 72L
+        "Glutes", "Upper Back"                -> 60L
+        "Chest"                               -> 48L
+        "Front Delts", "Side Delts", "Rear Delts",
+        "Biceps", "Triceps", "Calves", "Core" -> 36L
+        "Cardio"                              -> 24L
+        else                                  -> 48L
+    }
+
     enum class RecoveryState {
         /** Trained within the last ~48 h effective -- MPS elevated, mid-remodelling. */
         RECOVERING,
@@ -88,16 +138,21 @@ object MuscleRecovery {
      * state. A future-dated lastTrainedMs (clock skew) is clamped to elapsed = 0 and so
      * reports RECOVERING rather than crashing or going negative.
      */
-    fun stateFor(lastTrainedMs: Long?, nowMs: Long, weight: Float = 1.0f): RecoveryState {
+    fun stateFor(
+        lastTrainedMs: Long?,
+        nowMs: Long,
+        weight: Float = 1.0f,
+        recoveringWindowMs: Long = RECOVERING_UNTIL_MS
+    ): RecoveryState {
         if (lastTrainedMs == null) return RecoveryState.UNTRAINED
         val rawElapsed = (nowMs - lastTrainedMs).coerceAtLeast(0L)
         val effectiveElapsed = if (weight in 0.999f..1.001f) rawElapsed
                                else if (weight > 0f) (rawElapsed / weight.toDouble()).toLong()
                                else rawElapsed
         return when {
-            effectiveElapsed < RECOVERING_UNTIL_MS -> RecoveryState.RECOVERING
-            effectiveElapsed <= READY_UNTIL_MS     -> RecoveryState.READY
-            else                                   -> RecoveryState.OVERDUE
+            effectiveElapsed < recoveringWindowMs -> RecoveryState.RECOVERING
+            effectiveElapsed <= READY_UNTIL_MS    -> RecoveryState.READY
+            else                                  -> RecoveryState.OVERDUE
         }
     }
 
@@ -108,24 +163,34 @@ object MuscleRecovery {
      *
      * Clamped to [0, 1]. Call this only when state == RECOVERING.
      */
-    fun recoveryFraction(lastTrainedMs: Long, nowMs: Long, weight: Float = 1.0f): Float {
+    fun recoveryFraction(
+        lastTrainedMs: Long,
+        nowMs: Long,
+        weight: Float = 1.0f,
+        recoveringWindowMs: Long = RECOVERING_UNTIL_MS
+    ): Float {
         val rawElapsed = (nowMs - lastTrainedMs).coerceAtLeast(0L)
         val effectiveElapsed = if (weight in 0.999f..1.001f) rawElapsed
                                else if (weight > 0f) (rawElapsed / weight.toDouble()).toLong()
                                else rawElapsed
-        return (effectiveElapsed.toFloat() / RECOVERING_UNTIL_MS).coerceIn(0f, 1f)
+        return (effectiveElapsed.toFloat() / recoveringWindowMs).coerceIn(0f, 1f)
     }
 
     /**
      * Remaining recovery time in millis for a RECOVERING muscle.
      * Returns 0 if already past the RECOVERING_UNTIL_MS threshold.
      */
-    fun remainingRecoveryMs(lastTrainedMs: Long, nowMs: Long, weight: Float = 1.0f): Long {
+    fun remainingRecoveryMs(
+        lastTrainedMs: Long,
+        nowMs: Long,
+        weight: Float = 1.0f,
+        recoveringWindowMs: Long = RECOVERING_UNTIL_MS
+    ): Long {
         val rawElapsed = (nowMs - lastTrainedMs).coerceAtLeast(0L)
         val effectiveElapsed = if (weight in 0.999f..1.001f) rawElapsed
                                else if (weight > 0f) (rawElapsed / weight.toDouble()).toLong()
                                else rawElapsed
-        return (RECOVERING_UNTIL_MS - effectiveElapsed).coerceAtLeast(0L)
+        return (recoveringWindowMs - effectiveElapsed).coerceAtLeast(0L)
     }
 
     // ── Weighted multi-exercise model ────────────────────────────────────────────────
@@ -139,7 +204,10 @@ object MuscleRecovery {
         val sessionId: Long,
         val sessionDateMs: Long,
         val exerciseName: String,
-        val weight: Float   // 1.0 / 0.6 / 0.3
+        val weight: Float,   // 1.0 / 0.6 / 0.3
+        // Item 12: logged effort for this exercise in this session (max RPE across its working sets).
+        // Defaults to UNSPECIFIED so existing callers/tests are unaffected.
+        val effortLevel: Int = EFFORT_UNSPECIFIED
     )
 
     /**
@@ -171,7 +239,8 @@ object MuscleRecovery {
      */
     fun computeRecovery(
         records: List<ExerciseStimulusRecord>,
-        nowMs: Long
+        nowMs: Long,
+        baseRecoveringMs: Long = RECOVERING_UNTIL_MS
     ): MuscleRecoveryResult? {
         if (records.isEmpty()) return null
 
@@ -180,9 +249,11 @@ object MuscleRecovery {
                 .thenBy { it.sessionDateMs }
         ) ?: return null
 
-        val state = stateFor(best.sessionDateMs, nowMs, best.weight)
-        val fraction = recoveryFraction(best.sessionDateMs, nowMs, best.weight)
-        val remaining = remainingRecoveryMs(best.sessionDateMs, nowMs, best.weight)
+        // Item 12: scale the muscle's base recovery window by the best stimulus's logged effort.
+        val window = (baseRecoveringMs * effortMultiplier(best.effortLevel)).toLong()
+        val state = stateFor(best.sessionDateMs, nowMs, best.weight, window)
+        val fraction = recoveryFraction(best.sessionDateMs, nowMs, best.weight, window)
+        val remaining = remainingRecoveryMs(best.sessionDateMs, nowMs, best.weight, window)
 
         return MuscleRecoveryResult(
             state = state,
