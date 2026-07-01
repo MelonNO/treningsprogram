@@ -9,6 +9,13 @@
     android:gravity="center">
 
     <TextView
+        style="@style/Widget.Auros.Eyebrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Rest"
+        android:layout_marginBottom="10dp" />
+
+    <TextView
         android:id="@+id/tv_exercise_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -33,7 +40,7 @@
         android:textSize="80sp"
         android:textStyle="bold"
         android:fontFamily="monospace"
-        android:textColor="?attr/colorPrimary"
+        android:textColor="@color/auros_cyan"
         android:layout_marginBottom="16dp" />
 
     <com.google.android.material.progressindicator.LinearProgressIndicator
@@ -43,6 +50,8 @@
         android:max="100"
         android:progress="100"
         app:trackCornerRadius="4dp"
+        app:indicatorColor="@color/auros_cyan"
+        app:trackColor="@color/auros_reef_dim"
         android:layout_marginBottom="24dp" />
 
     <LinearLayout

@@ -706,11 +706,14 @@
         android:padding="16dp"
         android:gravity="end">
 
-        <com.google.android.material.button.MaterialButton
+        <com.migul.treningsprogram.ui.widget.GradientButton
             android:id="@+id/btn_wizard_next"
+            style="@style/Widget.Auros.Button.Gradient"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Next" />
+            android:text="Next"
+            app:icon="@drawable/ic_arrow_up_right"
+            app:iconGravity="textEnd" />
 
     </LinearLayout>
 

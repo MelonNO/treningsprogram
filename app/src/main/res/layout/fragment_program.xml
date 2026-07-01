@@ -427,12 +427,15 @@
             </LinearLayout>
 
             <!-- Start workout button (shown when day has exercises) -->
-            <com.google.android.material.button.MaterialButton
+            <com.migul.treningsprogram.ui.widget.GradientButton
                 android:id="@+id/btn_start_day_workout"
+                style="@style/Widget.Auros.Button.Gradient"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="Start Workout"
+                app:icon="@drawable/ic_arrow_up_right"
+                app:iconGravity="textEnd"
                 android:visibility="gone" />
 
             <!-- Swap this day's workout -->

@@ -79,6 +79,14 @@
                     android:padding="24dp">
 
                     <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="WELCOME"
+                        android:textAppearance="@style/TextAppearance.Auros.Eyebrow"
+                        android:textColor="?attr/colorOnPrimaryContainer"
+                        android:layout_marginBottom="10dp" />
+
+                    <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Welcome to Treningsprogram"
@@ -100,7 +108,10 @@
                         android:layout_height="wrap_content"
                         android:text="Get Started"
                         app:backgroundTint="?attr/colorOnPrimaryContainer"
-                        android:textColor="?attr/colorPrimaryContainer" />
+                        android:textColor="?attr/colorPrimaryContainer"
+                        app:icon="@drawable/ic_arrow_up_right"
+                        app:iconGravity="textEnd"
+                        app:iconTint="?attr/colorPrimaryContainer" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -300,14 +311,14 @@
                         android:lineSpacingExtra="4dp"
                         android:layout_marginBottom="14dp" />
 
-                    <com.google.android.material.button.MaterialButton
+                    <com.migul.treningsprogram.ui.widget.GradientButton
                         android:id="@+id/btn_start_workout"
+                        style="@style/Widget.Auros.Button.Gradient"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/start_workout"
                         app:icon="@drawable/ic_arrow_up_right"
-                        app:iconGravity="textEnd"
-                        app:iconTint="@color/auros_on_teal" />
+                        app:iconGravity="textEnd" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
