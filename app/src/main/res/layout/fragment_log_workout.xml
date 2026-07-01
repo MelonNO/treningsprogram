@@ -118,9 +118,11 @@
                                 android:textAppearance="?attr/textAppearanceBodySmall"
                                 android:textColor="?attr/colorOnSurfaceVariant" />
 
-                            <!-- last session reference -->
+                            <!-- last session reference (Item 8: cleaner formatting) -->
                             <TextView android:id="@+id/tv_last_session"
                                 android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:lineSpacingExtra="2dp"
                                 android:textAppearance="?attr/textAppearanceBodySmall"
                                 android:textColor="#8888A8" android:visibility="gone" />
 
@@ -399,6 +401,109 @@
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Next"
             android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- Item 9: calculator-style weight keypad (+/− only). Hidden until the weight field is tapped;
+         the field holds the live resolved total so a plain number can still just be typed. -->
+    <LinearLayout
+        android:id="@+id/layout_weight_keypad"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/colorSurface"
+        android:paddingStart="8dp" android:paddingEnd="8dp"
+        android:paddingTop="6dp" android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="?attr/colorOutlineVariant" android:layout_marginBottom="6dp" />
+
+        <TextView android:id="@+id/tv_kp_expr"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="end" android:paddingEnd="8dp"
+            android:minHeight="20dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_7"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="7"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_8"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="8"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_9"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="9"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_back"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:text="⌫"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_4"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="4"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_5"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="5"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_6"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="6"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_minus"
+                style="@style/Widget.Material3.Button" android:text="−" android:textSize="20sp"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_1"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="1"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_2"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="2"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_3"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="3"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_plus"
+                style="@style/Widget.Material3.Button" android:text="+" android:textSize="20sp"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_dot"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="."
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_0"
+                style="@style/Widget.Material3.Button.TonalButton" android:text="0"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_clear"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:text="C"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_kp_done"
+                style="@style/Widget.Material3.Button" android:text="✓"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp"
+                android:layout_margin="3dp" android:minWidth="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+        </LinearLayout>
+
     </LinearLayout>
 
 </LinearLayout>

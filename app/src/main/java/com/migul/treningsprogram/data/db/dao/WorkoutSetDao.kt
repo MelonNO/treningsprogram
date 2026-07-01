@@ -190,11 +190,18 @@ interface WorkoutSetDao {
     """)
     suspend fun getRepRangeDistribution(): List<RepRange>
 
+    /**
+     * Raw completed-session timestamps, newest first. The caller maps each to a LOGICAL local
+     * epoch-day (Item 7 day boundary) so the training-day calendar / frequency chart use the same
+     * day math as streaks — the old SQL `dateMs / 86400000` was a UTC-day and ignored both the local
+     * timezone and the configurable cutoff. Over-fetch (up to [limit]) so multiple sessions on the
+     * same day still yield ≥120 distinct days after mapping+distinct in Kotlin.
+     */
     @Query("""
-        SELECT DISTINCT (dateMs / 86400000) AS dayEpoch FROM workout_sessions
-        WHERE isCompleted = 1 ORDER BY dayEpoch DESC LIMIT 120
+        SELECT dateMs FROM workout_sessions
+        WHERE isCompleted = 1 ORDER BY dateMs DESC LIMIT :limit
     """)
-    suspend fun getTrainingDayEpochs(): List<Long>
+    suspend fun getCompletedSessionDateMsDesc(limit: Int = 400): List<Long>
 
     @Query("""
         SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight, s.dateMs AS dateMs

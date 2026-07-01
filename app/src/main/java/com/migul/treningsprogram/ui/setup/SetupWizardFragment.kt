@@ -20,10 +20,16 @@ import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.databinding.FragmentSetupWizardBinding
 import com.migul.treningsprogram.domain.TrainingDaySelection
+import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import android.view.Gravity
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
 
 @AndroidEntryPoint
 class SetupWizardFragment : Fragment() {
@@ -486,8 +492,9 @@ class SetupWizardFragment : Fragment() {
                     return
                 }
                 viewModel.prefs.apiKey = apiKey
-                nextStep()
-                triggerGeneration()
+                // Item 11: run the AI injury-sufficiency check (setup wizard only) now that the API
+                // key is available, BEFORE the description is finalised for generation.
+                runInjuryCheckThenGenerate()
             }
         }
     }
@@ -529,6 +536,106 @@ class SetupWizardFragment : Fragment() {
                 btn.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
             }
             .start()
+    }
+
+    // ── Item 11: setup-wizard injury sufficiency check ────────────────────────────────────────────
+
+    private fun advanceToGeneration() {
+        if (_binding == null) return
+        nextStep()
+        triggerGeneration()
+    }
+
+    private fun runInjuryCheckThenGenerate() {
+        val injuries = viewModel.prefs.injuries.trim()
+        if (injuries.isEmpty()) { advanceToGeneration(); return }   // empty injury = skip the check (no-op)
+        val busy = showBusyDialog("Reviewing your injury details…")
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = viewModel.checkInjurySufficiency(injuries)
+            runCatching { busy.dismiss() }
+            if (_binding == null) return@launch
+            result.onSuccess { s ->
+                if (s.sufficient || s.questions.isEmpty()) advanceToGeneration()
+                else showInjuryFollowupDialog(injuries, s.questions)
+            }.onFailure {
+                // No key / offline / timeout / parse error → never block finishing the wizard.
+                advanceToGeneration()
+            }
+        }
+    }
+
+    private fun showInjuryFollowupDialog(original: String, questions: List<OnboardingQuestion>) {
+        val ctx = requireContext()
+        val d = resources.displayMetrics.density
+        val container = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (20 * d).toInt()
+            setPadding(pad, (8 * d).toInt(), pad, 0)
+        }
+        container.addView(TextView(ctx).apply {
+            text = "A few quick questions so your program works around your injury:"
+            setPadding(0, 0, 0, (8 * d).toInt())
+        })
+        val inputs = questions.map { q ->
+            container.addView(TextView(ctx).apply {
+                text = if (q.type == "choice" && q.options.isNotEmpty())
+                    "${q.question}  (${q.options.joinToString(" / ")})" else q.question
+                setPadding(0, (10 * d).toInt(), 0, 0)
+            })
+            val edit = EditText(ctx).apply { hint = "Your answer"; setSingleLine(false) }
+            container.addView(edit)
+            q to edit
+        }
+        val scroll = ScrollView(ctx).apply { addView(container) }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Tell me a bit more")
+            .setView(scroll)
+            .setNegativeButton("Skip") { _, _ -> advanceToGeneration() }
+            .setPositiveButton("Update") { _, _ ->
+                val answers = inputs.map { (q, e) -> q.question to (e.text?.toString()?.trim() ?: "") }
+                rewriteInjuriesThenGenerate(original, answers)
+            }
+            .setOnCancelListener { advanceToGeneration() }
+            .show()
+    }
+
+    private fun rewriteInjuriesThenGenerate(original: String, answers: List<Pair<String, String>>) {
+        if (answers.all { it.second.isBlank() }) { advanceToGeneration(); return }
+        val busy = showBusyDialog("Updating your injury description…")
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = viewModel.rewriteInjury(original, answers)
+            runCatching { busy.dismiss() }
+            if (_binding == null) return@launch
+            result.onSuccess { rewritten ->
+                if (rewritten.isNotBlank() && rewritten != original) {
+                    // Rewrite the whole box (not append), and show the user what it became.
+                    viewModel.prefs.injuries = rewritten
+                    binding.etWizardInjuries.setText(rewritten)
+                    Snackbar.make(binding.root, "Updated your injury description", Snackbar.LENGTH_SHORT).show()
+                }
+                advanceToGeneration()
+            }.onFailure { advanceToGeneration() }
+        }
+    }
+
+    private fun showBusyDialog(message: String): androidx.appcompat.app.AlertDialog {
+        val ctx = requireContext()
+        val d = resources.displayMetrics.density
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val pad = (22 * d).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        row.addView(ProgressBar(ctx).apply {
+            val sz = (28 * d).toInt()
+            layoutParams = LinearLayout.LayoutParams(sz, sz)
+        })
+        row.addView(TextView(ctx).apply {
+            text = message
+            setPadding((16 * d).toInt(), 0, 0, 0)
+        })
+        return MaterialAlertDialogBuilder(ctx).setView(row).setCancelable(false).show()
     }
 
     private fun triggerGeneration() {

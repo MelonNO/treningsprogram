@@ -29,7 +29,7 @@ class SessionAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(session: WorkoutSession) {
-            binding.tvDate.text = fmt.format(Date(session.dateMs))
+            binding.tvDate.text = fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))
             binding.tvDuration.text = if (session.durationMinutes > 0) "${session.durationMinutes} min" else "—"
             binding.root.setOnClickListener { onClick(session) }
         }

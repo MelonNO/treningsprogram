@@ -26,8 +26,6 @@ import com.migul.treningsprogram.data.repository.GamificationRepository
  */
 object StatsRecomputer {
 
-    private const val DAY_MS = 86_400_000L
-
     /**
      * @param sessions all merged sessions (any completion state).
      * @param sets all merged sets (linked to sessions by sessionId).
@@ -114,15 +112,10 @@ object StatsRecomputer {
         )
     }
 
-    /** Local-timezone day index. Matches the spirit of the live streak math (start-of-day). */
-    private fun startOfDayEpoch(ms: Long): Long {
-        val cal = java.util.Calendar.getInstance().apply {
-            timeInMillis = ms
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }
-        return cal.timeInMillis / DAY_MS
-    }
+    /**
+     * Logical local epoch-day (Item 7 day boundary), matching the live streak math in
+     * [GamificationRepository] so a recomputed streak equals what the app would grant incrementally.
+     */
+    private fun startOfDayEpoch(ms: Long): Long =
+        com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(ms)
 }

@@ -42,4 +42,30 @@ class PromptLog @Inject constructor(
 
     @Synchronized
     fun clear() { file.delete() }
+
+    companion object {
+        /**
+         * Item 1: renders the WHOLE set of prompt-log entries — each entry's prompt AND its AI
+         * response — into one readable, paste-ready text block for the clipboard. Entries are clearly
+         * separated and labelled so they stay distinguishable when pasted elsewhere.
+         *
+         * No API key ever appears here: the key is an HTTP header, never part of the prompt/response
+         * text, so nothing needs stripping. Pure (timestamp formatting injected) so it is unit-testable.
+         */
+        fun formatAll(entries: List<Entry>, formatTimestamp: (Long) -> String): String {
+            if (entries.isEmpty()) return ""
+            val total = entries.size
+            return entries.mapIndexed { i, e ->
+                buildString {
+                    append("===== Entry ${i + 1} of $total")
+                    if (e.type.isNotBlank()) append(" · ${e.type.replace('_', ' ').uppercase()}")
+                    append(" · ${formatTimestamp(e.timestampMs)} =====\n\n")
+                    append("--- PROMPT ---\n")
+                    append(e.prompt)
+                    append("\n\n--- AI RESPONSE ---\n")
+                    append(e.response)
+                }
+            }.joinToString("\n\n\n")
+        }
+    }
 }

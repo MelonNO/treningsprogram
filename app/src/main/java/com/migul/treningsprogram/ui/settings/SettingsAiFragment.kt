@@ -10,6 +10,7 @@ import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.repository.AiRepository
@@ -66,17 +67,26 @@ class SettingsAiFragment : Fragment() {
             }
             prefs.apiKey = apiKey
             if (!prefs.hasCompletedOnboarding) {
+                // First-time generation — nothing to overwrite yet, so no confirmation ([A-2a]).
                 OnboardingBottomSheet.newInstance(
                     goal = prefs.fitnessGoal,
                     experience = prefs.experienceLevel
                 ).show(childFragmentManager, OnboardingBottomSheet.RESULT_KEY)
             } else {
-                viewModel.generateProgram(
-                    daysPerWeek = prefs.daysPerWeek,
-                    goal = prefs.fitnessGoal,
-                    experience = prefs.experienceLevel,
-                    sessionDurationMinutes = prefs.sessionDurationMinutes
-                )
+                // Item 2: a simple guard (not a hard block) before this overwrites the existing program.
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Regenerate program?")
+                    .setMessage("This will replace your current program with a newly generated one. Continue?")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Regenerate") { _, _ ->
+                        viewModel.generateProgram(
+                            daysPerWeek = prefs.daysPerWeek,
+                            goal = prefs.fitnessGoal,
+                            experience = prefs.experienceLevel,
+                            sessionDurationMinutes = prefs.sessionDurationMinutes
+                        )
+                    }
+                    .show()
             }
         }
 

@@ -64,6 +64,8 @@ class SettingsTrainingFragment : Fragment() {
         expAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerExperience.adapter = expAdapter
 
+        setupDayBoundarySpinner()
+
         // --- populate fields from saved prefs (no listeners attached yet) ---
         val prefs = viewModel.prefs
         binding.etDaysPerWeek.setText(prefs.daysPerWeek.toString())
@@ -181,6 +183,41 @@ class SettingsTrainingFragment : Fragment() {
                     }
                 }
             }
+        }
+    }
+
+    // Item 7: day-boundary cutoff hour (0..6). Instant-apply and deliberately OUTSIDE the
+    // save/regenerate flow (hasChanges/snapshotState) — the boundary is a derivation over existing
+    // timestamps, so it never needs a program regeneration.
+    private val dayBoundaryHours = (com.migul.treningsprogram.domain.DayBoundary.MIN_CUTOFF_HOUR
+        ..com.migul.treningsprogram.domain.DayBoundary.MAX_CUTOFF_HOUR).toList()
+
+    private fun setupDayBoundarySpinner() {
+        val labels = dayBoundaryHours.map { hour ->
+            val base = when (hour) {
+                0 -> "12:00 AM (midnight)"
+                in 1..11 -> "%d:00 AM".format(hour)
+                12 -> "12:00 PM (noon)"
+                else -> "%d:00 PM".format(hour - 12)
+            }
+            if (hour == com.migul.treningsprogram.domain.DayBoundary.DEFAULT_CUTOFF_HOUR) "$base — default" else base
+        }
+        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, labels)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerDayBoundary.adapter = adapter
+
+        val saved = viewModel.prefs.dayBoundaryHour
+        binding.spinnerDayBoundary.setSelection(dayBoundaryHours.indexOf(saved).coerceAtLeast(0))
+
+        binding.spinnerDayBoundary.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val hour = dayBoundaryHours.getOrElse(position) { com.migul.treningsprogram.domain.DayBoundary.DEFAULT_CUTOFF_HOUR }
+                if (hour != viewModel.prefs.dayBoundaryHour) {
+                    viewModel.prefs.dayBoundaryHour = hour  // persists + updates the process-wide holder
+                    Snackbar.make(binding.root, "Day boundary saved", Snackbar.LENGTH_SHORT).show()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 

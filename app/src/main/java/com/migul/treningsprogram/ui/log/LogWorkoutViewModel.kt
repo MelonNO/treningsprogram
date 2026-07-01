@@ -317,6 +317,21 @@ class LogWorkoutViewModel @Inject constructor(
             else                          -> null
         }
 
+        /**
+         * Item 10: resolves the "source day" of the auto day-move performed on completion, converging
+         * both entry paths. Returns 0 when no move is needed (the workout belongs to today).
+         *  • [moveFromDay] > 0  → explicit P2 "Do this workout today" — that day is the source.
+         *  • else, if the performed [sessionDay] is a real day other than [today] → implicit move
+         *    (the direct "Start Day Workout" path): the performed day is the source.
+         *  • else (session already belongs to today, or freestyle with no day) → 0 (no move).
+         * Pure so it is unit-testable off-device.
+         */
+        fun resolveMoveSource(moveFromDay: Int, sessionDay: Int, today: Int): Int = when {
+            moveFromDay > 0 -> moveFromDay
+            sessionDay in 1..7 && sessionDay != today -> sessionDay
+            else -> 0
+        }
+
         fun resumeIndexFor(plan: List<PlannedExercise>, loggedSets: List<WorkoutSet>): Int {
             if (plan.isEmpty()) return 0
             if (loggedSets.isEmpty()) return 0
@@ -460,15 +475,25 @@ class LogWorkoutViewModel @Inject constructor(
             clearDraft(sid)
             // Mark planned exercises done so week progress bar is accurate
             val loggedNames = sets.value.filter { !it.isWarmup }.map { it.exerciseName }.toSet()
-            val source = moveFromDay
-            if (source > 0) {
-                // P2: COMMIT the move now (only on completion) — the chosen day's plan becomes today's
+            // Item 10: a workout can only be performed TODAY (Item 7 day boundary). Determine the
+            // effective source/target of a "day move" that converges BOTH entry paths onto the same
+            // silent behaviour:
+            //  • P2 "Do this workout today" button → explicit moveFromDay (source), attributed to today.
+            //  • Direct "Start Day Workout" on another day → _dayOfWeek is that other day; if it isn't
+            //    today, we IMPLICITLY move it onto today so the logged session and the week agree
+            //    (fixes the old "source day done / today still empty" mismatch) — no button, no prompt.
+            val today = currentDayOfWeek()
+            val moveSource = resolveMoveSource(moveFromDay, _dayOfWeek.value, today)
+            if (moveSource > 0) {
+                // COMMIT the move now (only on completion) — the performed day's plan becomes today's
                 // logged session, today's original plan is discarded, and the source day is vacated.
+                // The caller then rebalances the rest of the week around the now-logged today.
                 workoutRepository.commitDayMove(
-                    thisMonday(), sourceDay = source, targetDay = _dayOfWeek.value, performedNames = loggedNames
+                    thisMonday(), sourceDay = moveSource, targetDay = today, performedNames = loggedNames
                 )
                 moveCommitted = true
                 moveFromDay = 0
+                _dayOfWeek.value = today   // session is attributed to today; Program highlight follows
             } else {
                 val plannedToday = workoutRepository.getPlannedForDay(thisMonday(), _dayOfWeek.value).first()
                 plannedToday.filter { it.exerciseName in loggedNames && !it.isLogged }

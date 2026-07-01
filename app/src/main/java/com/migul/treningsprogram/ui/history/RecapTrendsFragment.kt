@@ -87,7 +87,7 @@ class RecapTrendsFragment : Fragment() {
         val sessionPoint = allHistory.minByOrNull { kotlin.math.abs(it.dateMs - sessionDateMs) }
         binding.tvTrendThisSession.text = when {
             sessionPoint == null -> "📍 First time logging this exercise — this is your baseline."
-            else -> "📍 This session: ${fmt(sessionPoint.maxWeight)} kg × ${sessionPoint.bestReps}  ·  ${dateFmt.format(Date(sessionPoint.dateMs))}"
+            else -> "📍 This session: ${fmt(sessionPoint.maxWeight)} kg × ${sessionPoint.bestReps}  ·  ${dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(sessionPoint.dateMs)))}"
         }
 
         val windowed = if (windowMonths == 0) allHistory else {
@@ -144,7 +144,7 @@ class RecapTrendsFragment : Fragment() {
                 setPadding(0, pad, 0, pad)
             }
             row.addView(TextView(requireContext()).apply {
-                text = dateFmt.format(Date(pr.dateMs))
+                text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(pr.dateMs)))
                 textSize = 13f
                 setTextColor(Color.parseColor("#9A9AB0"))
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)

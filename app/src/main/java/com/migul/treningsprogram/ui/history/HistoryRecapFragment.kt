@@ -260,7 +260,7 @@ class HistoryRecapFragment : Fragment() {
 
     private fun sessionLabel(s: WorkoutSession): String {
         val dur = if (s.durationMinutes > 0) " · ${s.durationMinutes} min" else ""
-        return "${dateFmt.format(Date(s.dateMs))}$dur"
+        return "${dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(s.dateMs)))}$dur"
     }
 
     private fun renderRecap(sessionId: Long, highlightMuscle: String? = null) {
@@ -312,7 +312,7 @@ class HistoryRecapFragment : Fragment() {
         val card = card()
         val col = cardColumn(card)
         col.addView(TextView(requireContext()).apply {
-            text = dateFmt.format(Date(r.session.dateMs))
+            text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(r.session.dateMs)))
             setTypeface(null, Typeface.BOLD)
             textSize = 18f
             setTextColor(onSurface())
@@ -660,7 +660,7 @@ class HistoryRecapFragment : Fragment() {
             days < 30 -> "${days / 7} weeks ago"
             days < 60 -> "1 month ago"
             days < 365 -> "${days / 30} months ago"
-            else -> prDateFmt.format(Date(ms))
+            else -> prDateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(ms)))
         }
     }
 

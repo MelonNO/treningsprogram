@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.migul.treningsprogram.domain.DayBoundary
 
 class PreferencesManager(context: Context) {
 
@@ -152,6 +153,26 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_REST_DAY_FIRST_RUN, 0L)
         set(value) { prefs.edit().putLong(KEY_REST_DAY_FIRST_RUN, value).apply() }
 
+    // Item 7: the whole-hour day-boundary cutoff (0..6, default 04:00). Anything before this hour
+    // counts as the previous logical day everywhere the app derives "which day is it" (logging date,
+    // History grouping, streaks, rest/missed detection, today's plan, week-start, PR/trend dates).
+    // The getter/setter keep the process-wide [DayBoundary.cutoffHour] holder in sync so the ~80 date
+    // derivations (many in file-scope helpers with no prefs access) all consult one shared value.
+    var dayBoundaryHour: Int
+        get() = prefs.getInt(KEY_DAY_BOUNDARY_HOUR, DayBoundary.DEFAULT_CUTOFF_HOUR)
+        set(value) {
+            val coerced = value.coerceIn(DayBoundary.MIN_CUTOFF_HOUR, DayBoundary.MAX_CUTOFF_HOUR)
+            prefs.edit().putInt(KEY_DAY_BOUNDARY_HOUR, coerced).apply()
+            DayBoundary.cutoffHour = coerced
+        }
+
+    init {
+        // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
+        // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
+        // saved cutoff rather than the compile-time default.
+        DayBoundary.cutoffHour = prefs.getInt(KEY_DAY_BOUNDARY_HOUR, DayBoundary.DEFAULT_CUTOFF_HOUR)
+    }
+
     fun clearAll() {
         prefs.edit().clear().apply()
     }
@@ -181,5 +202,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"
         private const val KEY_WORKOUT_DRAFT = "workout_inprogress_draft"
         private const val KEY_REST_DAY_FIRST_RUN = "rest_day_feature_first_run_ms"
+        private const val KEY_DAY_BOUNDARY_HOUR = "day_boundary_cutoff_hour"
     }
 }

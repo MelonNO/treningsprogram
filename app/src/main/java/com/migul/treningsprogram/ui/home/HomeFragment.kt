@@ -39,19 +39,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-private fun dayOfWeekFromMs(ms: Long): Int {
-    val cal = Calendar.getInstance().apply { timeInMillis = ms }
-    return when (cal.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.MONDAY    -> 1
-        Calendar.TUESDAY   -> 2
-        Calendar.WEDNESDAY -> 3
-        Calendar.THURSDAY  -> 4
-        Calendar.FRIDAY    -> 5
-        Calendar.SATURDAY  -> 6
-        Calendar.SUNDAY    -> 7
-        else               -> -1
-    }
-}
+// Item 7: the LOGICAL weekday (1=Mon … 7=Sun) an active session's timestamp belongs to, respecting
+// the configurable day boundary so a resumed early-hours session keeps the previous day's plan.
+private fun dayOfWeekFromMs(ms: Long): Int =
+    com.migul.treningsprogram.domain.DayBoundary.logicalDate(ms).dayOfWeek.value
 
 @AndroidEntryPoint
 class HomeFragment : Fragment() {
@@ -202,7 +193,7 @@ class HomeFragment : Fragment() {
                                 val focus = if (s.focusMuscle.isNotBlank()) "${s.focusMuscle}  •  " else ""
                                 val dur = if (s.session.durationMinutes > 0) "  •  ${s.session.durationMinutes} min" else ""
                                 val setWord = if (s.setCount == 1) "set" else "sets"
-                                "• ${fmt.format(Date(s.session.dateMs))}  —  ${focus}${s.exerciseCount} ex  •  ${s.setCount} $setWord$dur"
+                                "• ${fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(s.session.dateMs)))}  —  ${focus}${s.exerciseCount} ex  •  ${s.setCount} $setWord$dur"
                             }
                         }
                     }

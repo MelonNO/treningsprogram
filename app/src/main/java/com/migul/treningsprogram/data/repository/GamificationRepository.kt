@@ -87,13 +87,14 @@ class GamificationRepository @Inject constructor(
         val newTotalWorkouts = stats.totalWorkouts + 1
         val newTotalPrs = stats.totalPrs + prExercises.size
 
-        val today = startOfDay(System.currentTimeMillis())
-        val yesterday = today - 86_400_000L
-        val lastDay = startOfDay(stats.lastWorkoutDateMs)
+        // Item 7: streak days use the LOGICAL day boundary (a 01:00 workout counts toward the
+        // previous day), consistent with History/rest-missed/today's-plan.
+        val today = com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(System.currentTimeMillis())
+        val lastDay = com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(stats.lastWorkoutDateMs)
         val newStreak = when {
-            lastDay == today     -> stats.currentStreak
-            lastDay == yesterday -> stats.currentStreak + 1
-            else                 -> 1
+            lastDay == today         -> stats.currentStreak
+            lastDay == today - 1L    -> stats.currentStreak + 1
+            else                     -> 1
         }
 
         val updatedStats = stats.copy(
@@ -466,15 +467,6 @@ class GamificationRepository @Inject constructor(
             14         -> "Phenom"
             in 15..19  -> "Legend"
             else       -> "Transcendent"
-        }
-
-        private fun startOfDay(ms: Long): Long {
-            val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
-            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            cal.set(java.util.Calendar.MINUTE, 0)
-            cal.set(java.util.Calendar.SECOND, 0)
-            cal.set(java.util.Calendar.MILLISECOND, 0)
-            return cal.timeInMillis
         }
     }
 }

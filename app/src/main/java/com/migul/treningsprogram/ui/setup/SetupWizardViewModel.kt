@@ -50,6 +50,13 @@ class SetupWizardViewModel @Inject constructor(
     private val _rejectionReasons = MutableStateFlow<List<String>>(emptyList())
     val rejectionReasons = _rejectionReasons.asStateFlow()
 
+    // Item 11: setup-wizard injury sufficiency check + rewrite (suspend passthroughs to AiRepository).
+    suspend fun checkInjurySufficiency(injuryText: String) =
+        aiRepository.checkInjurySufficiency(injuryText)
+
+    suspend fun rewriteInjury(original: String, answers: List<Pair<String, String>>) =
+        aiRepository.rewriteInjuryDescription(original, answers)
+
     fun selectPreset(id: Long) {
         prefs.selectedGymPresetId = id
     }

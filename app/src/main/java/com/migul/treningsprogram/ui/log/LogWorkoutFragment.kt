@@ -59,6 +59,9 @@ class LogWorkoutFragment : Fragment() {
     private var freestyleMode = false
     private var swapButton: MaterialButton? = null
 
+    // Item 9: state of the calculator-style weight keypad (source of truth while the pad is open).
+    private var calcState = WeightCalculator.State()
+
     private val imageHandler = Handler(Looper.getMainLooper())
     private var imageAlternateRunnable: Runnable? = null
     private var imageFrame = 0
@@ -83,15 +86,20 @@ class LogWorkoutFragment : Fragment() {
             viewModel.resumeSession(dayOfWeek, moveFromDay)
         }
 
-        // +/- weight buttons
+        // +/- 2.5 kg quick-step buttons (separate from the Item 9 calculator pad — both stay).
         binding.btnWeightMinus.setOnClickListener {
             val cur = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
             binding.etWeight.setText(formatWeight((cur - 2.5f).coerceAtLeast(0f)))
+            reseedWeightKeypadIfOpen()
         }
         binding.btnWeightPlus.setOnClickListener {
             val cur = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
             binding.etWeight.setText(formatWeight(cur + 2.5f))
+            reseedWeightKeypadIfOpen()
         }
+
+        // Item 9: calculator-style keypad for the weight field.
+        setupWeightKeypad()
 
         // +/- reps buttons
         binding.btnRepsMinus.setOnClickListener {
@@ -314,7 +322,72 @@ class LogWorkoutFragment : Fragment() {
         }
     }
 
+    // ── Item 9: calculator-style weight keypad ────────────────────────────────────────────────────
+
+    private fun setupWeightKeypad() {
+        // Tapping the weight field opens the custom +/− pad instead of the system numeric keyboard;
+        // the field still holds a plain resolved number, so typing a value and being done still works.
+        binding.etWeight.showSoftInputOnFocus = false
+        binding.etWeight.setOnClickListener { showWeightKeypad() }
+        binding.etWeight.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) showWeightKeypad() }
+        // Focusing reps / freestyle name is a different input → close the weight pad, let the IME show.
+        binding.etReps.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) hideWeightKeypad() }
+        binding.etFreestyleExercise.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) hideWeightKeypad() }
+
+        val digits = mapOf(
+            binding.btnKp0 to '0', binding.btnKp1 to '1', binding.btnKp2 to '2',
+            binding.btnKp3 to '3', binding.btnKp4 to '4', binding.btnKp5 to '5',
+            binding.btnKp6 to '6', binding.btnKp7 to '7', binding.btnKp8 to '8', binding.btnKp9 to '9'
+        )
+        digits.forEach { (btn, d) -> btn.setOnClickListener { applyCalc(WeightCalculator.digit(calcState, d)) } }
+        binding.btnKpDot.setOnClickListener { applyCalc(WeightCalculator.dot(calcState)) }
+        binding.btnKpPlus.setOnClickListener { applyCalc(WeightCalculator.operator(calcState, WeightCalculator.Op.ADD)) }
+        binding.btnKpMinus.setOnClickListener { applyCalc(WeightCalculator.operator(calcState, WeightCalculator.Op.SUB)) }
+        binding.btnKpBack.setOnClickListener { applyCalc(WeightCalculator.backspace(calcState)) }
+        binding.btnKpClear.setOnClickListener { applyCalc(WeightCalculator.clear()) }
+        binding.btnKpDone.setOnClickListener { hideWeightKeypad() }
+    }
+
+    private fun applyCalc(newState: WeightCalculator.State) {
+        if (_binding == null) return
+        calcState = newState
+        val text = WeightCalculator.fieldText(calcState)
+        binding.etWeight.setText(text)
+        binding.etWeight.setSelection(text.length)
+        binding.tvKpExpr.text = WeightCalculator.expr(calcState)
+    }
+
+    private fun showWeightKeypad() {
+        if (_binding == null) return
+        // Suppress the system keyboard and seed the pad from the value currently in the field.
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(binding.etWeight.windowToken, 0)
+        calcState = WeightCalculator.fromField(binding.etWeight.text?.toString())
+        binding.tvKpExpr.text = WeightCalculator.expr(calcState)
+        binding.layoutWeightKeypad.visibility = View.VISIBLE
+    }
+
+    private fun hideWeightKeypad() {
+        if (_binding == null) return
+        if (binding.layoutWeightKeypad.visibility == View.VISIBLE) {
+            // Resolve any pending "60 + 5" into the field before closing.
+            binding.etWeight.setText(WeightCalculator.fieldText(calcState))
+        }
+        binding.layoutWeightKeypad.visibility = View.GONE
+    }
+
+    /** Keep the pad's state consistent when the separate ±2.5 buttons change the field underneath it. */
+    private fun reseedWeightKeypadIfOpen() {
+        if (_binding == null) return
+        if (binding.layoutWeightKeypad.visibility == View.VISIBLE) {
+            calcState = WeightCalculator.fromField(binding.etWeight.text?.toString())
+            binding.tvKpExpr.text = WeightCalculator.expr(calcState)
+        }
+    }
+
     private fun updateExerciseDisplay(exercise: PlannedExercise) {
+        // Switching exercises re-populates the weight field, so any open calculator pad is dismissed.
+        _binding?.layoutWeightKeypad?.visibility = View.GONE
         binding.tvExerciseName.text = exercise.exerciseName
 
         // Issue 11 — tap name to see instructions
@@ -411,8 +484,8 @@ class LogWorkoutFragment : Fragment() {
             val lastSets = viewModel.getLastSets(exercise.exerciseName)
             if (_binding == null) return@launch
             if (lastSets.isNotEmpty()) {
-                val summary = lastSets.joinToString("  •  ") { "S${it.setNumber}: ${it.reps} reps @ ${formatWeight(it.weightKg)}kg" }
-                binding.tvLastSession.text = "Last: $summary"
+                // Item 8: same data (one prior session, working sets only), cleaner formatting.
+                binding.tvLastSession.text = LastSessionFormat.line(lastSets)
                 binding.tvLastSession.visibility = View.VISIBLE
                 // B02: re-resolve now that this exercise's OWN last-logged weight is known.
                 // saved draft still wins (draft-restore preserved); otherwise the exercise's

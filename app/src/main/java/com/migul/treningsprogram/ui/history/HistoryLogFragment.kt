@@ -114,7 +114,7 @@ class HistoryLogFragment : Fragment() {
         }
 
         val tvDate = TextView(requireContext()).apply {
-            text = dateFmt.format(Date(session.dateMs))
+            text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))
             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
@@ -244,7 +244,7 @@ class HistoryLogFragment : Fragment() {
         }
 
         val tvDate = TextView(requireContext()).apply {
-            text = dateFmt.format(Date(session.dateMs))
+            text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))
             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             setTextColor(requireContext().getColor(com.google.android.material.R.color.material_on_background_emphasis_medium))

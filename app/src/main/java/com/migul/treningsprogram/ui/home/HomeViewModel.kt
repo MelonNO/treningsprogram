@@ -22,7 +22,6 @@ import com.migul.treningsprogram.domain.model.DailyChallenge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.Calendar
 import javax.inject.Inject
 
 @HiltViewModel
@@ -47,11 +46,12 @@ class HomeViewModel @Inject constructor(
 
     val todayCompleted: StateFlow<Boolean> = workoutRepository.getAllCompletedSessions()
         .map { sessions ->
-            val todayStart = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
-            sessions.any { it.dateMs >= todayStart }
+            // Item 7: "completed today" uses the LOGICAL day (a 01:00 session counts as the previous
+            // day), so it agrees with today's-plan / streaks / History.
+            val todayEpoch = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+            sessions.any {
+                com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it.dateMs) == todayEpoch
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 

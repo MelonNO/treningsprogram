@@ -54,7 +54,10 @@ class HistoryViewModel @Inject constructor(
             } else {
                 val fmt = SimpleDateFormat("dd MMM yyyy EEE", Locale.getDefault())
                 filtered.filter { s ->
-                    fmt.format(Date(s.dateMs)).contains(query, ignoreCase = true)
+                    // Item 7: match against the LOGICAL day shown in the list, so searching a date
+                    // finds the session where History actually files it.
+                    fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(s.dateMs)))
+                        .contains(query, ignoreCase = true)
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -176,7 +179,8 @@ class HistoryViewModel @Inject constructor(
             val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val sb = StringBuilder("Date,Duration(min),Exercise,Set,Reps,Weight(kg)\n")
             sessions.forEach { session ->
-                val date = fmt.format(Date(session.dateMs))
+                // Item 7: export the LOGICAL day so the CSV agrees with History grouping.
+                val date = fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))
                 val dur = session.durationMinutes
                 val sets = workoutRepository.getSetsForSessionOnce(session.id)
                 sets.forEach { set ->

@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
@@ -96,7 +95,16 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getRepRangeDistribution(): List<RepRange> = setDao.getRepRangeDistribution()
 
-    suspend fun getTrainingDayEpochs(): List<Long> = setDao.getTrainingDayEpochs()
+    /**
+     * Distinct LOGICAL local epoch-days (Item 7 day boundary) that have a completed session, newest
+     * first, up to 120. Mapping in Kotlin keeps the training-day calendar consistent with the streak
+     * math (same [com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay]).
+     */
+    suspend fun getTrainingDayEpochs(): List<Long> =
+        setDao.getCompletedSessionDateMsDesc()
+            .map { com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it) }
+            .distinct()
+            .take(120)
 
     suspend fun getPRsWithDate(): List<ExercisePrWithDate> = setDao.getPRsWithDate()
 
@@ -217,8 +225,11 @@ class WorkoutRepository @Inject constructor(
      */
     suspend fun autoLogRestDays() = restDayBackfillMutex.withLock {
         val zone = java.time.ZoneId.systemDefault()
+        // Item 7: "which day" here must use the same logical day boundary as everywhere else, so a
+        // pre-cutoff launch (e.g. 02:00) is treated as still the previous logical day and does NOT
+        // yet close out that day as rest/missed.
         fun epochDayOf(ms: Long): Long =
-            java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().toEpochDay()
+            com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(ms, zone = zone)
 
         // First run: stamp the floor and stop. The window would be empty anyway (firstRun == today),
         // but returning here keeps the "never backfill before the feature existed" rule explicit.
@@ -228,7 +239,7 @@ class WorkoutRepository @Inject constructor(
             return@withLock
         }
 
-        val todayEpoch = java.time.LocalDate.now(zone).toEpochDay()
+        val todayEpoch = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay(zone = zone)
         val featureFirstRunEpoch = epochDayOf(firstRunMs)
 
         val allSessionsOnce = sessionDao.getAllOnce()
@@ -704,19 +715,14 @@ class WorkoutRepository @Inject constructor(
     }
 }
 
-fun thisMonday(): Long {
-    val cal = Calendar.getInstance().apply {
-        firstDayOfWeek = Calendar.MONDAY
-        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    // If locale placed us in the future, step back one week
-    if (cal.timeInMillis > System.currentTimeMillis()) cal.add(Calendar.WEEK_OF_YEAR, -1)
-    return cal.timeInMillis
-}
+/**
+ * Local-midnight epoch-millis of the Monday of the week that the current LOGICAL day (Item 7 day
+ * boundary) falls in. The returned value is still an actual Monday 00:00 local instant (so existing
+ * `planned_exercises.weekStart` keys stay addressable) — only the CHOICE of which Monday now respects
+ * the cutoff, so e.g. a 02:00 launch (still the previous logical day) can resolve to the previous
+ * week's Monday rather than rolling the week over early.
+ */
+fun thisMonday(): Long = mondayEpochMillisOf(com.migul.treningsprogram.domain.DayBoundary.today())
 
 /**
  * Locale-independent key identifying the current training week, used to mark when the
@@ -727,46 +733,18 @@ fun thisMonday(): Long {
  */
 fun autoGenWeekKey(): String = "wk-${thisMonday()}"
 
-fun currentDayOfWeek(): Int {
-    val day = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
-    return when (day) {
-        Calendar.MONDAY -> 1
-        Calendar.TUESDAY -> 2
-        Calendar.WEDNESDAY -> 3
-        Calendar.THURSDAY -> 4
-        Calendar.FRIDAY -> 5
-        Calendar.SATURDAY -> 6
-        Calendar.SUNDAY -> 7
-        else -> 1
-    }
-}
+/** 1 = Monday … 7 = Sunday for the current LOGICAL day (Item 7 day boundary). */
+fun currentDayOfWeek(): Int = com.migul.treningsprogram.domain.DayBoundary.today().dayOfWeek.value
 
-/** Monday 00:00 of the week containing [ms]. */
-fun mondayOf(ms: Long): Long {
-    val cal = Calendar.getInstance().apply {
-        firstDayOfWeek = Calendar.MONDAY
-        timeInMillis = ms
-        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    if (cal.timeInMillis > ms) cal.add(Calendar.WEEK_OF_YEAR, -1)
-    return cal.timeInMillis
-}
+/** Monday 00:00 local of the week containing the LOGICAL day of [ms] (Item 7 day boundary). */
+fun mondayOf(ms: Long): Long = mondayEpochMillisOf(com.migul.treningsprogram.domain.DayBoundary.logicalDate(ms))
 
-/** 1 = Monday … 7 = Sunday for the day containing [ms]. */
-fun dayOfWeekOf(ms: Long): Int {
-    val cal = Calendar.getInstance().apply { timeInMillis = ms }
-    return when (cal.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.MONDAY -> 1
-        Calendar.TUESDAY -> 2
-        Calendar.WEDNESDAY -> 3
-        Calendar.THURSDAY -> 4
-        Calendar.FRIDAY -> 5
-        Calendar.SATURDAY -> 6
-        Calendar.SUNDAY -> 7
-        else -> 1
-    }
+/** 1 = Monday … 7 = Sunday for the LOGICAL day containing [ms] (Item 7 day boundary). */
+fun dayOfWeekOf(ms: Long): Int = com.migul.treningsprogram.domain.DayBoundary.logicalDate(ms).dayOfWeek.value
+
+/** Local-midnight epoch-millis of the Monday of the week containing the given local [date]. */
+private fun mondayEpochMillisOf(date: java.time.LocalDate): Long {
+    val zone = java.time.ZoneId.systemDefault()
+    val monday = date.minusDays((date.dayOfWeek.value - 1).toLong())
+    return monday.atStartOfDay(zone).toInstant().toEpochMilli()
 }

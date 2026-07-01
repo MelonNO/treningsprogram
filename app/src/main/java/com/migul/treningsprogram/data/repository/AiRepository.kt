@@ -571,6 +571,12 @@ private data class OQJson(
 )
 private data class OQsJson(val questions: List<OQJson> = emptyList())
 
+// Item 11: injury-text sufficiency check (setup wizard). Reuses OQJson for the follow-up questions.
+private data class InjuryCheckJson(
+    val sufficient: Boolean = true,
+    val questions: List<OQJson> = emptyList()
+)
+
 // Top-level private classes so Gson can instantiate them without issues.
 //
 // P5 (generation-quality overhaul 2026-07): the model now DECLARES auditable §6 metadata alongside the
@@ -792,6 +798,82 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         val json = extractJson(responseText)
         val parsed = gson.fromJson(json, OQsJson::class.java)
         parsed.questions.map { OnboardingQuestion(it.id, it.question, it.type, it.options) }
+    }
+
+    /** Item 11: AI-judged sufficiency of the setup-wizard injury free-text + follow-up questions. */
+    data class InjurySufficiency(val sufficient: Boolean, val questions: List<OnboardingQuestion>)
+
+    /**
+     * Item 11 — SETUP WIZARD ONLY. Judges whether the injury free-text is detailed enough to plan a
+     * workout around (a concrete body part / movement restriction — not a fixed character count).
+     * Empty text is a no-op (treated as sufficient — nothing to check), matching P4's empty-injury =
+     * no-op decision. Insufficient text returns AI-generated follow-up questions targeting what's
+     * missing. Reuses the same streaming + retry + JSON machinery as [getOnboardingQuestions]; the
+     * caller degrades gracefully (never blocks the wizard) if this fails.
+     */
+    suspend fun checkInjurySufficiency(injuryText: String): Result<InjurySufficiency> = runCatching {
+        val trimmed = injuryText.trim()
+        if (trimmed.isEmpty()) return@runCatching InjurySufficiency(sufficient = true, questions = emptyList())
+
+        val prompt = """
+You are a strength coach reviewing a client's free-text description of an injury or movement limitation, deciding whether it is detailed enough to safely plan a workout program around.
+
+Client's description:
+"$trimmed"
+
+"Sufficient" means you can identify a concrete body part AND a movement restriction you can actually program around (which exercises or planes of motion to avoid or modify). A vague mention alone ("bad knee", "shoulder", "back issues") is NOT sufficient.
+
+If it IS sufficient, return: {"sufficient": true, "questions": []}
+If it is NOT sufficient, return {"sufficient": false, "questions": [...]} with 2 to 4 SHORT follow-up questions that would gather exactly the missing detail — e.g. which specific movements hurt, how severe / painful, any diagnosis, what aggravates or relieves it, any medical restriction.
+
+Return ONLY valid JSON — no prose, no markdown fences:
+{"sufficient": true, "questions": [{"id": "q1", "question": "...", "type": "text"}]}
+        """.trimIndent()
+
+        val responseText = withAiRetry {
+            sendStreaming(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
+        promptLog.add("injury_sufficiency", prompt, responseText)
+        val parsed = gson.fromJson(extractJson(responseText), InjuryCheckJson::class.java)
+        InjurySufficiency(
+            sufficient = parsed.sufficient,
+            questions = if (parsed.sufficient) emptyList()
+                        else parsed.questions.map { OnboardingQuestion(it.id, it.question, it.type, it.options) }
+        )
+    }
+
+    /**
+     * Item 11 — rewrites the injury box into ONE clean, sufficient description that merges the user's
+     * original text with their follow-up answers (a REWRITE of the whole box, not appended snippets),
+     * preserving the original meaning while adding the elicited detail. Returns plain text.
+     */
+    suspend fun rewriteInjuryDescription(
+        original: String,
+        answers: List<Pair<String, String>>
+    ): Result<String> = runCatching {
+        val qa = answers.filter { it.second.isNotBlank() }
+            .joinToString("\n") { (q, a) -> "Q: $q\nA: $a" }
+
+        val prompt = """
+Rewrite a client's injury / movement-limitation description into ONE clean, concise description a coach can plan a workout around. Merge the ORIGINAL text with the FOLLOW-UP answers into a single coherent description (a rewrite, NOT a list of appended snippets). Preserve the original meaning and add the new detail. Do NOT invent anything the client did not state. Output PLAIN TEXT only — no JSON, no markdown, no preamble, just the rewritten description.
+
+ORIGINAL description:
+"$original"
+
+FOLLOW-UP answers:
+$qa
+        """.trimIndent()
+
+        val responseText = withAiRetry {
+            sendStreaming(
+                ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+            ).text()
+        }
+        promptLog.add("injury_rewrite", prompt, responseText)
+        val cleaned = responseText.trim().trim('"').trim()
+        cleaned.ifBlank { original }
     }
 
     private val variationThemes = listOf(
@@ -1218,7 +1300,7 @@ OR
         val sessionDetails = buildString {
             sessions.forEach { session ->
                 val sets = workoutRepository.getSetsForSessionOnce(session.id).filter { !it.isWarmup }
-                appendLine("Session ${fmt.format(Date(session.dateMs))} (${session.durationMinutes} min):")
+                appendLine("Session ${fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))} (${session.durationMinutes} min):")
                 sets.groupBy { it.exerciseName }.forEach { (exercise, exerciseSets) ->
                     val detail = exerciseSets.joinToString(", ") { "${it.reps}×${it.weightKg}kg" }
                     appendLine("  $exercise: $detail")

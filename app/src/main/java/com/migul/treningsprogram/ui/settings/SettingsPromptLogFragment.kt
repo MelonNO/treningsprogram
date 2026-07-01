@@ -54,6 +54,20 @@ class SettingsPromptLogFragment : Fragment() {
             viewModel.clearPromptLog()
         }
 
+        // Item 1: copy the FULL set of prompt-log entries (each prompt + its AI response) to the
+        // clipboard as one paste-ready block. Clipboard only — no share sheet.
+        binding.btnCopyAllPromptLog.setOnClickListener {
+            val entries = viewModel.promptLogEntries.value
+            if (entries.isEmpty()) {
+                Snackbar.make(binding.root, "Nothing to copy — the prompt log is empty.", Snackbar.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val text = PromptLog.formatAll(entries) { fmt.format(Date(it)) }
+            val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("prompt log", text))
+            Snackbar.make(binding.root, "Copied all ${entries.size} prompt log entries", Snackbar.LENGTH_SHORT).show()
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.promptLogEntries.collect { entries ->

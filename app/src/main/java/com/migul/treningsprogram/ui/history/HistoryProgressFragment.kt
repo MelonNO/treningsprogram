@@ -198,7 +198,7 @@ class HistoryProgressFragment : Fragment() {
                 setPadding(0, p, 0, p)
             }
             row.addView(TextView(requireContext()).apply {
-                text = dateFmt.format(Date(pr.dateMs))
+                text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(pr.dateMs)))
                 textSize = 13f
                 setTextColor(Color.parseColor("#9A9AB0"))
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)

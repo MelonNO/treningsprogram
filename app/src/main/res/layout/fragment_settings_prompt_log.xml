@@ -23,6 +23,14 @@
             android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_copy_all_prompt_log"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:text="Copy all" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_clear_prompt_log"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
