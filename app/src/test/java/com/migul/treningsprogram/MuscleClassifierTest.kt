@@ -51,7 +51,9 @@ class MuscleClassifierTest {
 
     @Test fun trulyUnknownName_returnsBlank_notASyntheticBucket() {
         // A blank result keeps the `WHERE muscleGroup != ''` stat filtering meaningful.
-        assertEquals("", MuscleClassifier.fromName("Zercher Carry"))
+        // (NOTE: loaded carries — "Farmer's Carry", "Suitcase Carry", "Zercher Carry" — are now
+        // classified as Core, so the unknown-name example uses a genuinely unclassifiable move.)
+        assertEquals("", MuscleClassifier.fromName("Turkish Get-Up"))
         assertEquals("", MuscleClassifier.fromName("Foobar"))
     }
 
@@ -77,8 +79,8 @@ class MuscleClassifierTest {
     }
 
     @Test fun displayName_showsTrainingForUnclassifiable_butStorageStaysBlank() {
-        assertEquals("Training", MuscleClassifier.displayName("Zercher Carry"))
-        assertEquals("", MuscleClassifier.fromName("Zercher Carry"))
+        assertEquals("Training", MuscleClassifier.displayName("Turkish Get-Up"))
+        assertEquals("", MuscleClassifier.fromName("Turkish Get-Up"))
     }
 
     @Test fun colorFor_returnsCanonicalColors_andRespectsPerScreenFallback() {

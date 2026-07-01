@@ -61,9 +61,24 @@ package com.migul.treningsprogram.data
 object MuscleClassifier {
     fun fromName(exerciseName: String): String {
         val lower = exerciseName.lowercase()
+        // Rules are ordered by SPECIFICITY, not by anatomy: a movement's own keyword must win over
+        // incidental setup words that appear in verbose AI-generated names (e.g. "Seated on Bench",
+        // "Hand on Bench", "Upper Back on Bench", "Held at Chest", "Chest-Supported"). Those setup
+        // phrases used to hijack the broad Chest/Back rules, so a shoulder press "on a bench" or a
+        // calf raise "on a bench" was mislabelled Chest. Each specific movement family is therefore
+        // resolved BEFORE the generic Chest ("bench"/"chest") catch-all.
         return when {
-            // 0. Pure balance / proprioception / mobility → un-grouped (intentional "").
-            lower.containsAny("balance hold", "ankle alphabet", "foot circles") -> ""
+            // 0. Pure ankle/foot rehab, balance & mobility → un-grouped (intentional "").
+            //    No trackable hypertrophy load, so excluded from muscle-volume/recovery stats (same
+            //    decision as the v1.10.2 pass). These are still RECOGNISED — ExerciseDbResolver maps
+            //    them to real ankle-mobility library entries — so they never show as "unrecognized".
+            //    LOADED lower-leg work (calf/tibialis/heel RAISE) is caught by the Legs rule below.
+            lower.containsAny(
+                "balance hold", "balance reach", "balance drill", "alphabet", "ankle circle",
+                "foot circle", "dorsiflexion", "inversion", "eversion", "proprioception",
+                "heel-toe", "heel to toe", "heel-to-toe", "ankle tilt", "toe scrunch", "toe-scrunch",
+                "scrunch", "toe spread", "toe curl", "4-way isometric", "ankle 4-way"
+            ) -> ""
             // 1. Genuine cardio. NOTE: "tempo"/"interval" deliberately REMOVED (they are strength
             //    modifiers; genuine "Interval Run"/"Tempo Run" still match via "run"). "walk" handled
             //    at the END so "walking lunge"/"walking plank" classify by their strength movement first.
@@ -71,37 +86,57 @@ object MuscleClassifier {
                 "run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
                 "burpee", "mountain climber", "high knee", "jump rope"
             ) -> "Cardio"
-            // 2. Posterior-/rear-delt target moves → Shoulders. MUST precede Chest ("fly"/"bench")
-            //    and the row rule (rear-delt ROW is Shoulders, not Back).
+            // 2. Posterior-/rear-delt target moves → Shoulders. MUST precede rows and Chest.
             lower.containsAny(
-                "rear delt", "reverse fly", "rear fly", "reverse pec",
+                "rear delt", "rear-delt", "reverse fly", "reverse flye", "rear fly", "reverse pec",
                 "bent over fly", "bent-over fly", "face pull", "y-raise", " y raise"
             ) -> "Shoulders"
-            // 3. Any row → Back. MUST precede Chest so a "chest-supported row" is a Back row, not Chest.
+            // 3. Overhead / shoulder pressing + delt raises + upright row → Shoulders (before Chest's
+            //    incidental "bench"). Bare "overhead" is NOT here (it also appears in "overhead tricep
+            //    extension" → Arms); only explicit shoulder-press phrases.
+            lower.containsAny(
+                "overhead press", "shoulder press", "arnold", "z-press", "z press", "military",
+                "push press", "ohp", "upright row", "lateral raise", "front raise"
+            ) -> "Shoulders"
+            // 4. Shrug (traps) → Back (before Chest; e.g. "Chest-Supported Shrug").
+            lower.contains("shrug") -> "Back"
+            // 5. Back / hyper extension → Back (before Legs' "hip hinge" and Chest's "bench").
+            lower.containsAny("back extension", "hyperextension", "hyper extension") -> "Back"
+            // 6. Any row → Back. MUST precede Chest so a "chest-supported row" is a Back row, not Chest.
             lower.contains("row") -> "Back"
-            // 4. Chest
-            lower.containsAny("bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip") -> "Chest"
-            // 5. Legs (before remaining Back so "Romanian Deadlift"/"RDL" resolve to Legs). + tibialis.
+            // 7. Legs (before Chest/Arms). Catches loaded calf/tibialis/heel raise, squats, hinges,
+            //    sumo, good morning. + tibialis + good morning + heel raise (loaded).
             lower.containsAny(
                 "squat", "leg press", "lunge", "calf", "tibialis", "hamstring", "quad", "romanian", "rdl",
                 "glute", "hip thrust", "leg curl", "leg extension", "hip hinge", "step up",
-                "step-up", "box jump", "split squat", "wall sit", "sumo", "pistol"
+                "step-up", "box jump", "split squat", "wall sit", "sumo", "pistol",
+                "good morning", "heel raise"
             ) -> "Legs"
-            // 6. Back (remaining)
+            // 8. Arms (before Chest; e.g. a curl/tricep-extension performed "on a bench"). Bare "arm"
+            //    is intentionally NOT a keyword — "Single-Arm Bench Press" must stay Chest.
+            lower.containsAny(
+                "curl", "tricep", "bicep", "skull crusher", "skullcrusher", "overhead extension"
+            ) -> "Arms"
+            // 9. Core (before Chest; e.g. Pallof "held at chest", Decline Plank "on bench", carries).
+            //    "ab" is word-boundary-guarded (startsWith / " ab ") so it does NOT fire on the very
+            //    common "Ankle Rehab"/"Ankle Prehab" qualifier (which ends in "…ab").
+            lower.containsAny(
+                "plank", "crunch", "abs", "core", "sit-up", "sit up", "russian",
+                "leg raise", "dead bug", "l-sit", "dragon flag", "hollow", "pallof", "anti-rotation",
+                "anti rotation", "carry"
+            ) || lower.startsWith("ab ") || lower.contains(" ab ") -> "Core"
+            // 10. Chest (generic pressing/fly catch-all, after all specific movements above).
+            lower.containsAny(
+                "bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip", "squeeze press"
+            ) -> "Chest"
+            // 11. Back (remaining).
             lower.containsAny(
                 "pulldown", "pull-up", "pullup", "chin-up", "chinup", "lat ",
-                "deadlift", "shrug", "back", "scapular", "dead hang"
+                "deadlift", "back", "scapular", "dead hang"
             ) -> "Back"
-            // 7. Shoulders (remaining) + arnold
-            lower.containsAny("shoulder", "overhead", "lateral raise", "face pull", "delt", "military", "arnold") -> "Shoulders"
-            // 8. Arms
-            lower.containsAny("curl", "tricep", "bicep", "arm") -> "Arms"
-            // 9. Core
-            lower.containsAny(
-                "plank", "crunch", "ab ", "abs", "core", "sit-up", "sit up", "russian",
-                "leg raise", "dead bug", "l-sit", "dragon flag", "hollow"
-            ) -> "Core"
-            // 10. Walk → Cardio (low priority; "walking lunge"/"walking plank" already classified above).
+            // 12. Shoulders (remaining).
+            lower.containsAny("shoulder", "overhead", "delt", "military", "external rotation") -> "Shoulders"
+            // 13. Walk → Cardio (low priority; "walking lunge"/"walking plank" already classified above).
             lower.contains("walk") -> "Cardio"
             else -> ""
         }

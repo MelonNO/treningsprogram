@@ -22,7 +22,7 @@ import com.migul.treningsprogram.data.db.entity.*
         Program::class,
         XpEvent::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -238,6 +238,32 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE workout_sessions ADD COLUMN kind TEXT")
+            }
+        }
+
+        // v1.16.0 exercise-recognition overhaul: the name-based classifier ([MuscleClassifier.fromName])
+        // was reordered so verbose AI-generated names no longer let an incidental setup word ("on
+        // Bench", "held at Chest", "Chest-Supported") hijack the group — e.g. a shoulder press "on a
+        // bench" is now Shoulders (was Chest), a calf raise "on a bench" is Legs (was Chest), Pallof is
+        // Core, Good Morning is Legs, and pure ankle/foot mobility drills are un-grouped (excluded from
+        // volume). This re-derives the denormalised muscleGroup on already-logged sets so historical
+        // stats match. IDENTICAL shape to MIGRATION_14_15: re-derives ONLY the muscleGroup column via
+        // the shared MuscleGroupResolver, per DISTINCT exerciseName, parameterized, idempotent; it
+        // never references or mutates reps/weightKg/dates/exerciseName/session data. No schema change.
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val names = mutableListOf<String>()
+                db.query("SELECT DISTINCT exerciseName FROM workout_sets").use { c ->
+                    val idx = c.getColumnIndexOrThrow("exerciseName")
+                    while (c.moveToNext()) names.add(c.getString(idx))
+                }
+                for (name in names) {
+                    val group = com.migul.treningsprogram.data.MuscleGroupResolver.resolve(name)
+                    db.execSQL(
+                        "UPDATE workout_sets SET muscleGroup = ? WHERE exerciseName = ?",
+                        arrayOf<Any?>(group, name)
+                    )
+                }
             }
         }
 

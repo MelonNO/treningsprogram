@@ -322,12 +322,106 @@ class ExerciseDbResolver @Inject constructor(
             return fuzzyResult
         }
 
+        // Step 4b: Curated movement-FAMILY catch-net. Verbose AI-generated names (heavy with
+        // parentheticals / trailing qualifiers) routinely slip past exact + alias + fuzzy, yet almost
+        // always contain a recognisable movement keyword. Map the normalized name to a representative
+        // library entry by movement family (ordered most-specific → generic) so these names resolve to
+        // sensible instructions/images instead of piling up in the Settings "unrecognized" list. Runs
+        // AFTER fuzzy, so it never overrides an existing match — it only rescues genuine misses.
+        val familyId = familyResolve(norm)
+        if (familyId != null && ExerciseCatalog.byId.containsKey(familyId)) {
+            return ResolveResult(familyId, 0.72f, MatchSource.ALIAS)
+        }
+
         // Step 5: Queue for LLM fallback (async, deferred)
         resolutionLog.enqueuePendingLlm(name)
         resolutionLog.recordMiss(name)
 
         return null
     }
+
+    /**
+     * Maps a normalized exercise name to a representative library entry by MOVEMENT FAMILY, using
+     * ordered keyword substring rules (most-specific → generic). This is a pattern-level net: it is
+     * keyed on movement keywords, not on the ~130 literal verbose strings, so future similarly-verbose
+     * AI names ("Dumbbell Seated Arnold Press (Low Ceiling, Neutral Grip)", etc.) also resolve.
+     *
+     * Ankle/foot rehab & mobility (ankle alphabet, circles, dorsiflexion, inversion/eversion, balance,
+     * toe scrunch) map to the real ankle-mobility entries in the DB; LOADED lower-leg work (calf /
+     * tibialis / heel raise) maps to the matching calf/tibialis entry — checked BEFORE the generic
+     * ankle rule so a "Single-Leg Calf Raise (Ankle Rehab)" is a calf raise, not a mobility drill.
+     *
+     * Returns the library id, or null if no family matches (falls through to the LLM/miss path).
+     */
+    private fun familyResolve(norm: String): String? = when {
+        // ── Rear-delt / reverse-fly / face-pull (before generic rows & chest) ──────────────────
+        norm.contains("rear delt row")                                             -> "Dumbbell_Incline_Row"
+        norm.containsAny("reverse fly", "reverse pec", "face pull", "y raise",
+            "pull apart", "pull-apart")                                            -> "Reverse_Flyes"
+        norm.containsAny("rear delt", "rear-delt", "rear fly",
+            "bent over fly", "bent-over fly")                                      -> "Seated_Bent-Over_Rear_Delt_Raise"
+        // ── Rows ───────────────────────────────────────────────────────────────────────────────
+        norm.containsAny("chest supported row", "seal row", "incline row")         -> "Dumbbell_Incline_Row"
+        norm.contains("upright row")                                               -> "Standing_Dumbbell_Upright_Row"
+        norm.containsAny("yate", "underhand", "pendlay", "meadow")                 -> "Bent_Over_Barbell_Row"
+        norm.contains("row")                                                       -> "Bent_Over_Two-Dumbbell_Row"
+        // ── Shrug (traps) ────────────────────────────────────────────────────────────────────
+        norm.contains("shrug")                                                     -> "Dumbbell_Shrug"
+        // ── Overhead / shoulder pressing & delt raises ───────────────────────────────────────
+        norm.contains("arnold")                                                    -> "Arnold_Dumbbell_Press"
+        norm.containsAny("overhead press", "shoulder press", "z press",
+            "military", "ohp")                                                     -> "Dumbbell_Shoulder_Press"
+        norm.contains("lateral raise")                                             -> "Side_Lateral_Raise"
+        norm.contains("external rotation")                                         -> "External_Rotation"
+        // ── Triceps ──────────────────────────────────────────────────────────────────────────
+        norm.containsAny("skull crusher", "skullcrusher")                          -> "EZ-Bar_Skullcrusher"
+        norm.contains("dip")                                                       -> "Bench_Dips"
+        norm.containsAny("tricep", "overhead extension")                           -> "Standing_Dumbbell_Triceps_Extension"
+        // ── Biceps ───────────────────────────────────────────────────────────────────────────
+        norm.contains("drag curl")                                                 -> "Drag_Curl"
+        norm.contains("preacher")                                                  -> "One_Arm_Dumbbell_Preacher_Curl"
+        norm.containsAny("reverse curl", "reverse grip curl")                      -> "Standing_Dumbbell_Reverse_Curl"
+        norm.contains("hammer curl")                                               -> "Alternate_Hammer_Curl"
+        norm.contains("curl")                                                      -> "Dumbbell_Bicep_Curl"
+        // ── Chest fly / press ────────────────────────────────────────────────────────────────
+        norm.contains("incline fly")                                               -> "Incline_Dumbbell_Flyes"
+        norm.contains("decline fly")                                               -> "Decline_Dumbbell_Flyes"
+        norm.contains("fly")                                                       -> "Dumbbell_Flyes"
+        norm.containsAny("squeeze press", "chest squeeze", "squeeze", "chest press",
+            "bench press", "floor press", "flat press")                            -> "Dumbbell_Bench_Press"
+        norm.containsAny("push up", "pushup")                                      -> "Pushups"
+        // ── Ankle / foot: LOADED lower-leg first, then mobility/rehab ─────────────────────────
+        //    ("tibiali" not "tibialis": ExerciseCatalog.normalizeName strips the trailing plural 's'.)
+        norm.contains("tibiali")                                                   -> "Anterior_Tibialis-SMR"
+        norm.containsAny("single leg calf", "one leg calf")                        -> "Dumbbell_Seated_One-Leg_Calf_Raise"
+        norm.contains("seated calf")                                               -> "Barbell_Seated_Calf_Raise"
+        norm.containsAny("calf raise", "calf", "heel raise")                       -> "Standing_Calf_Raises"
+        // ── Legs (BEFORE the generic ankle/balance rule so a "Bulgarian Split Squat … for Balance"
+        //    is a split squat, not a balance drill) ───────────────────────────────────────────
+        norm.contains("sumo")                                                      -> "Sumo_Deadlift"
+        norm.contains("good morning")                                              -> "Good_Morning"
+        norm.containsAny("back extension", "hyperextension", "hyper extension")    -> "Hyperextensions_Back_Extensions"
+        norm.containsAny("reverse lunge", "lunge")                                 -> "Crossover_Reverse_Lunge"
+        norm.contains("goblet")                                                    -> "Goblet_Squat"
+        norm.containsAny("split squat", "bulgarian")                               -> "Split_Squat_with_Dumbbells"
+        norm.containsAny("hip thrust", "glute bridge", "frog pump")                -> "Barbell_Hip_Thrust"
+        norm.contains("squat")                                                     -> "Goblet_Squat"
+        norm.contains("deadlift")                                                  -> "Barbell_Deadlift"
+        // ── Generic ankle / foot mobility, balance & proprioception (rehab drills) ────────────
+        norm.containsAny("ankle", "dorsiflexion", "inversion", "eversion", "alphabet",
+            "proprioception", "balance", "heel to toe", "heel toe",
+            "toe scrunch", "toe curl", "toe spread", "scrunch")                    -> "Ankle_Circles"
+        // ── Core / carries ───────────────────────────────────────────────────────────────────
+        norm.containsAny("pallof", "anti rotation")                                -> "Pallof_Press"
+        norm.contains("plank")                                                     -> "Plank"
+        norm.containsAny("farmer", "suitcase", "carry")                            -> "Farmers_Walk"
+        // ── Cardio / conditioning (last, so movement-specific "walking lunge" etc. win first) ──
+        norm.containsAny("treadmill", "incline walk", "walk", "run", "jog", "sprint",
+            "cardio", "hiit", "bike", "cycling", "elliptical")                     -> "Trail_Running_Walking"
+        else -> null
+    }
+
+    private fun String.containsAny(vararg keywords: String) = keywords.any { this.contains(it) }
 
     private fun fuzzyResolve(norm: String, hints: ResolveHints): ResolveResult? {
         val inputTokens = norm.split(" ").filter { it.length > 1 }.toSet()
