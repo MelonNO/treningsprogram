@@ -10,8 +10,8 @@ import org.junit.Test
 /**
  * Guards the shared time-estimate formula that drives both the Program screen's "~Xm"
  * labels and the deterministic ±10 min duration enforcement in AiRepository. Expected
- * numbers are hand-computed with the formula:
- *   strength sec = sets*(maxReps*3) + (sets-1)*rest + 60
+ * numbers are hand-computed with the formula (P2 2026-07: per-rep work is 4 s, not 3 s):
+ *   strength sec = sets*(maxReps*4) + (sets-1)*rest + 60
  *   cardio   sec = duration + 60        (duration: "30 min" → 1800, "5 km" → 1500)
  *   day mins     = (sum of exercise seconds + 30) / 60   (round to nearest)
  */
@@ -38,17 +38,17 @@ class WorkoutTimeEstimatorTest {
         assertNotEquals("Cardio", MuscleClassifier.displayName("Bench Press"))
         assertNotEquals("Cardio", MuscleClassifier.displayName("Barbell Squat"))
 
-        // Bench Press: 4 * (10*3) + (4-1)*120 + 60 = 120 + 360 + 60 = 540
+        // Bench Press: 4 * (10*4) + (4-1)*120 + 60 = 160 + 360 + 60 = 580
         val bench = planned("Bench Press", sets = 4, targetReps = "8-10", rest = 120)
-        // Barbell Squat: 5 * (5*3) + (5-1)*180 + 60 = 75 + 720 + 60 = 855
+        // Barbell Squat: 5 * (5*4) + (5-1)*180 + 60 = 100 + 720 + 60 = 880
         val squat = planned("Barbell Squat", sets = 5, targetReps = "5", rest = 180)
 
-        assertEquals(540, WorkoutTimeEstimator.estimateExerciseSeconds(bench))
-        assertEquals(855, WorkoutTimeEstimator.estimateExerciseSeconds(squat))
+        assertEquals(580, WorkoutTimeEstimator.estimateExerciseSeconds(bench))
+        assertEquals(880, WorkoutTimeEstimator.estimateExerciseSeconds(squat))
 
-        // Day: (540 + 855 + 30) / 60 = 1425 / 60 = 23
-        val expectedMinutes = (540 + 855 + 30) / 60
-        assertEquals(23, expectedMinutes)
+        // Day: (580 + 880 + 30) / 60 = 1490 / 60 = 24
+        val expectedMinutes = (580 + 880 + 30) / 60
+        assertEquals(24, expectedMinutes)
         assertEquals(expectedMinutes, WorkoutTimeEstimator.estimateDayMinutes(listOf(bench, squat)))
     }
 

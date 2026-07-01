@@ -376,15 +376,11 @@ internal fun isLikelyTruncated(text: String, stopReason: String?): Boolean {
     return opened && balancedJsonSpan(body) == null
 }
 
-// ── G1: direction-aware per-day time-budget feedback ─────────────────────────────────────────────
+// ── G1 / P2: direction-aware, DURATION-DERIVED per-day time-budget feedback ───────────────────────
 //
 // The deterministic ±10-min per-day duration gate is kept STRICT (the accepted window is unchanged).
-// Its previous retry feedback said "Trim sets/exercises or rest." for EVERY out-of-window day —
-// including days that estimated UNDER the floor, which told the model to make an already-too-short
-// day even shorter. Retries therefore drove the under-time days down and never converged: the LLM
-// review never ran (it is short-circuited when a deterministic check fails), and after the attempt
-// limit the loop threw and saved nothing. This pure helper makes the feedback DIRECTION-AWARE — a
-// day under the floor is told to ADD work; a day over the ceiling is told to TRIM.
+// This pure helper makes the retry feedback DIRECTION-AWARE — a day under the floor is told to ADD
+// work; a day over the ceiling is told to TRIM.
 //
 // The reject CONDITION is byte-for-byte the old one: a non-null message is returned in EXACTLY the
 // cases the gate rejects (est < target-10, or est > target+10) and null when the day is inside the
@@ -392,69 +388,37 @@ internal fun isLikelyTruncated(text: String, stopReason: String?): Boolean {
 // changes. Package-level + pure so it is unit-testable without an AiRepository instance (matching
 // the F3 / S3 / B10 helper pattern).
 //
-// FIX-B (v1.10.4): the under-time REST directive is now BLUNT. Live testing proved the soft "raise rest
-// toward the band max" wording does NOT move the model — it keeps standard short isolation rest (60–90 s)
-// and the day stays under the floor. For HYPERTROPHY (the only goal whose band reaches 120 s) the message
-// now flatly instructs recommendedRestSeconds=120 on EVERY set INCLUDING isolation at ~18–20 sets, which
-// lands the day ~42–48 min (clearing the floor INSIDE the cap). Non-hypertrophy goals keep their existing
-// shorter-band guidance (telling endurance/weight-loss to use 120 s would violate their rest ceiling and
-// the LLM review). The reject CONDITION (est < low || est > high) and the over-time branch are unchanged.
+// P2 (generation-quality overhaul 2026-07): the wording is now GOAL-GENERAL and DURATION-DERIVED. The
+// old feedback hard-coded a hypertrophy-only "120 s rest on EVERY set + a FULL ~19–20 working sets →
+// ~46 min" hammer. That fixed set count / minute target / 120 s ceiling made a session effectively
+// bounded at ~45–50 min regardless of the chosen duration, and only worked for hypertrophy. The under-
+// fill levers (rest → reps → sets → accessory) are kept, but framed against THIS goal's rest band and
+// THIS session's duration, with NO fixed set count, minute target, or rest ceiling. Volume/rest/count
+// are sized to the actual duration; the prompt above already tells the model each goal's band.
 internal fun dayDurationFeedback(
     day: Int,
     estimateMinutes: Int,
-    targetMinutes: Int,
-    hypertrophy: Boolean = true
+    targetMinutes: Int
 ): String? {
     val low = targetMinutes - 10
     val high = targetMinutes + 10
-    val firstLever = if (hypertrophy)
-        "FIRST set recommendedRestSeconds to 120 on ALL sets in this day INCLUDING isolation AND fill " +
-            "this day to a FULL ~19–20 working sets across ~6 exercises (too few sets — not just short " +
-            "REST — is why it is under); with 120 s rest and ~20 sets it lands ~46 min, safely above the " +
-            "floor — do NOT stop at 15–17 sets"
-    else
-        "FIRST raise inter-set REST toward this goal's band maximum — rest is the #1 time lever and " +
-            "short rest is the main cause of under-time days (do not exceed the goal's rest ceiling)"
     return when {
         estimateMinutes < low ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it CLEARS the $low-min " +
-                "floor, in THIS order until it lands in-window: (1) $firstLever; (2) raise reps toward " +
-                "the TOP of each exercise's role range; (3) add a set to an accessory/isolation exercise; " +
-                "(4) add one more accessory exercise. Stay within the per-muscle ~8–10 and per-session " +
-                "~18–20 working-set caps and the exercise-count cap; CLEAR the floor — do NOT pad with " +
-                "junk volume or exceed the ~18–20 working-set cap. Do NOT shorten it — it is already too short."
+                "floor, in THIS order until it lands in-window: (1) raise inter-set REST toward the TOP " +
+                "of THIS goal's rest band — rest is the #1 time lever and short rest is the main cause of " +
+                "under-time days (do not exceed the goal's own rest band); (2) raise reps toward the TOP " +
+                "of each exercise's role range; (3) add a set to an accessory/isolation exercise; (4) add " +
+                "one more accessory exercise. Size to the SESSION DURATION, not to a fixed set count; keep " +
+                "volume goal- and duration-appropriate; CLEAR the floor — do NOT pad with junk volume. " +
+                "Do NOT shorten it — it is already too short."
         estimateMinutes > high ->
             "Day $day estimates ~$estimateMinutes min — that is OVER the target window " +
                 "($low–$high min, aim $targetMinutes). TRIM this day so it drops to about " +
                 "$targetMinutes min: remove an accessory exercise, or reduce sets or shorten rest."
         else -> null
     }
-}
-
-// ── FIX-B (v1.10.4): blunt, hypertrophy-scoped REST + SET-COUNT steering for the generation prompt ──
-//
-// First-pass result: 8/8 hypertrophy generations under-filled (days 30–44 min) because the model keeps
-// standard SHORT isolation rest (60–90 s). The first revision (force 120 s rest, "CLEAR the floor — do
-// NOT chase the centre") still FAILED live: 0/4 landed all days in-window because that framing made the
-// model MINIMIZE volume (14–17 sets across 4–5 exercises), which under-fills even at 120 s rest. The
-// PROVEN fix (4/5 live generations pass the strict gate, days cluster 42–48 within the ≤20-set cap) is
-// to require BOTH levers AND AIM HIGHER: 120 s rest on EVERY set AND a FULL ~19–20 working sets across
-// ~6 exercises, targeting ~46–47 min so each day sits a few minutes ABOVE the floor (not minimally on
-// it). validateProgram allows hypertrophy rest ≤120 s and the 20-set cap, so this passes review. Empty
-// for non-hypertrophy goals (they keep their existing shorter rest bands). Pure + package-level so the
-// wording is unit-testable without an [AiRepository] instance (mirrors [dayDurationFeedback]).
-internal fun hypertrophyRestDirective(goal: String, sessionDurationMinutes: Int): String {
-    if (!goal.lowercase().contains("hypertrophy")) return ""
-    val low = sessionDurationMinutes - 10
-    return "For HYPERTROPHY, to hit the time budget you MUST do BOTH on EVERY training day: (1) set " +
-        "recommendedRestSeconds=120 on EVERY working set INCLUDING isolation (120 s is the hypertrophy " +
-        "maximum and is allowed; the quality review permits hypertrophy rest ≤120 s); AND (2) program a " +
-        "FULL ~19–20 total working sets across ~6 exercises — do NOT stop at 15–17 sets. With 120 s rest " +
-        "and ~20 working sets a day estimates ~46–47 min by the formula — AIM for that, so each day sits a " +
-        "few minutes ABOVE the $low-min floor (not right on it). A day with fewer sets OR shorter rest " +
-        "falls UNDER $low min and is REJECTED. Never exceed 20 working sets (cap) and never exceed 120 s " +
-        "rest (ceiling)."
 }
 
 // ── Phase-2 SALVAGE: deterministic auto-trim of OVER-target days back into the window ──────────────
@@ -484,7 +448,7 @@ internal fun hypertrophyRestDirective(goal: String, sessionDurationMinutes: Int)
 // Returns the trimmed list when EVERY non-locked day lands in [low, high]; otherwise null (an over-day
 // could not reach <= high without dropping under the floor / running out of safe trims, OR some day is
 // UNDER the floor) — the caller treats null as a genuine no-save failure. Pure + package-level so it is
-// unit-testable without an [AiRepository] instance (mirrors [dayDurationFeedback] / [hypertrophyRestDirective]).
+// unit-testable without an [AiRepository] instance (mirrors [dayDurationFeedback]).
 private const val TRIM_REST_FLOOR_SECONDS = 60
 private const val TRIM_REST_STEP_SECONDS = 15
 internal fun trimOverflowToWindow(
@@ -607,25 +571,61 @@ private data class OQJson(
 )
 private data class OQsJson(val questions: List<OQJson> = emptyList())
 
-// Top-level private classes so Gson can instantiate them without issues
+// Top-level private classes so Gson can instantiate them without issues.
+//
+// P5 (generation-quality overhaul 2026-07): the model now DECLARES auditable §6 metadata alongside the
+// core plan fields. Every metadata field is OPTIONAL with a neutral default, so (a) an old/lean response
+// with none of them still parses byte-for-byte, and (b) the salvage re-serialization
+// (buildProgramJsonForValidation) that constructs these with only the core args keeps compiling. The
+// deterministic WorkoutTimeEstimator remains AUTHORITATIVE for the duration gate — the declared numbers
+// are for audit / the model's own self-check, never a substitute the model could game.
 private data class ExJson(
     val name: String = "",
     val sets: Int = 3,
     @SerializedName("targetReps") val targetReps: String = "8-12",
     @SerializedName("targetWeightKg") val targetWeightKg: Float = 0f,
     val notes: String = "",
-    val recommendedRestSeconds: Int = 90
+    val recommendedRestSeconds: Int = 90,
+    // P5 declared per-exercise metadata (auditable; not gated on)
+    val role: String = "",
+    val movementPattern: String = "",
+    val primaryMuscles: List<String> = emptyList(),
+    val secondaryMuscles: List<String> = emptyList(),
+    val countsAsHardSets: Int = 0,
+    val workSeconds: Int = 0,
+    val restSeconds: Int = 0,
+    val setupSeconds: Int = 0,
+    val estimatedMinutes: Float = 0f,
+    val injuryModification: String = ""
 )
 
 private data class DayJson(
     val dayOfWeek: Int = 1,
     val name: String = "",
-    val exercises: List<ExJson> = emptyList()
+    val exercises: List<ExJson> = emptyList(),
+    // P5 declared per-day metadata (auditable; the gate re-derives its own estimate)
+    val dayEstimateMinutes: Float = 0f,
+    val withinDurationWindow: Boolean = false
+)
+
+// P5 declared per-week metadata (§6). `blockState` is the single continue/new signal (shared with
+// P1/§3.4). Absent on old responses ⇒ neutral defaults.
+private data class WeekMetaJson(
+    val weeklyVolumeSummary: Map<String, Int> = emptyMap(),
+    val movementPatternSummary: List<String> = emptyList(),
+    val durationSummary: String = "",
+    val blockState: String = "",
+    val constraintNotes: String = ""
 )
 
 // B2: `rationale` is a top-level sibling of `days` — the model's own plain-language reasoning
 // for the plan it just produced. Absent on old responses ⇒ defaults to "" (neutral state).
-private data class ProgramJson(val days: List<DayJson> = emptyList(), val rationale: String = "")
+// P5: `week` carries the declared per-week metadata; absent ⇒ null.
+private data class ProgramJson(
+    val days: List<DayJson> = emptyList(),
+    val rationale: String = "",
+    val week: WeekMetaJson? = null
+)
 
 data class GenerationResult(
     val exercises: List<PlannedExercise>,
@@ -844,8 +844,6 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
         // DEADLINE_MS for the arithmetic. Body indentation is left as-is to keep this a minimal diff.
         withGenerationDeadline {
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
-        // FIX-B: hypertrophy gets the BLUNT 120 s-rest under-time directive; other goals keep their bands.
-        val goalIsHypertrophy = goal.lowercase().contains("hypertrophy")
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
         val previousPlanCtx = buildPreviousPlanContext()
@@ -1005,11 +1003,11 @@ type must be "text" for a free-form answer or "choice" for a single-select list.
                 .filterKeys { it !in lockedDays }
                 .mapNotNull { (day, dayExercises) ->
                     val est = WorkoutTimeEstimator.estimateDayMinutes(dayExercises)
-                    // G1: direction-aware feedback — under-time days are told to ADD work, over-time
-                    // days to TRIM. The reject CONDITION (the ±10 window) is unchanged; only the
-                    // wording fed back to the next attempt differs, so the strict gate is untouched.
-                    // FIX-B: pass the hypertrophy flag so the under-time directive is the blunt 120 s one.
-                    dayDurationFeedback(day, est, sessionDurationMinutes, goalIsHypertrophy)
+                    // G1/P2: direction-aware feedback — under-time days are told to ADD work, over-time
+                    // days to TRIM. The reject CONDITION (the ±10 window) is unchanged; only the wording
+                    // fed back to the next attempt differs, so the strict gate is untouched. The wording
+                    // is now goal-general + duration-derived (no fixed set count / minute / rest ceiling).
+                    dayDurationFeedback(day, est, sessionDurationMinutes)
                 }
                 .joinToString(" ")
 
@@ -1147,13 +1145,13 @@ Respond with ONLY the summary text — no JSON, no markdown fences, no preamble 
         // Effective severity (only meaningful when injuries are present). Legacy/unspecified ⇒ cautious Moderate.
         val sev = injurySeverity.ifBlank { "Moderate" }
         val injuryCheck = if (injuries.isNotBlank())
-            "10. INJURY GATING (HARD — reject), severity = $sev for \"$injuries\". Judge against THIS severity:\n" +
+            "10. INJURY GATING (HARD — reject only real contraindications), severity = $sev for \"$injuries\". Judge against THIS severity:\n" +
             "   • SEVERE → the aggravating category must be EXCLUDED outright. REJECT if any genuinely contraindicated movement is present, e.g. jogging / high-impact cardio or a loaded single-leg balance movement (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-up) for a bad ankle; deep loaded knee flexion or high-impact plyo for a bad knee; overhead or behind-neck pressing for a bad shoulder. Bilateral / low-impact substitutes only.\n" +
             "   • MODERATE → the worst aggravators must be SUBSTITUTED with a safer same-muscle variant AND 1–2 rehab/prehab moves for the area should be present. REJECT if a clear aggravator is left in unmodified; do NOT reject a sensible substitution.\n" +
-            "   • MILD → training AROUND the aggravator is allowed, but light rehab/strengthening on the injured area is REQUIRED. Light, controlled rehab/strengthening of a MILD injury is CORRECT — do NOT flag it as a violation; only reject if the program omits the area entirely or prescribes an obviously reckless load.\n" +
-            "   Apply the appropriate tier PER injury if several are listed with differing severity (the stated level is the overall/worst). ALWAYS reject INCOHERENT injury handling regardless of tier: a single-leg / rear-foot-elevated / Bulgarian split squat carrying \"both feet down\" / \"bilateral contact at all times\" cues is physically impossible — the fix is to SUBSTITUTE a genuinely bilateral movement (goblet/sumo squat, leg press, hand-supported split squat), not to keep the single-leg exercise with contradictory cues. Goal: reject real contraindications, do NOT over-reject appropriate light rehab."
+            "   • MILD → light touch. A MILD plan is NOT required to change exercise selection or add rehab unless the injury text names a clear aggravator. Do NOT reject a MILD plan for keeping normal training, for adding at most one optional prehab slot, OR for adding no rehab. Only reject if it leaves a CLEARLY contraindicated movement given a NAMED aggravator, or prescribes an obviously reckless load on the injured area.\n" +
+            "   Apply the appropriate tier PER injury if several are listed with differing severity (the stated level is the overall/worst). ALWAYS reject INCOHERENT injury handling regardless of tier: a single-leg / rear-foot-elevated / Bulgarian split squat carrying \"both feet down\" / \"bilateral contact at all times\" cues is physically impossible — the fix is to SUBSTITUTE a genuinely bilateral movement (goblet/sumo squat, leg press, hand-supported split squat), not to keep the single-leg exercise with contradictory cues. Goal: reject real contraindications, do NOT over-reject appropriate light rehab or a light-touch MILD plan."
         else
-            "10. INJURY GATING: no injuries reported — skip."
+            "10. INJURY GATING: no injuries reported — add NO rehab/prehab requirement and make NO injury-driven rejection. Skip."
         val prompt = """
 You are a sports science peer reviewer. Evaluate the following AI-generated weekly training program against the programming principles below.
 
@@ -1162,23 +1160,25 @@ Goal: $goal | Experience: $experience | Training days: $daysPerWeek${if (injurie
 PROGRAM JSON:
 $planJson
 
-Check ALL of the following. Reject on genuine violations — do not penalise reasonable coaching choices or exercise variation. Items marked HARD are always grounds for rejection. When rejecting, name the single most critical issue only.
+Check ALL of the following. Reject ONLY on genuine violations — do NOT penalise reasonable coaching choices, exercise variation, or a plan that sits slightly outside a numeric guideline band. Items marked HARD are always grounds for rejection; everything else is a QUALITY judgement — reject only when the plan is clearly poor training for this goal/experience, not for a small deviation. When rejecting, name the single most critical issue only.
+
+SOFT-BAND GUARD (read first): the rep/rest/volume numbers below are WIDE GUIDELINE bands, not hard limits. A plan being a little outside a band — a slightly higher or lower rep count, a rest value inside the goal's wider band, a set count that fits the chosen session duration — is NOT grounds for rejection. NEVER hard-reject on a §5-style numeric range. The ONLY hard numeric overrides are the loaded-hinge rep caps (#1).
 
 1. SAFETY — LOADED HINGE REP CAPS (HARD): No barbell hinge (deadlift, RDL, sumo DL, good morning, Pendlay-style) is prescribed above 8 reps, AND no loaded dumbbell hinge (DB RDL, DB stiff-leg deadlift, DB good morning) is prescribed above 12 reps. Bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, kettlebell swing) is exempt and may run high-rep. Higher-rep posterior-chain work must be routed to that exempt list, NOT to a barbell pull.
-2. DAYS: The plan contains exactly $daysPerWeek training days.
-3. RECOVERY: No primary muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on consecutive days. Heavy leg days need ≥48 h between them.
-4. ROLE-BASED REP RANGES (HARD if monotone): rep ranges must vary by exercise role within a session — primary compounds lower-rep, isolation higher-rep. Reject any session that applies one identical rep range to every exercise. Ranges must broadly match the goal:
-   - Strength: primary compounds 3–6, accessories 6–10, isolation 8–12. Do NOT reject for 8–10 rep accessory work.
-   - Hypertrophy: compounds 6–10, accessories 8–12, isolation 10–15, rest ≤120 s. Invalid only if rest values consistently exceed 120 s.
-   - Endurance: compounds 8–12, isolation 15–20, 30–60 s rest, includes 2–3 cardio sessions.
-   - Weight Loss: 10–20 reps, 60–90 s rest, includes ≥2 cardio sessions.
+2. DAYS (HARD): The plan contains exactly $daysPerWeek training days.
+3. RECOVERY (HARD): No primary muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on consecutive days. Heavy leg days need ≥48 h between them (a LIGHT second hinge in the week is fine — only a second HEAVY/near-max barbell hinge is a problem).
+4. ROLE-BASED REP RANGES (HARD only if MONOTONE): reject a session that applies ONE identical rep range to every exercise (no primary→accessory→isolation spread). Otherwise the ranges are WIDE GUIDELINES per goal — reject only if the bias is clearly WRONG for the goal (e.g. a "strength" plan built entirely on 15-rep sets, or an "endurance" plan of heavy 3-rep singles). Do NOT reject for being inside a wider band:
+   - Strength: heavy low-rep compounds (~1–6), accessories ~5–8, isolation ~8–12; LONG rests (up to ~300 s) are correct — never reject strength for rest >120 s.
+   - Hypertrophy: compounds ~5–10, accessories ~8–15, isolation ~10–20(+); rest hypertrophy compounds up to ~240 s, isolation ~45–150 s. There is NO 120 s ceiling — do NOT reject for rest >120 s.
+   - Endurance: higher-rep (~12–30) / shorter rest (~15–90 s) + 2–3 cardio sessions.
+   - Weight Loss: ~10–20 reps, short rest (~45–90 s), density/circuits + ≥2 cardio sessions, plus enough resistance to preserve muscle.
 5. ORDER & HIERARCHY: Within each session, compounds appear before isolation for the same muscle group, and the session leads with a primary compound rather than a flat list of identical-volume exercises.
 6. EFFORT & PROGRESSION (HARD): Every exercise's notes must state a target effort (RIR or RPE) AND a progression rule. Reject if exercises only say "establish baseline" or carry no effort target.
-7. VOLUME: Every major muscle group is trained at least once (not zero). No muscle exceeds ~10 hard sets in a single session, nor ~25 sets/week. No session exceeds ~18–20 total working sets (cardio/prehab excluded) — flag sessions of 22–23+ sets that run long and accrue fatigue even when no single muscle is over its cap.
+7. VOLUME (scaled to duration): Every major muscle group the plan targets is trained at least once (not zero). No single muscle is absurdly over-volumed in one session. Per-session and weekly volume should FIT the chosen session duration and goal — do NOT reject for a set count that is appropriate to a long session, and do NOT reject a short/low-frequency plan for having less volume than a long one. Reject only for junk-padded volume or a genuinely unbalanced brutal session.
 8. DE-DUPLICATION: No two near-identical movement patterns within one session (e.g. RDL + single-leg stiff-leg deadlift). No obvious structural errors (all-chest sessions, cardio the day before heavy legs).
-9. WEEKLY BALANCE: The week includes direct lateral-delt + rear-delt work and at least one knee-dominant quad movement; posterior-chain work is not stacked with no quad movement.
+9. WEEKLY BALANCE (COVERAGE SCALES WITH days × duration): a full week with enough days/time should broadly cover push/pull/squat/hinge and include direct lateral + rear-delt and a knee-dominant quad movement, and not stack only posterior-chain hinges with no quad. But a SHORT or LOW-FREQUENCY week CANNOT fit every pattern — do NOT reject it for missing a pattern it has no room for; on few/short days, multi-pattern compounds are the correct choice. Reject only a clearly lopsided full-capacity week.
 $injuryCheck
-11. EXERCISE COUNT: Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session.
+11. EXERCISE COUNT (HARD upper cap): Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session. Fewer is fine (short sessions).
 12. NOTES: Notes assert no incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest"). Reject any use of "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch", "increases bicep peak"). "Peak contraction" as a squeeze cue (hold the shortened position) is allowed.
 13. TIME BUDGET — DO NOT EVALUATE THIS. Per-day session length is ALREADY enforced by an authoritative deterministic check that has PASSED before this review runs, so every training day is guaranteed to be within the allowed ±10-min window. Do NOT estimate or calculate session duration, and NEVER reject on time-budget, session-length, "too long", "too short", or any duration grounds. Disregard session length entirely when deciding accepted true/false.
 
@@ -1326,9 +1326,6 @@ OR
         lockedExercises: List<PlannedExercise> = emptyList()
     ): String {
         val goalLower = goal.lowercase()
-        // FIX-B (v1.10.4): BLUNT hypertrophy-scoped 120 s-rest directive (empty for other goals). Live
-        // testing proved the soft "raise rest toward the band max" wording does not move the model.
-        val hypertrophyRest = hypertrophyRestDirective(goal, sessionDurationMinutes)
         // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
         val restDayBlock = buildRestDayBlock(restDays)
         // B09: already-trained days this week, fed back as fixed context so the model reproduces them
@@ -1390,18 +1387,29 @@ Your new plan must directly address this. A plan with the same flaw will be reje
 
 """ else ""
 
-        // H2: merge recent logged exercises + the PREVIOUS plan's clean structured names into one
-        // blacklist. Built from whole names (no comma-splitting, no header/junk) — see buildBlacklistNames.
+        // P1 (generation-quality overhaul 2026-07): this was the "EXERCISE BLACKLIST — the single most
+        // important constraint" that force-churned the user's MAIN LIFTS out for unrelated exercises every
+        // week (and the un-anchored replacements then got GUESSED weights). It is replaced by a RECENTLY-
+        // USED reference list that drives a VARIATION HIERARCHY: keep + progress most main lifts, vary
+        // grip/angle/accessories freely, and cap FULL main-lift swaps at ≤2/week. The names are a "you have
+        // trained these — freshen accessories/variations" cue, NOT a "must be different" mandate.
+        // H2: still merged from recent logged exercises + the previous plan's clean structured names.
         val blacklist = buildBlacklistNames(recentExercises, previousPlanExerciseNames)
 
         val blacklistBlock = if (blacklist.isNotEmpty()) """
 ══════════════════════════════════════════
-EXERCISE BLACKLIST — DO NOT USE THESE
+RECENTLY USED EXERCISES — VARY, BUT DO NOT CHURN YOUR MAIN LIFTS
 ══════════════════════════════════════════
-The following exercises were already used in recent sessions or last week's plan. You MUST choose different exercises for the same muscle groups this week. This is the single most important constraint in this prompt.
+These exercises appear in the user's recent sessions or last week's plan:
 ${blacklist.joinToString("\n") { "  • $it" }}
 
-If equipment genuinely leaves only one option for a muscle group, you may reuse that exercise once but must note "only available option" in the notes field.
+VARIATION HIERARCHY (progression-tracking beats novelty — apply in this order):
+1. KEEP + PROGRESS most main/anchor lifts. For each major muscle, the primary compound should RECUR week to week so its load is trackable and progressively overloaded from the user's logged history. Do NOT swap an anchor out just because it appears above — repeating a main lift is REQUIRED for progressive overload, not a failure to vary.
+2. VARY an anchor by IMPLEMENT / GRIP / ANGLE more freely (barbell↔dumbbell, pronated↔neutral grip, flat↔incline). This stays the same movement pattern, so estimate its weight from the CLOSELY-RELATED logged lift — never fabricate.
+3. FULL main-lift SWAPS (replacing a main lift with a genuinely different exercise) are RARE: at most TWO fully-swapped main lifts this whole week. Every other main lift stays and progresses.
+4. Accessories / isolation / exercise order / weekday placement / weekly theme rotate FREELY for freshness (respecting the recovery rules below).
+
+So: no two consecutive weeks are identical copies (accessories/grip/angle/order/theme differ), but the trackable main lifts persist. If equipment genuinely leaves only one option for a muscle group, reuse it and note "only available option".
 """ else ""
 
         val previousPlanBlock = if (previousPlan.isNotBlank()) """
@@ -1413,10 +1421,10 @@ $previousPlan
 
         val themeBlock = if (variationTheme.isNotBlank()) """
 ══════════════════════════════════════════
-THIS WEEK'S VARIATION DIRECTIVE
+THIS WEEK'S VARIATION THEME (accessories / grip / angle — NOT a mandate to swap main lifts)
 ══════════════════════════════════════════
 $variationTheme
-Apply this to break out of default exercise patterns. This is mandatory — if you keep defaulting to the same canonical exercises (e.g. bench press, pull-ups, barbell squat every single week), you are failing this directive.
+Apply this theme to ACCESSORIES, isolation, grip/angle variations, and exercise order to keep the week fresh. It does NOT override the variation hierarchy above: keep and progress the main anchor lifts, and stay within the ≤2 full-main-lift-swaps-per-week cap. Never let the theme force a trackable anchor out for an unrelated exercise or drift a rep range.
 """ else ""
 
         val splitBlock = if (splitSuggestion.isNotBlank()) """
@@ -1451,10 +1459,10 @@ SEVERE → EXCLUDE the aggravating category ENTIRELY (do not merely substitute �
 - Bad knee ⇒ NO deep loaded knee flexion and NO high-impact plyo; substitute leg press at partial ROM and box squat to a comfortable depth.
 - Bad shoulder ⇒ NO overhead pressing and NO behind-neck work; substitute landmine press, incline press, neutral-grip variants."""
     "Mild" -> """
-MILD → you MAY train AROUND the worst aggravators, but you MUST still include light rehabilitation / strengthening on the injured area, staged as progression (do NOT omit the area entirely):
-- Bad ankle ⇒ keep bilateral work primary; add light calf/ankle stability work and (if used) hand-supported single-leg progressions; prefer low-impact cardio (bike, row, incline walk) over jogging.
-- Bad knee ⇒ keep knee-friendly ROM; add light terminal-knee-extension / controlled leg work as rehab.
-- Bad shoulder ⇒ keep pressing in pain-free ranges; add light external-rotation / scapular rehab. Stage all of this as light progression, not a loaded baseline."""
+MILD → light touch only. Add at most ONE optional prehab slot for the WHOLE WEEK (not a rehab slot every session) plus a brief note. Do NOT force a per-session exercise-selection change UNLESS the injury text names a clear aggravator — if it does, train around that specific aggravator. Otherwise keep the normal plan:
+- Bad ankle ⇒ keep bilateral work primary; prefer low-impact cardio (bike, row, incline walk) over jogging; ONE optional light calf/ankle stability slot for the week is enough.
+- Bad knee ⇒ keep knee-friendly ROM; ONE optional light controlled-leg / terminal-knee-extension slot for the week is enough.
+- Bad shoulder ⇒ keep pressing in pain-free ranges; ONE optional light external-rotation / scapular slot for the week is enough. Do NOT stack rehab into every session or exclude the area's normal training."""
     else -> """
 MODERATE → SUBSTITUTE the safer same-muscle variant for the worst aggravators, AND include 1–2 rehab/prehab moves for the area:
 - Bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups); prefer low-impact cardio over jogging.
@@ -1468,7 +1476,7 @@ CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilate
         return """
 You are an expert strength & conditioning coach. Design a $daysPerWeek-day weekly training program tailored to the user below.
 
-CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic. A good coach rotates exercises every single week — the same muscle can be trained with completely different exercises each week.
+CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic — weekday placement may shift week to week as long as the recovery rules hold. A good coach KEEPS the main/anchor lifts stable and progressively overloads them from the logged history, and finds variety in accessories, grip/angle, order, and theme — NOT by swapping the trackable main lifts out every week.
 $safetyBlock$injuryHardBlock$restDayBlock$lockedDaysBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock
 ══════════════════════════════════════════
 WORKOUT HISTORY
@@ -1495,45 +1503,46 @@ FORBIDDEN EXERCISES (equipment not available)
 ${if (forbidden.isEmpty()) "None — all exercise types are available." else "Do NOT prescribe any of these: ${forbidden.joinToString(", ")}"}$rackNote
 
 ══════════════════════════════════════════
-GOAL → REP RANGE BY EXERCISE ROLE (deterministic)
+GOAL PROGRAMMING — WIDE REP/REST/VOLUME BANDS (GUIDELINES, not a fixed table)
 ══════════════════════════════════════════
-Assign every exercise a ROLE — primary compound, accessory, or isolation — and pick its rep range from the table for this goal. The SAME role under the SAME goal must always get the SAME range across regenerations; do not let the variation directive drift rep ranges. NEVER apply one rep range to a whole session — each session must show a primary→accessory→isolation spread of ranges. Hinge caps override the table (hard safety rule above): barbell hinges (deadlift, RDL, sumo DL, good morning) stay ≤8 reps; loaded dumbbell hinges (DB RDL, DB stiff-leg, DB good morning) stay ≤12 reps; bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, KB swing) is exempt and may run high-rep.
+Assign every exercise a ROLE — primary compound, accessory, or isolation — and pick its rep range from the WIDE band for this goal. These are GUIDELINES you may adjust when goal, duration, injury, equipment, or exercise type justifies it — NOT a narrow fixed table. Two hard rules still apply: (a) rep range is fixed by ROLE + GOAL, so do NOT drift it as a variation lever (variation lives in exercise choice/grip/angle/accessories, per the hierarchy above), and NEVER apply one identical rep range to a whole session — each session shows a primary→accessory→isolation SPREAD; (b) the loaded-hinge rep caps override every band (hard safety rule above): barbell hinges (deadlift, RDL, sumo DL, good morning) ≤8 reps; loaded dumbbell hinges (DB RDL, DB stiff-leg, DB good morning) ≤12 reps; bodyweight/light hip-extension work (hip thrust, glute bridge, back extension, leg curl, KB swing) is exempt and may run high-rep. Each of the four goals must produce a VISIBLY DISTINCT, appropriate plan — none may be a relabeled hypertrophy block. Rest scales to the GOAL (longer for heavy strength, shorter for endurance/density) — there is NO blanket 120 s ceiling.
 ${when {
     goalLower.contains("strength") -> """
-Goal: build maximal strength in compound lifts.
-- Rep ranges by role: primary compounds 3–6 / accessories 6–10 / isolation 8–12.
-- Rest: 3–5 min between heavy sets, 2–3 min for accessories.
-- Weekly volume: lower (8–12 hard sets/muscle) — intensity beats volume here. Keep isolation low.
-- Effort: ~2–3 RIR on compounds, ~1–2 RIR on isolation. Never train compounds to failure.
-- Progression: add weight (2.5–5 kg) when all reps are completed with ≥2 RIR.""".trimIndent()
+Goal: STRENGTH — build maximal force. Lead with heavy, low-rep compounds; intensity over volume.
+- Rep ranges by role: primary compounds 1–6 / accessories 5–8 / isolation 8–12.
+- Rest: LONG — 3–5 min (up to ~300 s) between heavy compound sets; 2–3 min for accessories. (Longer rest drives strength — do NOT cap at 120 s.)
+- Weekly volume: LOWER (8–12 hard sets/muscle) — keep isolation minimal; too much accessory fatigue interferes with the heavy work.
+- Effort: heavy compounds RPE 6–8 (1–4 RIR, generally not to failure); isolation RPE 7–9.
+- Progression: add load (barbell upper +1.25–2.5 kg, barbell lower +2.5–5 kg) when all reps hit with ≥2 RIR.""".trimIndent()
 
     goalLower.contains("hypertrophy") -> """
-Goal: maximise muscle growth.
-- Rep ranges by role: primary compounds 6–10 / accessories 8–12 / isolation 10–15. Moderate load (~65–80% 1RM).
-- Rest: 60–120 s between sets — do not exceed 120 s.
-- Train each muscle group at least twice per week. Weekly volume 10–20 hard sets/muscle across both sessions.
-- Order: 1–2 compounds first per session, then accessory/isolation work.
-- Effort: ~2–3 RIR compounds, ~1–2 RIR isolation.
-- Progression: double progression — add reps to the top of the range across all sets, then +load and reset to the bottom.""".trimIndent()
+Goal: HYPERTROPHY — maximise muscle growth across a broad load spectrum.
+- Rep ranges by role: primary compounds 5–10 / accessories 8–15 / isolation 10–20 (isolation may run to ~30). Moderate loads.
+- Rest: hypertrophy compounds 90–240 s; isolation 45–150 s. There is NO 120 s ceiling — use longer rest on the heavy compounds when it serves the set quality and the time budget.
+- Weekly volume 10–20 hard sets/muscle; spread across the week (train a muscle ~2×/week WHERE the number of training days allows — do NOT force 2×/week on a low day count).
+- Order: 1–2 compounds first per session, then accessory/isolation.
+- Effort: compounds RPE 7–8 (~2 RIR), isolation RPE 8–10 (0–3 RIR).
+- Progression: double progression — add reps toward the top of the range across all sets, then +load and reset to the bottom.""".trimIndent()
 
     goalLower.contains("endurance") -> """
-Goal: muscular and cardiovascular endurance.
-- Rep ranges by role: compounds 8–12 (barbell hinges still ≤8) / isolation 15–20. Light load (~40–60% 1RM), 2–3 sets, 30–60 s rest.
-- Cardio is the priority — include 2–3 dedicated cardio sessions per week.
-- Choose exercises that complement aerobic capacity: circuits, supersets, bodyweight work welcome.
-- Weekly volume per muscle: lower (6–10 hard sets/week) — cardio takes the majority of the session.
-- Progression: add reps or sets before increasing load.""".trimIndent()
+Goal: ENDURANCE — muscular and cardiovascular conditioning. This is CONDITIONING-LED, not mislabeled hypertrophy.
+- Rep ranges by role: compounds 12–20 (barbell hinges still ≤8) / isolation 15–30 or time-based holds. Light loads, 2–3 sets.
+- Rest: SHORT — 15–90 s (circuit/superset pacing).
+- Cardio is the PRIORITY: include 2–3 dedicated cardio sessions per week; circuits, supersets, bodyweight work welcome.
+- Weekly resistance volume per muscle: LOWER (6–12 hard sets) — cardio takes the majority of the week.
+- Progression: add reps/rounds/duration before load.""".trimIndent()
 
     goalLower.contains("weight") || goalLower.contains("loss") -> """
-Goal: fat loss and body recomposition.
-- Rep ranges by role: compounds 8–12 (barbell hinges still ≤8) / accessories 10–15 / isolation 12–20. Rest 60–90 s (keep heart rate elevated).
-- Prioritise compound multi-joint movements (highest calorie burn and muscle retention).
-- Include 2 cardio sessions per week — mix HIIT and steady-state. Supersets of non-competing muscle groups welcome.
-- Effort: ~1–2 RIR. Progression: add reps, then load. Avoid extremely heavy low-rep work.""".trimIndent()
+Goal: WEIGHT LOSS — calorie expenditure + muscle retention. NOT a relabeled hypertrophy plan.
+- Structure: density work / circuits / supersets of non-competing muscle groups + cardio for calorie burn, PLUS enough straight-set resistance work to PRESERVE muscle.
+- Rep ranges: 10–20 reps (barbell hinges ≤8). Rest: SHORT — 45–90 s (keep heart rate elevated).
+- Prioritise compound multi-joint movements (highest burn + retention).
+- Include ≥2 cardio sessions per week — mix HIIT and steady-state; prefer injury-safe low-impact options where needed.
+- Effort: ~1–2 RIR. Progression: add reps/density, then load. Avoid extremely heavy low-rep work.""".trimIndent()
 
     else -> """
-Goal: general health and fitness.
-- Rep ranges by role: primary compounds 6–10 / accessories 8–12 / isolation 10–15 (barbell hinges ≤8). Rest 90–120 s.
+Goal: GENERAL health and fitness.
+- Rep ranges by role: primary compounds 5–10 / accessories 8–12 / isolation 10–20 (barbell hinges ≤8). Rest 60–180 s.
 - Balanced mix of compound and isolation work; hit all major muscle groups across the week.
 - Effort: ~2–3 RIR. Progression: double progression.""".trimIndent()
 }}
@@ -1541,33 +1550,32 @@ Goal: general health and fitness.
 ══════════════════════════════════════════
 WEEKLY STRUCTURE
 ══════════════════════════════════════════
-Organise $daysPerWeek days to distribute muscle group stimulus optimally for the stated goal.
-- WEEKLY VOLUME: aim ${if (experience.lowercase().contains("beginner")) "6–12" else "10–20"} hard sets per trained muscle. Beyond ~20–25 sets/week is diminishing returns.
-- PER-SESSION VOLUME: cap any single muscle at ~8–10 hard sets in one session. Excess in-session sets are junk volume — split them across the week, do not stack one brutal session.
-- PER-SESSION TOTAL VOLUME: keep total working sets per session ≤ ~18–20 (cardio/prehab excluded). Sessions of 22–23 sets run long and accrue fatigue even when no single muscle is over its cap.
-- FREQUENCY: train each major muscle ~2×/week so weekly volume is spread, not crammed into a single session.
-- Each major muscle group (chest, back, quads, hamstrings/glutes, shoulders) should be trained at least once, ideally twice per week.
+Organise $daysPerWeek days to distribute muscle group stimulus optimally for the stated goal. PRIORITY ORDER for resolving conflicts: safety → user hard boundaries → equipment → goal → experience → RECOVERY/FATIGUE → focus muscles → movement balance → variation. Recovery ranks ABOVE focus muscles and variation — when they conflict, recovery wins.
+- WEEKLY VOLUME per trained muscle (guideline): maintenance ~4–8 / normal ~6–16 / focus ~8–20 hard sets. Beyond ~25 sets/week is rarely justified.
+- PER-SESSION VOLUME: keep any single muscle to a goal-appropriate amount in one session (~8–10 hard sets is a lot); excess in-session sets are junk volume — spread across the week rather than stacking one brutal session.
+- COVERAGE SCALES WITH days × duration: full movement-pattern coverage is a TARGET, not a hard requirement. On FEW or SHORT days, prioritise multi-pattern COMPOUNDS over exhaustive coverage — do NOT cram patterns in to hit a checklist. On MORE/LONGER days, cover more patterns.
+- FREQUENCY: train a muscle ~2×/week WHERE the training-day count allows it — do NOT force 2×/week on a low day count; on few days, prioritise the biggest compounds.
 - Never train the same primary muscle group on consecutive days.
-- Heavy leg sessions (squat, deadlift) need at least 48 h before the next leg session.
-- WEEKLY PATTERN BALANCE: across the week include horizontal push + vertical push, horizontal pull + vertical pull, a knee-dominant (squat/quad) + a hip-dominant (hinge) lower movement, and DIRECT lateral-delt + rear-delt work. Do not stack RDL + SLDL + hip thrust + deadlift + lunge in one week with no knee-dominant quad movement.
-- $cardioInstruction
-- Space the days evenly across the week where possible.
+- Heavy leg sessions (squat, deadlift) need at least ~48 h before the next heavy leg session. A LIGHT second hinge in the week (e.g. an RDL a few days after a deadlift) is fine — only a second HEAVY/near-max barbell hinge is limited.
+- WEEKLY PATTERN BALANCE (scaled to days×duration): across the week aim to include horizontal + vertical push, horizontal + vertical pull, a knee-dominant (squat/quad) and a hip-dominant (hinge) lower movement, and direct lateral-delt + rear-delt work. Do not stack only posterior-chain hinges with NO knee-dominant quad movement.
+- $cardioInstruction (Cardio matters most for weight-loss and endurance; it is largely irrelevant for a pure strength or hypertrophy block — do not add junk cardio to those.)
+- Weekday placement may shift week to week as long as the recovery rules hold; space the days evenly where possible.
 $splitBlock$previousPlanBlock
 
 ══════════════════════════════════════════
-TIME BUDGET (applies PER training day — STRICT, BOTH directions)
+TIME BUDGET (applies PER training day — DERIVED FROM THE SESSION DURATION, STRICT both directions)
 ══════════════════════════════════════════
-The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. A day that comes in UNDER ${sessionDurationMinutes - 10} min is rejected just as hard as one OVER ${sessionDurationMinutes + 10} min — under-filled days are the most common cause of rejection, so do NOT leave any day short. Self-size EVERY day using this EXACT estimate (it is the formula the app enforces — match it, do not approximate):
-- Per strength exercise ≈ sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N.
+The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. This applies across the FULL range the user might pick (20–120 min): a SHORT session must be lean with NO junk padding, and a LONG session must actually REACH its target. Volume, rest, exercise count, and per-day time are DERIVED from goal × experience × days/week × THIS session duration — there is NO fixed set count, NO fixed minute target, and NO blanket rest ceiling driving the size. A day UNDER ${sessionDurationMinutes - 10} min is rejected just as hard as one OVER ${sessionDurationMinutes + 10} min. Self-size EVERY day using this EXACT estimate (it is the formula the app enforces — match it, do not approximate):
+- Per strength exercise ≈ sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N. (4 s/rep reflects a realistic controlled tempo.)
 - Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
 - A day's estimate = the sum of its exercises.
-${if (hypertrophyRest.isNotBlank()) "$hypertrophyRest\n" else ""}REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days — most days that come in under the floor clear it on rest ALONE. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of this goal's allowed rest band BEFORE you conclude the day is finished (hypertrophy: 120 s on EVERY set INCLUDING isolation, never beyond; strength: the longer heavy/accessory rests this goal already allows; endurance / weight-loss: stay inside their shorter bands). Do not exceed the goal's rest ceiling.
-UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until it reaches about $sessionDurationMinutes min (do NOT stop the moment it scrapes the ${sessionDurationMinutes - 10}-min floor — aim a few minutes above it). NEVER leave a day short just because you are near a cap — rest and reps still have room even at the working-set cap:
-  1. Set inter-set rest to this goal's band maximum on EVERY set (hypertrophy: 120 s on ALL sets INCLUDING isolation — short isolation rest is the #1 cause of under-time days).
+REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of THIS GOAL's rest band FIRST — strength has the most headroom here (3–5 min / up to ~300 s), hypertrophy compounds up to ~240 s, endurance/weight-loss stay in their shorter bands. Do not push rest beyond the goal's own band.
+UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until it reaches about $sessionDurationMinutes min (do NOT stop the moment it scrapes the ${sessionDurationMinutes - 10}-min floor — aim toward the CENTRE):
+  1. Raise inter-set rest toward this goal's band MAXIMUM (this alone clears most under-time days).
   2. RAISE reps toward the TOP of each exercise's role range.
   3. ADD 1 set to an accessory/isolation exercise.
-  4. ADD one more accessory exercise (respecting the experience exercise-count cap — Intermediate ≤7 — and the ~18–20 total working-set / ~8–10 per-muscle caps).
-If a day lands over ${sessionDurationMinutes + 10} min, TRIM: remove an accessory or shorten rest until it estimates close to $sessionDurationMinutes min. Aim for the CENTRE of the window ($sessionDurationMinutes min), NOT its edge — a day parked at the low edge tips back UNDER ${sessionDurationMinutes - 10} min on small rounding. This NEVER overrides the per-muscle (~8–10 sets) or per-session-total (~18–20 working sets) caps or any other rule above — fill or trim within those limits, and never pad with junk volume.
+  4. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume).
+OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory, reduce sets, or shorten rest until it estimates close to $sessionDurationMinutes. For a LONG target that is hard to reach, add USEFUL rest/warm-up/mobility/carries/conditioning BEFORE junk volume; for a SHORT target, do NOT pad — keep it lean. Aim for the CENTRE ($sessionDurationMinutes), not the edge — a low-edge day tips back under the floor on rounding. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
 
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -1576,17 +1584,17 @@ SESSION DESIGN RULES
 - DE-DUPLICATE movement patterns: no two near-identical patterns in one session (e.g. do not pair RDL with single-leg stiff-leg deadlift, or barbell bench with dumbbell bench as two separate slots).
 - Order: compound exercises before isolation for the same muscle group.
 - Start each session with the most demanding movement.
-- Exercise count per session: Beginner ≤ 5, Intermediate ≤ 7, Advanced ≤ 8.
-- Sets per exercise: Beginner 2–3, Intermediate 3–4, Advanced 3–5.
+- Exercise count per session (scaled to duration; upper cap is hard): Beginner 3–5, Intermediate 4–7, Advanced 4–8. Short sessions sit at the LOW end, long sessions toward the HIGH end.
+- Sets per exercise (guideline): Beginner 1–3, Intermediate 2–4, Advanced 2–5.
 ${when {
     experience.lowercase().contains("beginner") -> "- Stick to fundamental, easy-to-learn movements. Avoid complex or high-skill exercises."
     experience.lowercase().contains("intermediate") -> "- Include some variation and unilateral work. Technique is established."
     else -> "- Advanced techniques (drop sets, rest-pause, tempo work) are appropriate where beneficial."
 }}
 ${if (injuries.isNotBlank()) """
-- INJURY GATING (changes SELECTION, not just notes): apply the INJURY HARD-CONSTRAINTS block above at its stated severity ($sev) for "$injuries". At SEVERE, EXCLUDE the aggravating category outright; at MODERATE, REPLACE the worst aggravators with safer same-muscle variants; at MILD, train AROUND them but still include light rehab. Do NOT merely add a caution note to a risky exercise.
-  • e.g. ankle instability → down-rank/exclude loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups). When you down-rank these, SUBSTITUTE a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) — do NOT keep the single-leg exercise and bolt on contradictory cues. A rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION; NEVER append "both feet down" / "bilateral contact at all times" to it (physically incoherent). If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) and stage it as light rehab progression, not a loaded baseline. For cardio prefer low-impact (bike, row, incline walk) over jogging.
-- Where safe (REQUIRED at MILD/MODERATE), include 1–2 low-load rehab/prehab exercises targeting the injured area, staged as light progression rather than a loaded baseline.""" else ""}
+- INJURY GATING (severity: $sev for "$injuries"): apply the INJURY HARD-CONSTRAINTS block above. At SEVERE, EXCLUDE the aggravating category outright; at MODERATE, REPLACE the worst aggravators with safer same-muscle variants AND include 1–2 rehab/prehab moves. At MILD, do NOT force a per-session selection change unless the text names a clear aggravator — just add at most ONE optional prehab slot for the WEEK plus a note.
+  • e.g. ankle instability (MODERATE/SEVERE) → down-rank/exclude loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups). When you down-rank these, SUBSTITUTE a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) — do NOT keep the single-leg exercise and bolt on contradictory cues. A rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION; NEVER append "both feet down" / "bilateral contact at all times" to it (physically incoherent). If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench). For cardio prefer low-impact (bike, row, incline walk) over jogging.
+- Rehab/prehab (REQUIRED only at MODERATE/SEVERE): 1–2 low-load moves for the injured area, staged as light progression — NOT counted as primary strength/hypertrophy volume.""" else ""}
 ${if (priorityMuscles.isNotBlank()) """
 - Priority muscles ($priorityMuscles): allocate at least 2 extra sets compared to non-priority groups. Train them twice per week.""" else ""}
 
@@ -1596,11 +1604,14 @@ PROGRESSION & EFFORT (every exercise)
 EVERY exercise's notes MUST state (a) a target effort as RIR or RPE, and (b) a concrete progression rule. "Establish baseline" alone is NOT acceptable.
 - Default effort: ~2–3 RIR on compounds, ~1–2 RIR on isolation.
 - Default progression: DOUBLE PROGRESSION — add reps to the top of the range across all sets, then add load and reset to the bottom of the range.
-Use the workout history above to set starting weights and reps intelligently:
-- Progressing (weight increasing across sessions): add 2.5 kg (intermediate/advanced) or 5 kg (beginner) to targetWeightKg.
+WEIGHTS ARE ALWAYS ANCHORED, NEVER FABRICATED. Set every targetWeightKg from the workout history above:
+- KEPT lift WITH logged history: start from its most recent logged load, then apply the progression increment (below).
+- VARIED anchor (same movement, different implement/grip/angle — e.g. barbell bench ↔ dumbbell bench, flat ↔ incline press): ESTIMATE the weight from the CLOSELY-RELATED logged lift (map the variation back to the anchor's logged performance — e.g. per-dumbbell ≈ a sensible fraction of the barbell load). Do NOT guess a load unrelated to what the user has done.
+- GENUINELY NEW lift with NO logged or closely-related history: prescribe by RPE/RIR with a CONSERVATIVE start (~55–65% estimated 1RM) — never emit an unexplained absolute kg the user has no basis for. (Real bodyweight movements use targetWeightKg 0.)
+Increment rules against the logged base:
+- Progressing (load rising across sessions): add barbell-upper +1.25–2.5 kg / barbell-lower +2.5–5 kg / dumbbell +1–2 kg each (beginner may use the top of each range).
 - Plateaued (3+ sessions at same weight): push reps to the top of the range, or note a technique cue, before adding load.
 - Regressing: reduce weight 5–10% and note "deload — rebuild form".
-- No history: set a conservative baseline (~55–65% estimated 1RM); still give the RIR + progression rule, not just "establish baseline".
 
 ══════════════════════════════════════════
 CARDIO
@@ -1616,27 +1627,31 @@ Each exercise's "notes" must be TERSE — a single short clause, NOT sentences. 
 ══════════════════════════════════════════
 BUILD RULES — every day must satisfy ALL of these; apply them as you build, do NOT narrate or restate them in the output
 ══════════════════════════════════════════
-- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order: set REST to the goal's band max FIRST (it is the #1 lever${if (hypertrophyRest.isNotBlank()) "; hypertrophy: 120 s on EVERY set INCLUDING isolation" else " — do not exceed the goal's rest ceiling"}), then reps toward the top of each range, then a set, then an accessory; trim any day over ${sessionDurationMinutes + 10} min. ${if (hypertrophyRest.isNotBlank()) "Fill each day to a FULL ~19–20 working sets at 120 s rest so it estimates ~46–47 min (a few min above the ${sessionDurationMinutes - 10}-min floor); do NOT under-fill with 15–17 sets, and do NOT exceed the 20-set cap." else "Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding."}
+- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. Volume/rest/count are DERIVED from the $sessionDurationMinutes-min target, not from a fixed set count. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order (rest toward the goal's band max FIRST, then reps, then a set, then an accessory — staying inside the goal's own rest band); TRIM any day over ${sessionDurationMinutes + 10} min. Aim for the CENTRE ($sessionDurationMinutes), not the edge — low-edge days tip back under the floor on rounding.
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
-- Rep ranges vary by exercise role within each session (not monotone).
-- Every exercise's notes carry an RIR/RPE target AND a progression rule.
-- No muscle exceeds ~10 hard sets in a session; total working sets per session ≤ ~20; weekly volume within range.
+- Rep ranges vary by exercise role within each session (not monotone), and match the goal.
+- Every exercise's notes carry an RIR/RPE target AND a progression rule; every loaded lift carries a history-anchored targetWeightKg (never a fabricated number).
+- No single muscle over ~8–10 hard sets in one session; per-session and weekly volume are goal- and duration-appropriate (not a fixed number).
+- Main/anchor lifts persist + progress from logged history; at most TWO full main-lift swaps this week.
 - No duplicate movement pattern within a session.
-- injury_flags applied to SELECTION, not just notes (and no rear-foot-elevated / single-leg movement carries "both feet down" cues).
-- Weekly plan includes direct lateral + rear-delt work and a knee-dominant quad movement.
+- Injury changes applied to SELECTION per severity (empty injury = no change; MILD = light touch); no rear-foot-elevated / single-leg movement carries "both feet down" cues.
+- Weekly plan (scaled to days×duration) includes direct lateral + rear-delt work and a knee-dominant quad movement.
 - Notes assert no incorrect mechanisms and use no "peak" muscle-shape noun.
 
 ══════════════════════════════════════════
 OUTPUT — valid JSON only, no prose, no markdown fences
 ══════════════════════════════════════════
-Output ONLY the JSON object — nothing before it, nothing after it. Your VERY FIRST output character MUST be the opening "{" and the VERY LAST MUST be its closing "}". Do NOT write any visible planning preamble, step-by-step reasoning, per-day time-budget arithmetic, set-by-set or blacklist cross-checking, or self-check narration before, around, or after the JSON. Do NOT open with lines like "I'll plan silently" or "Let me compute the days" — just emit the JSON. Apply every rule above internally as you build the plan; the ONLY place any reasoning belongs is the short "rationale" field. Narrating your planning burns the output budget and makes the response run out of room before the JSON closes — a truncated, unclosed JSON object cannot be used.
-ALSO include a top-level "rationale" string (a sibling of "days"): keep it to AT MOST 2 short sentences — a brief, plain-language note on WHAT changed in this plan versus the user's recent training / last week and WHY, referencing the ACTUAL exercises (e.g. "Swapped barbell bench for dumbbell to ease your flagged shoulder and added posterior-chain volume for your lagging hamstrings."). Speak directly to the user, no jargon, no essay. For a new user with no history, one short sentence on how the plan fits their goal.
+Output ONLY the JSON object — nothing before it, nothing after it. Your VERY FIRST output character MUST be the opening "{" and the VERY LAST MUST be its closing "}". Do NOT write any visible planning preamble, step-by-step reasoning, per-day time-budget arithmetic, set-by-set or recently-used cross-checking, or self-check narration before, around, or after the JSON. Do NOT open with lines like "I'll plan silently" or "Let me compute the days" — just emit the JSON. Apply every rule above internally as you build the plan; the ONLY place any prose belongs is the short "rationale" field. Narrating your planning burns the output budget and makes the response run out of room before the JSON closes — a truncated, unclosed JSON object cannot be used.
+Include a top-level "rationale" string (sibling of "days"): AT MOST 2 short sentences — plain-language note on WHAT changed vs the user's recent training / last week and WHY, referencing ACTUAL exercises (e.g. "Kept your barbell bench and squat and progressed the loads, swapped the accessory rows for a different grip, and added a hamstring isolation for your lagging posterior chain."). Speak directly to the user, no jargon, no essay. New user with no history: one short sentence on how the plan fits their goal.
+ALSO declare AUDITABLE METADATA so the numbers are checkable. Keep every metadata field TERSE (short scalars / short strings / short arrays — no prose): they exist so the plan declares its own numbers, NOT so you narrate. Per exercise add: role ("primary compound"|"accessory"|"isolation"|"cardio"|"rehab"), movementPattern (e.g. "horizontal push"), primaryMuscles (array), secondaryMuscles (array), countsAsHardSets (int), workSeconds (int), restSeconds (int, = recommendedRestSeconds), setupSeconds (int, ~60), estimatedMinutes (number, = the TIME BUDGET formula for this exercise), injuryModification (short string, "" if none). Per day add: dayEstimateMinutes (number), withinDurationWindow (bool). Add a top-level "week" object: weeklyVolumeSummary (object of muscle→hard sets), movementPatternSummary (array of patterns covered), durationSummary (short string), blockState ("continue"|"new"), constraintNotes (short string). These declared numbers are auditable — the app STILL enforces duration with its own deterministic estimate, so the declared minutes must MATCH the formula, not replace it.
 {
   "rationale": "Short plain-language explanation of what changed in this plan and why.",
   "days": [
     {
       "dayOfWeek": 1,
       "name": "Day name",
+      "dayEstimateMinutes": 60,
+      "withinDurationWindow": true,
       "exercises": [
         {
           "name": "Exercise Name",
@@ -1644,11 +1659,28 @@ ALSO include a top-level "rationale" string (a sibling of "days"): keep it to AT
           "targetReps": "8-10",
           "targetWeightKg": 80.0,
           "notes": "RPE 8 (~2 RIR); double progression +reps then +2.5 kg",
-          "recommendedRestSeconds": 120
+          "recommendedRestSeconds": 120,
+          "role": "primary compound",
+          "movementPattern": "horizontal push",
+          "primaryMuscles": ["chest"],
+          "secondaryMuscles": ["triceps", "front delts"],
+          "countsAsHardSets": 4,
+          "workSeconds": 160,
+          "restSeconds": 120,
+          "setupSeconds": 60,
+          "estimatedMinutes": 10,
+          "injuryModification": ""
         }
       ]
     }
-  ]
+  ],
+  "week": {
+    "weeklyVolumeSummary": {"chest": 12, "back": 14},
+    "movementPatternSummary": ["horizontal push", "vertical pull", "squat", "hinge"],
+    "durationSummary": "all days within the 60-min window",
+    "blockState": "continue",
+    "constraintNotes": ""
+  }
 }
 
 dayOfWeek: 1=Monday … 7=Sunday. ${
@@ -1730,7 +1762,6 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         val sev = injurySeverity.ifBlank { "Moderate" }
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
         val dayName = dayNames.getOrElse(dayOfWeek - 1) { "Day $dayOfWeek" }
-        val goalIsHypertrophy = goal.lowercase().contains("hypertrophy")
 
         // P4: WEEKLY PARITY — pull real workout history so target weights are history-driven and
         // progressed. (Bug fix: the old single-day prompt sent NO history and the return-shape example
@@ -1763,14 +1794,13 @@ Rebalance the remaining days against this already-trained work: manage recovery 
 
         val equipStr = if (equipment.isEmpty()) "Bodyweight only — no equipment" else equipment.joinToString(", ")
 
+        // P3 (generation-quality overhaul 2026-07): WIDE goal bands (guidelines), goal-appropriate rest.
         val repRange = when {
-            goal.lowercase().contains("strength") -> "primary compounds 3–6, accessories 6–10, isolation 8–12"
-            goal.lowercase().contains("endurance") -> "compounds 8–12 (barbell hinges ≤8), isolation 15–20, shorter rest"
-            goal.lowercase().contains("loss") || goal.lowercase().contains("weight") -> "compounds 8–12 (barbell hinges ≤8), accessories 10–15, isolation 12–20"
-            else -> "primary compounds 6–10, accessories 8–12, isolation 10–15 (hypertrophy)"
+            goal.lowercase().contains("strength") -> "primary compounds 1–6, accessories 5–8, isolation 8–12; LONG rest (3–5 min / up to ~300 s) on heavy compounds"
+            goal.lowercase().contains("endurance") -> "compounds 12–20 (barbell hinges ≤8), isolation 15–30; SHORT rest (15–90 s)"
+            goal.lowercase().contains("loss") || goal.lowercase().contains("weight") -> "10–20 reps (barbell hinges ≤8), density/circuits; SHORT rest (45–90 s)"
+            else -> "primary compounds 5–10, accessories 8–15, isolation 10–20 (hypertrophy); rest compounds 90–240 s, isolation 45–150 s (NO 120 s ceiling)"
         }
-        // FIX-B (v1.10.4): blunt 120 s-rest directive for a hypertrophy single-day regen (empty otherwise).
-        val singleDayHypertrophyRest = hypertrophyRestDirective(goal, sessionDurationMinutes)
 
         fun buildSingleDayPrompt(previousRejectionReason: String): String = buildString {
             appendLine("You are an expert personal trainer. Generate a single training day workout for $dayName.")
@@ -1782,7 +1812,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET: this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Estimate ≈ per strength exercise: sets × reps × 3 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets); per cardio exercise: its duration + ~60 s. ${if (singleDayHypertrophyRest.isNotBlank()) "$singleDayHypertrophyRest " else ""}REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward this goal's band max (hypertrophy: 120 s on EVERY set INCLUDING isolation, never beyond; respect the goal's rest ceiling), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Stay within ~10 sets/muscle and ~18–20 working sets total, and ${if (singleDayHypertrophyRest.isNotBlank()) "fill this day to a FULL ~19–20 working sets at 120 s rest so it estimates ~46–47 min (a few min above the ${sessionDurationMinutes - 10}-min floor); do NOT under-fill with 15–17 sets, and do NOT exceed the 20-set cap" else "aim for the CENTRE ($sessionDurationMinutes), not the edge"}.")
+            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per strength exercise: sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; 4 s/rep = realistic controlled tempo); per cardio exercise: its duration + ~60 s. REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward THIS goal's band max (strength up to ~300 s, hypertrophy compounds up to ~240 s, endurance/weight-loss stay short), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Keep volume goal- and duration-appropriate; aim for the CENTRE ($sessionDurationMinutes), not the edge.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
@@ -1932,7 +1962,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
 
             // Strict ±10-min per-day duration gate (same formula/window as the weekly path).
             val est = WorkoutTimeEstimator.estimateDayMinutes(exercises)
-            val durationReason = dayDurationFeedback(dayOfWeek, est, sessionDurationMinutes, goalIsHypertrophy) ?: ""
+            val durationReason = dayDurationFeedback(dayOfWeek, est, sessionDurationMinutes) ?: ""
 
             // Salvage candidate: an OVER-only duration miss (est > high) that is otherwise valid.
             if (durationReason.isNotEmpty() && est > sessionDurationMinutes + 10) {
@@ -1991,7 +2021,11 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                     targetReps = ex.targetReps,
                     targetWeightKg = ex.targetWeightKg,
                     notes = ex.notes,
-                    recommendedRestSeconds = ex.recommendedRestSeconds.coerceAtMost(180),
+                    // P2/P3: the 120 s hypertrophy ceiling and the old 180 s clamp are gone — rest is now
+                    // goal-derived and can legitimately reach the strength band's ~300 s. Keep only a loose
+                    // sanity ceiling (600 s) so an absurd model value can't inflate the estimate, while
+                    // preserving every legitimate band value (strength ≤300, hypertrophy compounds ≤240).
+                    recommendedRestSeconds = ex.recommendedRestSeconds.coerceAtMost(600),
                     exerciseDbId = resolveResult?.dbId,
                     matchConfidence = resolveResult?.confidence ?: -1f,
                     matchSource = resolveResult?.source?.name?.lowercase() ?: "none",

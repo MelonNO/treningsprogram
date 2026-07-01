@@ -23,8 +23,8 @@ import org.junit.Test
  *  2. The retry feedback now NAMES the rest lever for under-time days (while the reject CONDITION and the
  *     over-time branch are unchanged — see G1).
  *
- * Estimates use the authoritative formula:
- *   strength sec = sets*(maxReps*3) + (sets-1)*rest + 60 ;  day mins = (sum + 30) / 60
+ * Estimates use the authoritative formula (P2 2026-07: per-rep work is 4 s):
+ *   strength sec = sets*(maxReps*4) + (sets-1)*rest + 60 ;  day mins = (sum + 30) / 60
  */
 class H3RestLeverTest {
 
@@ -67,7 +67,7 @@ class H3RestLeverTest {
 
     @Test fun underTimeDay_isBelowFloor() {
         val mins = WorkoutTimeEstimator.estimateDayMinutes(underTimeDay)
-        assertEquals(35, mins)
+        assertEquals(39, mins)
         assertTrue("the day is under the 40-min floor → strict gate rejects it", mins < floor)
         // And the strict gate fires (direction-aware feedback returned).
         assertTrue(dayDurationFeedback(1, mins, target) != null)
@@ -75,8 +75,8 @@ class H3RestLeverTest {
 
     @Test fun raisingRestTo120_clearsFloor_withoutAddingVolume() {
         val mins = WorkoutTimeEstimator.estimateDayMinutes(restRaisedDay)
-        assertEquals(47, mins)
-        // Rest ALONE moved the day from 35 → 47, inside the strict window — no extra sets/exercises.
+        assertEquals(51, mins)
+        // Rest ALONE moved the day from 39 → 51, inside the strict window — no extra sets/exercises.
         assertTrue("rest lever alone clears the floor", mins in floor..(target + 10))
         assertNull("the rest-raised day is now in-window → no rejection feedback",
             dayDurationFeedback(1, mins, target))

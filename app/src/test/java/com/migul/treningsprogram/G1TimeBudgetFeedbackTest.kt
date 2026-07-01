@@ -126,18 +126,22 @@ class G1TimeBudgetFeedbackTest {
         ex("Standing Bilateral Calf Raise (Bodyweight, Slow Tempo)", 3, "20-25", 45, 7)
     )
 
+    // P2 2026-07: per-rep work is now 4 s (was 3 s), so every day estimates ~15 % higher. Friday, which
+    // sat at 36 min under 3 s/rep, now lands exactly on the 40-min floor (in-window); the other three
+    // under-floor days are still under. Numbers are re-derived with the 4-s formula.
     @Test fun fixtureDayEstimates_matchAuthoritativeFormula() {
-        assertEquals(42, WorkoutTimeEstimator.estimateDayMinutes(tuesday))   // in-window
-        assertEquals(33, WorkoutTimeEstimator.estimateDayMinutes(wednesday)) // UNDER floor
-        assertEquals(36, WorkoutTimeEstimator.estimateDayMinutes(friday))    // UNDER floor
-        assertEquals(31, WorkoutTimeEstimator.estimateDayMinutes(saturday))  // UNDER floor
-        assertEquals(33, WorkoutTimeEstimator.estimateDayMinutes(sunday))    // UNDER floor (tempo fixed)
+        assertEquals(48, WorkoutTimeEstimator.estimateDayMinutes(tuesday))   // in-window
+        assertEquals(36, WorkoutTimeEstimator.estimateDayMinutes(wednesday)) // UNDER floor
+        assertEquals(40, WorkoutTimeEstimator.estimateDayMinutes(friday))    // exactly at floor → in-window
+        assertEquals(34, WorkoutTimeEstimator.estimateDayMinutes(saturday))  // UNDER floor
+        assertEquals(37, WorkoutTimeEstimator.estimateDayMinutes(sunday))    // UNDER floor (tempo fixed)
     }
 
     /**
-     * The fixture really is rejected by the strict gate: 4 of its 5 days fall under the 40-min floor,
-     * and the fixed feedback steers each of those the correct direction (ADD), while the two in-window
-     * days produce no feedback. This is the regression the fix targets.
+     * The fixture really is rejected by the strict gate: with the 4-s/rep estimator, 3 of its 5 days fall
+     * under the 40-min floor (Friday now lands exactly on the floor = in-window), and the direction-aware
+     * feedback steers each under-floor day the correct direction (ADD), while the in-window days produce
+     * no feedback. This is the regression the fix targets.
      */
     @Test fun fixturePlan_isRejected_andUnderDaysGetAddGuidance() {
         val days = mapOf(
@@ -150,12 +154,13 @@ class G1TimeBudgetFeedbackTest {
             }
 
         val rejectedDays = feedback.filterValues { it != null }
-        assertEquals("exactly the 4 under-floor days are rejected", setOf(3, 5, 6, 7), rejectedDays.keys)
+        assertEquals("exactly the 3 under-floor days are rejected", setOf(3, 6, 7), rejectedDays.keys)
         rejectedDays.forEach { (day, msg) ->
             assertTrue("Day $day under-floor feedback must say ADD: $msg", msg!!.contains("ADD"))
         }
-        // In-window days produce no rejection feedback.
+        // In-window days produce no rejection feedback (Tuesday at 48, Friday at the 40-min floor).
         assertNull(feedback[2])
+        assertNull(feedback[5])
 
         // Whole-plan outcome: any out-of-window day makes the deterministic durationReason non-empty,
         // which is exactly what the generation loop rejects on (and short-circuits the LLM review).

@@ -13,13 +13,24 @@ object WorkoutTimeEstimator {
 
     private const val ADMIN_TIME_PER_EXERCISE_SECONDS = 60
 
+    /**
+     * P2 (generation-quality overhaul 2026-07): per-rep work time. Raised 3 → 4 s to reflect a
+     * realistic controlled tempo (the old 3 s undercounted and biased every estimate low). This is the
+     * single source of truth for the "seconds of work per rep" constant — the generation prompt's stated
+     * TIME BUDGET formula (AiRepository.buildPrompt / buildSingleDayPrompt) MUST quote the SAME number,
+     * so the minute the model sizes toward equals what this deterministic gate computes. Changing it here
+     * shifts every computed day length AND the Program-screen "~Xm" display — a deliberate, coordinated
+     * change, never a silent one.
+     */
+    const val WORK_SECONDS_PER_REP = 4
+
     /** Estimated seconds for a single planned exercise (work + inter-set rest + setup). */
     fun estimateExerciseSeconds(ex: PlannedExercise): Int {
         return if (isCardio(ex.exerciseName)) {
             parseCardioSeconds(ex.targetReps) + ADMIN_TIME_PER_EXERCISE_SECONDS
         } else {
             val maxReps = Regex("\\d+").findAll(ex.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
-            ex.sets * (maxReps * 3) + (ex.sets - 1) * ex.recommendedRestSeconds + ADMIN_TIME_PER_EXERCISE_SECONDS
+            ex.sets * (maxReps * WORK_SECONDS_PER_REP) + (ex.sets - 1) * ex.recommendedRestSeconds + ADMIN_TIME_PER_EXERCISE_SECONDS
         }
     }
 

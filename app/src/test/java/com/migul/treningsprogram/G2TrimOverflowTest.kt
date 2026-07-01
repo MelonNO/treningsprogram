@@ -22,8 +22,8 @@ import org.junit.Test
  *   (3) remove whole trailing non-primary exercises (guarded).
  * reps / weight / notes are NEVER edited. These pure tests pin that contract (mirrors the H3/H4 pattern).
  *
- * Estimator (authoritative, same one the gate uses):
- *   strength sec = sets*(maxReps*3) + (sets-1)*rest + 60 ;  day mins = (Σ + 30) / 60
+ * Estimator (authoritative, same one the gate uses; P2 2026-07: per-rep work is 4 s):
+ *   strength sec = sets*(maxReps*4) + (sets-1)*rest + 60 ;  day mins = (Σ + 30) / 60
  */
 class G2TrimOverflowTest {
 
@@ -88,7 +88,7 @@ class G2TrimOverflowTest {
             ex(4, "Dumbbell Curl", 4, "10-12", 150),
             ex(5, "Leg Curl", 4, "12-15", 150)
         )
-        assertEquals("fixture is genuinely OVER the ceiling", 66, dayMins(daySrc, 1))
+        assertEquals("fixture is genuinely OVER the ceiling", 72, dayMins(daySrc, 1))
 
         val trimmed = trimOverflowToWindow(daySrc, target, lockedDays = emptySet())
         assertNotNull("a rest-only overshoot must be salvageable", trimmed)
@@ -171,9 +171,10 @@ class G2TrimOverflowTest {
         // target 30 (window 20–40). rest already 60 + accessories at the 2-set floor ⇒ only REMOVAL helps.
         // Trailing two (Arms, Shoulders) are the ONLY member of their group → removing them would orphan
         // the group → skipped. Leg Curl (Legs, duplicated by the squat primary) is the deepest removable.
+        // Sized for the 4-s/rep estimator: day ≈ 42 min (over the 40 ceiling); removing Leg Curl ⇒ ≈ 38 min.
         val t30 = 30
         val daySrc = listOf(
-            ex(0, "Barbell Squat", 13, "20", 60),    // primary, Legs — oversized so levers 1&2 are exhausted
+            ex(0, "Barbell Squat", 13, "12", 60),    // primary, Legs — big enough that levers 1&2 are exhausted
             ex(1, "Dumbbell Row", 2, "12", 60),      // Back
             ex(2, "Lat Pulldown", 2, "12", 60),      // Back (dup)
             ex(3, "Leg Curl", 2, "12", 60),          // Legs (dup of squat) → safe to remove
