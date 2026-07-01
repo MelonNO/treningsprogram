@@ -146,14 +146,14 @@ class RecapTrendsFragment : Fragment() {
             row.addView(TextView(requireContext()).apply {
                 text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(pr.dateMs)))
                 textSize = 13f
-                setTextColor(Color.parseColor("#9A9AB0"))
+                setTextColor(Color.parseColor("#7E908E"))
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
             row.addView(TextView(requireContext()).apply {
                 text = "${fmt(pr.weightKg)} kg × ${pr.reps}"
                 textSize = 13f
                 setTypeface(null, Typeface.BOLD)
-                setTextColor(Color.parseColor("#7C67F5"))
+                setTextColor(Color.parseColor("#7FE9E1"))
             })
             binding.layoutTrendPrHistory.addView(row)
         }

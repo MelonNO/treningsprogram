@@ -11,6 +11,14 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <TextView
+            style="@style/Widget.Auros.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="14dp" />
+
         <!-- Nav rows. Item 7 order: Training Profile → AI & Program → Exercise Library →
              Backup & Data → App Settings → About. (Coach Summary now lives under AI & Program;
              Debug now lives under Backup & Data.) -->

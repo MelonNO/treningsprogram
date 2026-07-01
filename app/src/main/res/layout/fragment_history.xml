@@ -5,12 +5,51 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- Auros hero band -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+            <View android:layout_width="6dp" android:layout_height="6dp"
+                android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="INSIGHTS"
+                android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="History"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:textColor="@color/auros_snow" />
+    </LinearLayout>
+
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tab_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@color/auros_abyss"
         app:tabMode="fixed"
-        app:tabGravity="fill" />
+        app:tabGravity="fill"
+        app:tabIndicatorColor="@color/auros_cyan"
+        app:tabIndicatorHeight="3dp"
+        app:tabIndicatorFullWidth="false"
+        app:tabTextColor="@color/auros_fog_dim"
+        app:tabSelectedTextColor="@color/auros_ice" />
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/view_pager"

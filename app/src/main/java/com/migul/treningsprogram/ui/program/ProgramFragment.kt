@@ -363,7 +363,7 @@ class ProgramFragment : Fragment() {
                 }
                 workoutType == "RUN" -> {
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_cardio)
-                    abbr.setTextColor(Color.parseColor("#00BCD4"))
+                    abbr.setTextColor(Color.parseColor("#9B8CFF"))
                     abbr.textSize = 11f
                 }
                 workoutType == "MIX" -> {
@@ -373,12 +373,12 @@ class ProgramFragment : Fragment() {
                 }
                 total > 0 -> {
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_has_workout)
-                    abbr.setTextColor(Color.parseColor("#7C67F5"))
+                    abbr.setTextColor(Color.parseColor("#7FE9E1"))
                     abbr.textSize = 11f
                 }
                 else -> {
                     abbr.background = null
-                    abbr.setTextColor(Color.parseColor("#8888A8"))
+                    abbr.setTextColor(Color.parseColor("#7E908E"))
                     abbr.textSize = 11f
                 }
             }
@@ -387,9 +387,9 @@ class ProgramFragment : Fragment() {
             val isTentative = daysAhead > 1
             if (workoutType != null) {
                 val typeColor = when (workoutType) {
-                    "RUN" -> "#00BCD4"
+                    "RUN" -> "#9B8CFF"
                     "MIX" -> "#FFB347"
-                    else  -> "#7C67F5"
+                    else  -> "#7FE9E1"
                 }
                 dayType.text = if (isTentative) "~$workoutType" else workoutType
                 dayType.setTextColor(Color.parseColor(typeColor))
@@ -407,7 +407,7 @@ class ProgramFragment : Fragment() {
             }
             progress.setTextColor(
                 if (logged >= 1 && total > 0) Color.parseColor("#4CAF50")
-                else Color.parseColor("#8888A8")
+                else Color.parseColor("#7E908E")
             )
         }
     }
@@ -582,7 +582,7 @@ class ProgramFragment : Fragment() {
         container.addView(TextView(ctx).apply {
             text = "Equipment"
             textSize = 12f
-            setTextColor(Color.parseColor("#8888A8"))
+            setTextColor(Color.parseColor("#7E908E"))
             layoutParams = wrapParams.also { it.topMargin = dpI(8); it.bottomMargin = dpI(2) }
         })
         val equipSpinner = Spinner(ctx).apply {
@@ -598,7 +598,7 @@ class ProgramFragment : Fragment() {
         container.addView(TextView(ctx).apply {
             text = "Muscle focus"
             textSize = 12f
-            setTextColor(Color.parseColor("#8888A8"))
+            setTextColor(Color.parseColor("#7E908E"))
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dpI(2) }
         })
         val muscleSpinner = Spinner(ctx).apply {
@@ -641,7 +641,7 @@ class ProgramFragment : Fragment() {
         fun label(text: String) = TextView(ctx).apply {
             this.text = text
             textSize = 12f
-            setTextColor(Color.parseColor("#8888A8"))
+            setTextColor(Color.parseColor("#7E908E"))
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).also { it.topMargin = dpI(10); it.bottomMargin = dpI(2) }

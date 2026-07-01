@@ -119,7 +119,7 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                 text = "Coach's note"
                 textSize = 13f
                 setTypeface(null, Typeface.BOLD)
-                setTextColor(0xFF7C67F5.toInt())
+                setTextColor(0xFF7FE9E1.toInt())
                 setPadding(0, 0, 0, (2 * density).toInt())
             })
             layout.addView(TextView(requireContext()).apply {

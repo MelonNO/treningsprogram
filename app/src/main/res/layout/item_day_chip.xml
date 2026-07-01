@@ -31,7 +31,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="9sp"
-        android:textColor="#8888A8"
+        android:textColor="@color/auros_fog_dim"
         android:layout_marginTop="1dp"
         android:text="" />
 

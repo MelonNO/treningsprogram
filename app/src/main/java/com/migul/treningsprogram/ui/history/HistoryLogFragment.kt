@@ -323,7 +323,7 @@ class HistoryLogFragment : Fragment() {
         "Shoulders" -> "SH" to "#9C27B0"
         "Arms" -> "AR" to "#FF5722"
         "Core" -> "CO" to "#FF9800"
-        "Cardio" -> "CA" to "#00BCD4"
+        "Cardio" -> "CA" to "#9B8CFF"
         else -> "??" to "#607D8B"
     }
 

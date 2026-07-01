@@ -17,7 +17,7 @@
             android:layout_height="200dp"
             android:orientation="vertical"
             android:gravity="center"
-            android:background="#0D0D1A">
+            android:background="@color/auros_abyss">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -40,7 +40,7 @@
                 android:layout_height="wrap_content"
                 android:text="Adaptive Workout Planner"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="#8888A8" />
+                android:textColor="@color/auros_fog_dim" />
 
         </LinearLayout>
 
@@ -106,9 +106,8 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        style="@style/Widget.Auros.Eyebrow"
                         android:text="Software Update"
-                        android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textColor="?attr/colorOnSurface"
                         android:layout_marginBottom="16dp" />
 
                     <!-- Status row (hidden until a check has run) -->
@@ -161,7 +160,7 @@
                         android:visibility="gone"
                         app:cardElevation="0dp"
                         app:cardCornerRadius="12dp"
-                        app:cardBackgroundColor="#0D0D1A">
+                        app:cardBackgroundColor="@color/auros_abyss">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -172,10 +171,8 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                style="@style/Widget.Auros.Eyebrow"
                                 android:text="What's new"
-                                android:textAppearance="?attr/textAppearanceLabelMedium"
-                                android:textColor="#8888A8"
-                                android:letterSpacing="0.08"
                                 android:layout_marginBottom="6dp" />
 
                             <TextView
@@ -197,7 +194,7 @@
                         android:layout_marginBottom="12dp"
                         android:visibility="gone"
                         app:trackCornerRadius="4dp"
-                        app:trackColor="#2A2A3A" />
+                        app:trackColor="@color/auros_reef_dim" />
 
                     <!-- Check for updates button -->
                     <com.google.android.material.button.MaterialButton

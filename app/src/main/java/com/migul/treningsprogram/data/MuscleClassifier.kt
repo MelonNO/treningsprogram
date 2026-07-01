@@ -157,7 +157,7 @@ object MuscleClassifier {
      * the 7 group colors, replacing the per-screen copies that had drifted.
      */
     fun colorFor(group: String, fallbackColor: String): String = when (group) {
-        "Cardio"    -> "#00BCD4"
+        "Cardio"    -> "#9B8CFF"
         "Chest"     -> "#E91E63"
         "Back"      -> "#2196F3"
         "Legs"      -> "#4CAF50"

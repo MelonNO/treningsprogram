@@ -30,37 +30,37 @@ class StrengthChartView @JvmOverloads constructor(
     private var highlightDateMs: Long? = null
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#7C67F5")
+        color = Color.parseColor("#7FE9E1")
         strokeWidth = 4f
         style = Paint.Style.STROKE
         strokeJoin = Paint.Join.ROUND
         strokeCap = Paint.Cap.ROUND
     }
     private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#7C67F5")
+        color = Color.parseColor("#7FE9E1")
         style = Paint.Style.FILL
     }
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#1A7C67F5")
+        color = Color.parseColor("#1A7FE9E1")
         style = Paint.Style.FILL
     }
     private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#2A2A3C")
+        color = Color.parseColor("#0C2E2C")
         strokeWidth = 1f
     }
     /** Axis tick labels (y units, x dates) — muted. */
     private val axisPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#8888A8")
+        color = Color.parseColor("#7E908E")
         textSize = 28f
     }
     /** Point value callouts — brighter so the key numbers stand out. */
     private val calloutPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#C7C7E0")
+        color = Color.parseColor("#BBC7C6")
         textSize = 28f
         typeface = Typeface.DEFAULT_BOLD
     }
     private val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#8888A8")
+        color = Color.parseColor("#7E908E")
         textSize = 36f
     }
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

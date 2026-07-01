@@ -1,13 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#7C67F5</color>
-    <color name="secondary">#FFB347</color>
-    <color name="background">#0D0D14</color>
-    <color name="surface">#15151F</color>
-    <color name="surface_variant">#1C1C2A</color>
-    <color name="on_primary">#FFFFFF</color>
-    <color name="on_surface">#E2E2EC</color>
-    <color name="on_surface_variant">#8888A8</color>
-    <color name="outline">#3A3A50</color>
-    <color name="outline_variant">#2A2A3C</color>
+    <!-- ============================================================= -->
+    <!-- AUROS — abyssal observatory palette                           -->
+    <!-- Deep teal void, tonal surfaces, luminous teal→cyan accents.   -->
+    <!-- Depth comes from tonal difference, never drop shadows.        -->
+    <!-- ============================================================= -->
+
+    <!-- Surfaces (0 → 2): each step one shade up from the abyss -->
+    <color name="auros_abyss">#012624</color>   <!-- L0 page canvas -->
+    <color name="auros_trench">#011D1C</color>  <!-- L1 card surface (pressed in) -->
+    <color name="auros_reef">#003734</color>    <!-- L2 elevated / interactive containers -->
+    <color name="auros_reef_dim">#0C2E2C</color><!-- track / inert fill between trench & reef -->
+
+    <!-- Text -->
+    <color name="auros_snow">#FFFFFF</color>    <!-- headings, nav, icon strokes -->
+    <color name="auros_ice">#EDFFFE</color>     <!-- highlights, accent strokes -->
+    <color name="auros_fog">#BBC7C6</color>     <!-- body / secondary copy -->
+    <color name="auros_fog_dim">#7E908E</color> <!-- tertiary / hint copy -->
+
+    <!-- Structural -->
+    <color name="auros_ash">#333333</color>     <!-- structural border on inverted UI -->
+    <color name="auros_hairline">#0D3B38</color><!-- whisper card stroke on the abyss -->
+    <color name="auros_outline">#2C544F</color> <!-- visible teal-tinted border -->
+
+    <!-- Accents — rationed teal→cyan; lavender as a distant warm breath -->
+    <color name="auros_teal">#00827C</color>    <!-- saturated teal: eyebrow dots, primary action -->
+    <color name="auros_cyan">#7FE9E1</color>    <!-- luminous cyan highlight / gradient mid -->
+    <color name="auros_cyan_bright">#CBFFFC</color><!-- gradient end (switched-on) -->
+    <color name="auros_lilac">#FDE9FF</color>   <!-- warm lavender accent (borders/tints only) -->
+    <color name="auros_lilac_deep">#FAD1FF</color>
+
+    <!-- On-accent -->
+    <color name="auros_on_teal">#EAFFFE</color>
+    <color name="auros_on_action">#011D1C</color><!-- dark text on the bright cyan gradient end -->
+
+    <!-- ============================================================= -->
+    <!-- Gamification accents — kept deliberately VIVID against the     -->
+    <!-- abyss (level-ups, XP, streaks, day states, deload warnings).   -->
+    <!-- ============================================================= -->
+    <color name="game_gold">#FFD54A</color>       <!-- level-up celebration -->
+    <color name="game_gold_deep">#FFB300</color>
+    <color name="game_amber">#FFB347</color>      <!-- deload / warning / streak -->
+    <color name="game_amber_soft">#FF9800</color>
+    <color name="game_green">#37D67A</color>      <!-- done / success -->
+    <color name="game_green_deep">#12B36A</color>
+    <color name="game_lime">#8BE04A</color>
+    <color name="game_violet">#9B8CFF</color>     <!-- cardio / mixed day accent -->
+
+    <!-- Feedback / error (muted, cool-leaning red) -->
+    <color name="auros_error">#FF6B7A</color>
+    <color name="auros_on_error">#2A0007</color>
+
+    <!-- ============================================================= -->
+    <!-- Semantic Material aliases (theme maps roles → these)          -->
+    <!-- ============================================================= -->
+    <color name="background">@color/auros_abyss</color>
+    <color name="surface">@color/auros_trench</color>
+    <color name="surface_variant">@color/auros_reef</color>
+    <color name="primary">@color/auros_teal</color>
+    <color name="secondary">@color/game_amber</color>
+    <color name="on_primary">@color/auros_on_teal</color>
+    <color name="on_surface">@color/auros_ice</color>
+    <color name="on_surface_variant">@color/auros_fog</color>
+    <color name="outline">@color/auros_outline</color>
+    <color name="outline_variant">@color/auros_hairline</color>
 </resources>

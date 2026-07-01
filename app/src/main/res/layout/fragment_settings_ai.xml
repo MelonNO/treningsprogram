@@ -15,9 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="API KEY"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="?attr/colorPrimary"
-            android:letterSpacing="0.1"
+            style="@style/Widget.Auros.Eyebrow"
             android:layout_marginBottom="8dp"
             android:layout_marginTop="4dp" />
 
@@ -61,9 +59,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="PROGRAM GENERATION"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="?attr/colorPrimary"
-            android:letterSpacing="0.1"
+            style="@style/Widget.Auros.Eyebrow"
             android:layout_marginBottom="8dp" />
 
         <com.google.android.material.card.MaterialCardView
@@ -140,9 +136,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="COACH SUMMARY"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="?attr/colorPrimary"
-            android:letterSpacing="0.1"
+            style="@style/Widget.Auros.Eyebrow"
             android:layout_marginBottom="8dp" />
 
         <com.google.android.material.card.MaterialCardView

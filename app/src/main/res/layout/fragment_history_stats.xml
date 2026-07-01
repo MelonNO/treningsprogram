@@ -59,7 +59,7 @@
                         android:layout_height="wrap_content"
                         android:text="0"
                         android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                        android:textColor="#7C67F5" />
+                        android:textColor="@color/auros_cyan" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -90,7 +90,7 @@
                         android:layout_height="wrap_content"
                         android:text="0"
                         android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                        android:textColor="#7C67F5" />
+                        android:textColor="@color/auros_cyan" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -130,7 +130,7 @@
                         android:layout_height="wrap_content"
                         android:text="0kg"
                         android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                        android:textColor="#7C67F5" />
+                        android:textColor="@color/auros_cyan" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -192,8 +192,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Muscle Balance"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="12dp" />
 
                 <LinearLayout
@@ -225,8 +225,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Consistency — Last 90 Days"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="12dp" />
 
                 <GridLayout
@@ -258,8 +258,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Rep Range Distribution"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="12dp" />
 
                 <LinearLayout

@@ -187,7 +187,7 @@ class HistoryStatsFragment : Fragment() {
                     }
                     background = GradientDrawable().apply {
                         cornerRadius = 3 * dp
-                        setColor(if (isTraining) Color.parseColor("#9977F5") else Color.parseColor("#2A2A3C"))
+                        setColor(if (isTraining) Color.parseColor("#7FE9E1") else Color.parseColor("#0C2E2C"))
                     }
                 }
                 binding.gridCalendar.addView(cell)
@@ -199,7 +199,7 @@ class HistoryStatsFragment : Fragment() {
         binding.layoutRepRanges.removeAllViews()
         if (data.isEmpty()) return
         val max = data.maxOf { it.second }
-        val colors = listOf("#E91E63", "#7C67F5", "#4CAF50")
+        val colors = listOf("#E91E63", "#7FE9E1", "#4CAF50")
         data.forEachIndexed { idx, (label, count) ->
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL

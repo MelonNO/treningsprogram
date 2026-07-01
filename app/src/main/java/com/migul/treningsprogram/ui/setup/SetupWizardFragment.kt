@@ -327,7 +327,7 @@ class SetupWizardFragment : Fragment() {
             radius = 12f * dp
             cardElevation = 0f
             strokeWidth = ((if (isSelected) 2f else 1f) * dp).toInt()
-            strokeColor = if (isSelected) Color.parseColor("#7C67F5") else Color.parseColor("#3A3A4A")
+            strokeColor = if (isSelected) Color.parseColor("#7FE9E1") else Color.parseColor("#2C544F")
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -356,7 +356,7 @@ class SetupWizardFragment : Fragment() {
         val nameView = android.widget.TextView(ctx).apply {
             text = name
             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-            if (isSelected) setTextColor(Color.parseColor("#7C67F5"))
+            if (isSelected) setTextColor(Color.parseColor("#7FE9E1"))
         }
 
         val summaryView = android.widget.TextView(ctx).apply {

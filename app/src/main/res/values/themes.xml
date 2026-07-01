@@ -1,27 +1,215 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- ============================================================= -->
+    <!-- AUROS THEME — abyssal observatory                              -->
+    <!-- ============================================================= -->
     <style name="Theme.Treningsprogram" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorOnPrimary">@color/on_primary</item>
-        <item name="colorPrimaryContainer">#2D1B8F</item>
-        <item name="colorOnPrimaryContainer">#E8DFFF</item>
-        <item name="colorSecondary">@color/secondary</item>
-        <item name="colorOnSecondary">#1F0F00</item>
-        <item name="colorSecondaryContainer">#5C3800</item>
-        <item name="colorOnSecondaryContainer">#FFE0A0</item>
-        <item name="colorSurface">@color/surface</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-        <item name="colorSurfaceVariant">@color/surface_variant</item>
-        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
-        <item name="android:colorBackground">@color/background</item>
-        <item name="colorOnBackground">@color/on_surface</item>
-        <item name="colorOutline">@color/outline</item>
-        <item name="colorOutlineVariant">@color/outline_variant</item>
-        <item name="colorError">#CF6679</item>
-        <item name="colorOnError">#370010</item>
-        <item name="android:windowBackground">@color/background</item>
-        <item name="android:statusBarColor">@color/background</item>
-        <item name="android:navigationBarColor">@color/surface</item>
+        <!-- Accent / primary action: saturated teal -->
+        <item name="colorPrimary">@color/auros_teal</item>
+        <item name="colorOnPrimary">@color/auros_on_teal</item>
+        <item name="colorPrimaryContainer">@color/auros_reef</item>
+        <item name="colorOnPrimaryContainer">@color/auros_ice</item>
+
+        <!-- Secondary: warm amber (gamification) -->
+        <item name="colorSecondary">@color/game_amber</item>
+        <item name="colorOnSecondary">#251400</item>
+        <item name="colorSecondaryContainer">#3A2A00</item>
+        <item name="colorOnSecondaryContainer">@color/game_amber</item>
+
+        <!-- Tertiary: distant lavender warmth -->
+        <item name="colorTertiary">@color/auros_lilac_deep</item>
+        <item name="colorOnTertiary">#2A1030</item>
+
+        <!-- Surfaces — tonal stack: abyss → trench → reef -->
+        <item name="android:colorBackground">@color/auros_abyss</item>
+        <item name="colorOnBackground">@color/auros_ice</item>
+        <item name="colorSurface">@color/auros_trench</item>
+        <item name="colorOnSurface">@color/auros_ice</item>
+        <item name="colorSurfaceVariant">@color/auros_reef</item>
+        <item name="colorOnSurfaceVariant">@color/auros_fog</item>
+        <item name="colorSurfaceContainerLowest">@color/auros_abyss</item>
+        <item name="colorSurfaceContainerLow">@color/auros_trench</item>
+        <item name="colorSurfaceContainer">@color/auros_trench</item>
+        <item name="colorSurfaceContainerHigh">@color/auros_reef_dim</item>
+        <item name="colorSurfaceContainerHighest">@color/auros_reef</item>
+
+        <!-- Borders — whisper-thin on the abyss -->
+        <item name="colorOutline">@color/auros_outline</item>
+        <item name="colorOutlineVariant">@color/auros_hairline</item>
+
+        <!-- Error -->
+        <item name="colorError">@color/auros_error</item>
+        <item name="colorOnError">@color/auros_on_error</item>
+
+        <!-- System bars sit on the abyss -->
+        <item name="android:windowBackground">@color/auros_abyss</item>
+        <item name="android:statusBarColor">@color/auros_abyss</item>
+        <item name="android:navigationBarColor">@color/auros_abyss</item>
         <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Global typeface: Inter (geometric-sans substitute for Matter) -->
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+
+        <!-- Shape discipline: 6dp controls, 12dp mid, 16dp cards -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Auros.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Auros.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Auros.Large</item>
+
+        <!-- Component defaults -->
+        <item name="materialButtonStyle">@style/Widget.Auros.Button</item>
+        <item name="bottomNavigationStyle">@style/Widget.Auros.BottomNav</item>
+        <item name="materialCardViewStyle">@style/Widget.Auros.Card</item>
+        <item name="textInputStyle">@style/Widget.Auros.TextInput</item>
+
+        <!-- Typography tracking overrides (tight display, calm body) -->
+        <item name="textAppearanceHeadlineMedium">@style/TextAppearance.Auros.HeadlineMedium</item>
+        <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Auros.HeadlineSmall</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Auros.TitleLarge</item>
     </style>
+
+    <!-- ==================== SHAPES ==================== -->
+    <style name="ShapeAppearance.Auros.Small" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">6dp</item>
+    </style>
+    <style name="ShapeAppearance.Auros.Medium" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+    <style name="ShapeAppearance.Auros.Large" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- ==================== TYPOGRAPHY ==================== -->
+    <!-- Push display type tight; keep the abyss quiet elsewhere. -->
+    <style name="TextAppearance.Auros.HeadlineMedium" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+    <style name="TextAppearance.Auros.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:letterSpacing">-0.015</item>
+    </style>
+    <style name="TextAppearance.Auros.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <!-- Section eyebrow: 11sp, tracked-out, uppercase, muted fog.
+         Pair with @drawable/bg_eyebrow_dot for the teal beacon dot. -->
+    <style name="TextAppearance.Auros.Eyebrow" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/auros_fog</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.2</item>
+    </style>
+
+    <!-- Drop-in section eyebrow for a TextView: teal beacon dot + tracked-out
+         uppercase label in one element. Apply with style="@style/Widget.Auros.Eyebrow"
+         and remove any inline textAppearance/textColor so this takes effect.
+         textAllCaps means the source label string can stay title-case. -->
+    <style name="Widget.Auros.Eyebrow" parent="">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/auros_fog</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.2</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:drawableStart">@drawable/bg_eyebrow_dot</item>
+        <item name="android:drawablePadding">10dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <!-- ==================== BUTTONS ==================== -->
+    <!-- Primary action: luminous teal, dark-ish on-color, 6dp, medium weight -->
+    <style name="Widget.Auros.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/auros_teal</item>
+        <item name="android:textColor">@color/auros_on_teal</item>
+        <item name="iconTint">@color/auros_on_teal</item>
+        <item name="rippleColor">#33EDFFFE</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:fontVariationSettings">"'wght' 600"</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- Ghost / secondary: transparent, cool outline, ice text -->
+    <style name="Widget.Auros.Button.Ghost" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/auros_outline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/auros_ice</item>
+        <item name="iconTint">@color/auros_ice</item>
+        <item name="rippleColor">#22EDFFFE</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:fontVariationSettings">"'wght' 550"</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- Tonal: pressed-in reef surface -->
+    <style name="Widget.Auros.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/auros_reef</item>
+        <item name="android:textColor">@color/auros_ice</item>
+        <item name="iconTint">@color/auros_cyan</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:fontVariationSettings">"'wght' 550"</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- Text button -->
+    <style name="Widget.Auros.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/auros_cyan</item>
+        <item name="iconTint">@color/auros_cyan</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontVariationSettings">"'wght' 550"</item>
+    </style>
+
+    <!-- ==================== CARDS ==================== -->
+    <!-- Trench surface pressed into the abyss; depth via tone, not shadow. -->
+    <style name="Widget.Auros.Card" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/auros_trench</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="strokeColor">@color/auros_hairline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="rippleColor">#1AEDFFFE</item>
+    </style>
+
+    <!-- ==================== INPUTS ==================== -->
+    <style name="Widget.Auros.TextInput" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/auros_outline</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/auros_cyan</item>
+        <item name="android:textColorHint">@color/auros_fog_dim</item>
+        <item name="boxCornerRadiusTopStart">6dp</item>
+        <item name="boxCornerRadiusTopEnd">6dp</item>
+        <item name="boxCornerRadiusBottomStart">6dp</item>
+        <item name="boxCornerRadiusBottomEnd">6dp</item>
+    </style>
+
+    <!-- ==================== BOTTOM NAV ==================== -->
+    <style name="Widget.Auros.BottomNav" parent="Widget.Material3.BottomNavigationView">
+        <item name="android:background">@color/auros_trench</item>
+        <item name="itemIconTint">@color/bottomnav_item</item>
+        <item name="itemTextColor">@color/bottomnav_item</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.Auros.BottomNav.Indicator</item>
+        <item name="itemRippleColor">#1AEDFFFE</item>
+        <item name="labelVisibilityMode">labeled</item>
+        <item name="elevation">0dp</item>
+    </style>
+    <style name="Widget.Auros.BottomNav.Indicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/auros_reef</item>
+    </style>
+
 </resources>

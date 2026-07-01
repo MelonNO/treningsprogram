@@ -33,9 +33,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="SCHEDULE"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.1"
+                style="@style/Widget.Auros.Eyebrow"
                 android:layout_marginBottom="8dp"
                 android:layout_marginTop="4dp" />
 
@@ -135,9 +133,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="GOAL &amp; EXPERIENCE"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.1"
+                style="@style/Widget.Auros.Eyebrow"
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
@@ -184,9 +180,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="EQUIPMENT"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.1"
+                style="@style/Widget.Auros.Eyebrow"
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
@@ -226,9 +220,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="CUSTOMISATION"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.1"
+                style="@style/Widget.Auros.Eyebrow"
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
@@ -350,9 +342,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="CARDIO"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.1"
+                style="@style/Widget.Auros.Eyebrow"
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView

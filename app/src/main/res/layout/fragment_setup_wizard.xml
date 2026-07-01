@@ -38,8 +38,7 @@
                 android:id="@+id/tv_wizard_step_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
+                style="@style/Widget.Auros.Eyebrow"
                 android:text="STEP 1 OF 5" />
 
             <TextView
@@ -381,8 +380,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Current injuries or physical limitations"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="4dp" />
                 <TextView
                     android:layout_width="match_parent"
@@ -411,8 +410,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:visibility="gone"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="How much does it limit you?"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="6dp" />
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/chip_group_wizard_severity"
@@ -439,8 +438,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Muscle groups to prioritise"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="4dp" />
                 <TextView
                     android:layout_width="match_parent"
@@ -468,8 +467,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Exercises you dislike or can't do"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="4dp" />
                 <TextView
                     android:layout_width="match_parent"

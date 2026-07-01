@@ -63,7 +63,7 @@ class GymPresetsFragment : Fragment() {
         builtInCard.findViewById<TextView>(R.id.tv_preset_notes).visibility = View.GONE
         if (isBuiltInActive) {
             (builtInCard as? com.google.android.material.card.MaterialCardView)?.apply {
-                strokeColor = Color.parseColor("#7C67F5"); strokeWidth = 6
+                strokeColor = Color.parseColor("#7FE9E1"); strokeWidth = 6
             }
         }
         builtInCard.findViewById<View>(R.id.btn_select_preset).setOnClickListener {
@@ -79,7 +79,7 @@ class GymPresetsFragment : Fragment() {
         if (presets.isEmpty()) {
             val tv = TextView(requireContext()).apply {
                 text = "No custom presets yet. Tap + to add one."
-                setTextColor(Color.parseColor("#8888A8"))
+                setTextColor(Color.parseColor("#7E908E"))
                 setPadding(0, 16, 0, 0)
                 gravity = Gravity.CENTER
             }
@@ -108,7 +108,7 @@ class GymPresetsFragment : Fragment() {
 
             if (isActive) {
                 (card as? com.google.android.material.card.MaterialCardView)?.apply {
-                    strokeColor = Color.parseColor("#7C67F5")
+                    strokeColor = Color.parseColor("#7FE9E1")
                     strokeWidth = 6
                 }
             }
@@ -174,7 +174,7 @@ class GymPresetsFragment : Fragment() {
         val tvHeader = TextView(ctx).apply {
             text = "Equipment items"
             textSize = 14f
-            setTextColor(Color.parseColor("#E2E2EC"))
+            setTextColor(Color.parseColor("#EDFFFE"))
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
                 it.topMargin = dp(16); it.bottomMargin = dp(6)
             }
@@ -195,7 +195,7 @@ class GymPresetsFragment : Fragment() {
                 val tv = TextView(ctx).apply {
                     text = "• $item"
                     textSize = 13f
-                    setTextColor(Color.parseColor("#8888A8"))
+                    setTextColor(Color.parseColor("#7E908E"))
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 }
                 val btnDel = MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {

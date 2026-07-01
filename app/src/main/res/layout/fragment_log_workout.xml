@@ -40,7 +40,7 @@
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progress_session"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:max="100" app:trackCornerRadius="4dp" app:trackColor="#2A2A3A" />
+            android:max="100" app:trackCornerRadius="4dp" app:trackColor="@color/auros_reef_dim" />
     </LinearLayout>
 
     <!-- Scrollable main content -->
@@ -95,14 +95,14 @@
                                     android:paddingStart="10dp" android:paddingEnd="10dp"
                                     android:paddingTop="4dp" android:paddingBottom="4dp"
                                     android:textSize="12sp" android:textStyle="bold"
-                                    android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
+                                    android:textColor="@color/auros_cyan" android:background="@drawable/bg_spec_chip" />
                                 <TextView android:id="@+id/chip_target_reps"
                                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                                     android:layout_marginEnd="8dp"
                                     android:paddingStart="10dp" android:paddingEnd="10dp"
                                     android:paddingTop="4dp" android:paddingBottom="4dp"
                                     android:textSize="12sp" android:textStyle="bold"
-                                    android:textColor="#7C67F5" android:background="@drawable/bg_spec_chip" />
+                                    android:textColor="@color/auros_cyan" android:background="@drawable/bg_spec_chip" />
                                 <TextView android:id="@+id/chip_target_weight"
                                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                                     android:paddingStart="10dp" android:paddingEnd="10dp"
@@ -124,7 +124,7 @@
                                 android:layout_marginTop="6dp"
                                 android:lineSpacingExtra="2dp"
                                 android:textAppearance="?attr/textAppearanceBodySmall"
-                                android:textColor="#8888A8" android:visibility="gone" />
+                                android:textColor="@color/auros_fog_dim" android:visibility="gone" />
 
                             <!-- Freestyle exercise name input (hidden in guided mode) -->
                             <com.google.android.material.textfield.TextInputLayout
@@ -156,7 +156,7 @@
                                 android:id="@+id/layout_muscle_banner"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:background="#1C1C2A"
+                                android:background="@color/auros_reef"
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:foreground="?attr/selectableItemBackground">

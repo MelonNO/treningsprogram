@@ -74,7 +74,7 @@ class QuickAccessBottomSheet : BottomSheetDialogFragment() {
         layout.addView(TextView(requireContext()).apply {
             text = "+  Add exercise"
             textSize = 16f
-            setTextColor(Color.parseColor("#7C67F5"))
+            setTextColor(Color.parseColor("#7FE9E1"))
             setTypeface(null, Typeface.BOLD)
             val v = (14 * density).toInt()
             setPadding((4 * density).toInt(), v, (4 * density).toInt(), v)
@@ -107,8 +107,8 @@ class QuickAccessBottomSheet : BottomSheetDialogFragment() {
         }
 
         val (badge, badgeColor, nameColor) = when (row.status) {
-            Status.FINISHED -> Triple("✓", "#4CAF50", "#9A9AB0")
-            Status.CURRENT  -> Triple("▶", "#7C67F5", "#FFFFFF")
+            Status.FINISHED -> Triple("✓", "#4CAF50", "#7E908E")
+            Status.CURRENT  -> Triple("▶", "#7FE9E1", "#FFFFFF")
             Status.UPCOMING -> Triple("○", "#6A6A80", "#C8C8D8")
         }
 
@@ -140,7 +140,7 @@ class QuickAccessBottomSheet : BottomSheetDialogFragment() {
             container.addView(TextView(requireContext()).apply {
                 text = "current"
                 textSize = 12f
-                setTextColor(Color.parseColor("#7C67F5"))
+                setTextColor(Color.parseColor("#7FE9E1"))
             })
         }
 

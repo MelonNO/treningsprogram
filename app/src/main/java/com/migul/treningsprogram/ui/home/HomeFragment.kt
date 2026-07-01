@@ -509,7 +509,7 @@ class HomeFragment : Fragment() {
             val tvWeight = TextView(requireContext()).apply {
                 text = "${formatWeight(m.weightKg)} kg"
                 textSize = 13f
-                setTextColor(android.graphics.Color.parseColor("#7C67F5"))
+                setTextColor(android.graphics.Color.parseColor("#7FE9E1"))
             }
             row.addView(tvDate)
             row.addView(tvWeight)

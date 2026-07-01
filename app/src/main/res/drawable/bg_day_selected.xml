@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Selected day: luminous teal→cyan current gradient -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#7C67F5" />
+    <gradient
+        android:startColor="@color/auros_teal"
+        android:endColor="@color/auros_cyan"
+        android:angle="135" />
 </shape>

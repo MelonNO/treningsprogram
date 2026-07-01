@@ -15,6 +15,49 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="22dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <View
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_eyebrow_dot" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OVERVIEW"
+                        android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_home_hero_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Today"
+                    android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                    android:textColor="@color/auros_snow" />
+
+                <View
+                    android:layout_width="52dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_gradient_accent" />
+            </LinearLayout>
+
             <!-- First-launch welcome card (hidden once onboarding done) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_first_launch"
@@ -116,7 +159,7 @@
                                 android:layout_height="wrap_content"
                                 android:max="100"
                                 app:trackCornerRadius="4dp"
-                                app:trackColor="#2A2A3A" />
+                                app:trackColor="@color/auros_reef_dim" />
 
                         </LinearLayout>
 
@@ -189,13 +232,20 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Weekly Challenges"
-                        android:textAppearance="?attr/textAppearanceTitleSmall"
-                        android:textColor="?attr/colorOnSurface"
-                        android:layout_marginBottom="10dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="WEEKLY CHALLENGES"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/layout_home_challenges"
@@ -222,13 +272,21 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/today_plan"
-                        android:textAppearance="?attr/textAppearanceTitleSmall"
-                        android:textColor="?attr/colorOnSurface"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/today_plan"
+                            android:textAllCaps="true"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tv_today_plan"
@@ -264,13 +322,20 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Body Weight"
-                        android:textAppearance="?attr/textAppearanceTitleSmall"
-                        android:textColor="?attr/colorOnSurface"
-                        android:layout_marginBottom="12dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="BODY WEIGHT"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -328,13 +393,20 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Muscle Recovery"
-                        android:textAppearance="?attr/textAppearanceTitleSmall"
-                        android:textColor="?attr/colorOnSurface"
-                        android:layout_marginBottom="10dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="MUSCLE RECOVERY"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/layout_home_recovery"
@@ -361,13 +433,21 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/recent_workouts"
-                        android:textAppearance="?attr/textAppearanceTitleSmall"
-                        android:textColor="?attr/colorOnSurface"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/recent_workouts"
+                            android:textAllCaps="true"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tv_recent_sessions"
@@ -398,7 +478,7 @@
             android:layout_width="260dp"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            app:cardBackgroundColor="#1A1A2E"
+            app:cardBackgroundColor="@color/auros_reef"
             app:cardCornerRadius="24dp"
             app:cardElevation="16dp">
 
@@ -440,7 +520,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textSize="14sp"
-                    android:textColor="#AAAACC"
+                    android:textColor="@color/auros_fog"
                     android:gravity="center"
                     android:layout_marginBottom="28dp" />
 

@@ -127,8 +127,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Heaviest weight"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="4dp" />
 
                 <TextView
@@ -176,8 +176,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Estimated 1RM trend"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="4dp" />
 
                 <TextView
@@ -223,8 +223,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="PR history (estimated 1RM)"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:layout_marginBottom="4dp" />
 
                 <TextView

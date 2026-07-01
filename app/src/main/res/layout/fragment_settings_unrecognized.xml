@@ -19,9 +19,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="UNRECOGNIZED EXERCISES"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="?attr/colorPrimary"
-            android:letterSpacing="0.1" />
+            style="@style/Widget.Auros.Eyebrow" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_copy_all_unrecognized"

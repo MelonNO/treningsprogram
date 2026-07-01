@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Current gradient: teal→cyan. The single luminous "switched-on" accent.
+     Use for hero strips, primary progress fills, and headline underlines. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="@color/auros_teal"
+        android:centerColor="@color/auros_cyan"
+        android:endColor="@color/auros_cyan_bright"
+        android:angle="0" />
+    <corners android:radius="8dp" />
+</shape>

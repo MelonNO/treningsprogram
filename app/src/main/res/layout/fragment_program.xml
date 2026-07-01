@@ -11,6 +11,43 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- Auros hero band -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="22dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="10dp">
+                <View android:layout_width="6dp" android:layout_height="6dp"
+                    android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PROGRAM"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="This week"
+                android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                android:textColor="@color/auros_snow" />
+
+            <View
+                android:layout_width="52dp"
+                android:layout_height="3dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_gradient_accent" />
+        </LinearLayout>
+
         <!-- E2: program switcher. Pick the active program (drives Home + this tab), save the
              current plan as a new named program, or open program options. -->
         <com.google.android.material.card.MaterialCardView
@@ -260,7 +297,7 @@
                     android:layout_height="wrap_content"
                     android:max="100"
                     app:trackCornerRadius="4dp"
-                    app:trackColor="#2A2A3A" />
+                    app:trackColor="@color/auros_reef_dim" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -381,7 +418,7 @@
                     android:paddingBottom="5dp"
                     android:textSize="12sp"
                     android:textStyle="bold"
-                    android:textColor="#7C67F5"
+                    android:textColor="@color/auros_cyan"
                     android:background="@drawable/bg_spec_chip" />
 
             </LinearLayout>

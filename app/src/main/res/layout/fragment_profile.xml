@@ -11,6 +11,43 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- Auros hero band -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="22dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="10dp">
+                <View android:layout_width="6dp" android:layout_height="6dp"
+                    android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PROFILE"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="You"
+                android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                android:textColor="@color/auros_snow" />
+
+            <View
+                android:layout_width="52dp"
+                android:layout_height="3dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_gradient_accent" />
+        </LinearLayout>
+
         <!-- Settings entry -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_settings"
@@ -95,7 +132,7 @@
                     android:max="100"
                     android:layout_marginBottom="6dp"
                     app:trackCornerRadius="4dp"
-                    app:trackColor="#2A2A3A" />
+                    app:trackColor="@color/auros_reef_dim" />
 
                 <TextView
                     android:id="@+id/tv_profile_xp_label"
@@ -126,9 +163,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Stats"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
-                    android:textColor="?attr/colorOnSurface"
                     android:layout_marginBottom="14dp" />
 
                 <LinearLayout
@@ -199,9 +235,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
                     android:text="Personal Records"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
-                    android:textColor="?attr/colorOnSurface"
                     android:layout_marginBottom="8dp" />
 
                 <TextView
@@ -247,9 +282,8 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Achievements"
-                        android:textAppearance="?attr/textAppearanceTitleSmall"
-                        android:textColor="?attr/colorOnSurface" />
+                        style="@style/Widget.Auros.Eyebrow"
+                        android:text="Achievements" />
 
                     <TextView
                         android:id="@+id/tv_achievements_chevron"

@@ -642,7 +642,7 @@ class LogWorkoutFragment : Fragment() {
                 ).also { it.bottomMargin = dpToPx(4) }
             }
             val label = if (set.isWarmup) "W${set.setNumber}" else "S${set.setNumber}"
-            val colorHex = if (set.isWarmup) "#8888A8" else "#7C67F5"
+            val colorHex = if (set.isWarmup) "#7E908E" else "#7FE9E1"
             val tv = TextView(requireContext()).apply {
                 text = "$label: ${set.reps} reps @ ${formatWeight(set.weightKg)}kg"
                 textSize = 13f
@@ -654,7 +654,7 @@ class LogWorkoutFragment : Fragment() {
                 val rpeTv = TextView(requireContext()).apply {
                     text = set.rpeLabel
                     textSize = 11f
-                    setTextColor(Color.parseColor("#8888A8"))
+                    setTextColor(Color.parseColor("#7E908E"))
                 }
                 row.addView(rpeTv)
             }
@@ -667,7 +667,7 @@ class LogWorkoutFragment : Fragment() {
     // Keeps this screen's accent-purple fallback for unclassifiable names.
     private fun getMuscleStyle(exerciseName: String): Pair<String, String> {
         val group = getMuscleGroupName(exerciseName)
-        return group to MuscleClassifier.colorFor(group, fallbackColor = "#7C67F5")
+        return group to MuscleClassifier.colorFor(group, fallbackColor = "#7FE9E1")
     }
 
     private fun getMuscleGroupName(exerciseName: String): String =
@@ -868,7 +868,7 @@ class LogWorkoutFragment : Fragment() {
                     resultsContainer.addView(TextView(ctx).apply {
                         text = "Add anyway: \"$q\"  (custom exercise)"
                         textSize = 15f
-                        setTextColor(Color.parseColor("#7C67F5"))
+                        setTextColor(Color.parseColor("#7FE9E1"))
                         val v = (12 * density).toInt()
                         setPadding((4 * density).toInt(), v, (4 * density).toInt(), v)
                         isClickable = true

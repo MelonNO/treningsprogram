@@ -44,11 +44,11 @@ class HistoryRecapFragment : Fragment() {
 
     private var sessions: List<WorkoutSession> = emptyList()
 
-    private val accent = Color.parseColor("#7C67F5")
+    private val accent = Color.parseColor("#7FE9E1")
     private val up = Color.parseColor("#5CCB7E")     // green — improvement
-    private val neutral = Color.parseColor("#9A9AB0") // muted — never red, even for a down day
+    private val neutral = Color.parseColor("#7E908E") // muted — never red, even for a down day
     // B06: translucent accent fill for a highlighted "culprit" exercise row (recovery-muscle tap).
-    private val highlightFill = Color.parseColor("#332C5BE6")
+    private val highlightFill = Color.parseColor("#3300827C")
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
