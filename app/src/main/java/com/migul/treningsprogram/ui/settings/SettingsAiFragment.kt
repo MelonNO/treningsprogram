@@ -10,6 +10,7 @@ import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
@@ -41,6 +42,12 @@ class SettingsAiFragment : Fragment() {
         binding.btnSaveApiKey.setOnClickListener {
             prefs.apiKey = binding.etApiKey.text.toString().trim()
             Snackbar.make(binding.root, "Saved", Snackbar.LENGTH_SHORT).show()
+        }
+
+        // Item 6: Coach Summary now lives here (moved from the top-level Settings list).
+        binding.rowCoachSummary.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.settingsAiFragment)
+                findNavController().navigate(R.id.action_settings_ai_to_weekly_summary)
         }
 
         setFragmentResultListener(OnboardingBottomSheet.RESULT_KEY) { _, bundle ->

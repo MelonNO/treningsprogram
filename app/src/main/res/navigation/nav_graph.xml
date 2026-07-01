@@ -91,14 +91,14 @@
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
-        <action android:id="@+id/action_settings_to_debug"
-            app:destination="@id/settingsDebugFragment"
+        <action android:id="@+id/action_settings_to_backup"
+            app:destination="@id/settingsBackupFragment"
             app:enterAnim="@anim/slide_in_right"
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
-        <action android:id="@+id/action_settings_to_backup"
-            app:destination="@id/settingsBackupFragment"
+        <action android:id="@+id/action_settings_to_app_settings"
+            app:destination="@id/settingsAppFragment"
             app:enterAnim="@anim/slide_in_right"
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
@@ -111,12 +111,6 @@
             app:popExitAnim="@anim/slide_out_right" />
         <action android:id="@+id/action_settings_to_library"
             app:destination="@id/exerciseLibraryFragment"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
-        <action android:id="@+id/action_settings_to_weekly_summary"
-            app:destination="@id/weeklySummaryFragment"
             app:enterAnim="@anim/slide_in_right"
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
@@ -146,7 +140,22 @@
         android:id="@+id/settingsAiFragment"
         android:name="com.migul.treningsprogram.ui.settings.SettingsAiFragment"
         android:label="AI &amp; Program"
-        tools:layout="@layout/fragment_settings_ai" />
+        tools:layout="@layout/fragment_settings_ai">
+        <!-- Item 6: Coach Summary now lives under AI &amp; Program. -->
+        <action android:id="@+id/action_settings_ai_to_weekly_summary"
+            app:destination="@id/weeklySummaryFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
+    <!-- Item 4: App Settings — app-wide controls (day boundary + auto-rebalance). -->
+    <fragment
+        android:id="@+id/settingsAppFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsAppFragment"
+        android:label="App Settings"
+        tools:layout="@layout/fragment_settings_app" />
 
     <fragment
         android:id="@+id/settingsPromptLogFragment"
@@ -207,7 +216,15 @@
         android:id="@+id/settingsBackupFragment"
         android:name="com.migul.treningsprogram.ui.settings.SettingsBackupFragment"
         android:label="Backup &amp; Data"
-        tools:layout="@layout/fragment_settings_backup" />
+        tools:layout="@layout/fragment_settings_backup">
+        <!-- Item 5: Debug now lives under Backup &amp; Data. -->
+        <action android:id="@+id/action_settings_backup_to_debug"
+            app:destination="@id/settingsDebugFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
 
     <fragment
         android:id="@+id/gymPresetsFragment"

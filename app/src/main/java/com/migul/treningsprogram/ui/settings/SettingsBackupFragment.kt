@@ -15,9 +15,11 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.google.android.material.snackbar.Snackbar
+import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentSettingsBackupBinding
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -97,6 +99,12 @@ class SettingsBackupFragment : Fragment() {
 
         binding.btnImportBackup.setOnClickListener {
             importLauncher.launch(arrayOf("application/json", "*/*"))
+        }
+
+        // Item 5: Debug now lives here (moved from the top-level Settings list).
+        binding.rowDebug.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.settingsBackupFragment)
+                findNavController().navigate(R.id.action_settings_backup_to_debug)
         }
 
         // ---- Cloud backup ----

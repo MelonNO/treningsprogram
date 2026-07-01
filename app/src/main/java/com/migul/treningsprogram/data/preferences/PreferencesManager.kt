@@ -70,8 +70,13 @@ class PreferencesManager(context: Context) {
     // auto-rebalances the rest of the current week's non-logged days around the locked changed day.
     // Default OFF ⇒ changing a day affects only that day (the pre-P1 behaviour). The P2 "do another
     // day's workout today" rebalance always runs regardless of this toggle.
+    // Item 2: default is now ON. The key is written ONLY on an explicit user toggle (App Settings
+    // switch → setAutoRebalanceEnabled), so an ABSENT key = "never chosen" → getter returns the new ON
+    // default, while a user's explicit choice (ON or OFF) is stored and preserved verbatim — an
+    // explicit OFF is never flipped back on. SharedPreferences already distinguishes absent from a
+    // stored false, so no sentinel/migration is needed.
     var autoRebalanceEnabled: Boolean
-        get() = prefs.getBoolean(KEY_AUTO_REBALANCE, false)
+        get() = prefs.getBoolean(KEY_AUTO_REBALANCE, true)
         set(value) { prefs.edit().putBoolean(KEY_AUTO_REBALANCE, value).apply() }
 
     // B08: day-selection mode is encoded entirely by this CSV of REST weekday ints (1=Mon … 7=Sun).

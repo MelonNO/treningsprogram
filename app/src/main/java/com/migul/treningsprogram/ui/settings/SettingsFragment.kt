@@ -35,21 +35,18 @@ class SettingsFragment : Fragment() {
             if (findNavController().currentDestination?.id == R.id.settingsFragment)
                 findNavController().navigate(R.id.action_settings_to_library)
         }
-        binding.rowCoachSummary.setOnClickListener {
-            if (findNavController().currentDestination?.id == R.id.settingsFragment)
-                findNavController().navigate(R.id.action_settings_to_weekly_summary)
-        }
         binding.rowAiProgram.setOnClickListener {
             if (findNavController().currentDestination?.id == R.id.settingsFragment)
                 findNavController().navigate(R.id.action_settings_to_ai)
         }
-        binding.rowDebug.setOnClickListener {
-            if (findNavController().currentDestination?.id == R.id.settingsFragment)
-                findNavController().navigate(R.id.action_settings_to_debug)
-        }
         binding.rowBackup.setOnClickListener {
             if (findNavController().currentDestination?.id == R.id.settingsFragment)
                 findNavController().navigate(R.id.action_settings_to_backup)
+        }
+        // Item 4: new App Settings row (day boundary + auto-rebalance).
+        binding.rowAppSettings.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.settingsFragment)
+                findNavController().navigate(R.id.action_settings_to_app_settings)
         }
         binding.rowAbout.setOnClickListener {
             if (findNavController().currentDestination?.id == R.id.settingsFragment)

@@ -803,8 +803,7 @@ class ProgramFragment : Fragment() {
         options.add("Regenerate (keep logged days)")
         // Mesocycle toggle.
         options.add(if (active.mesocycleWeeks > 0) "Turn off mesocycle block" else "Make a mesocycle block")
-        // P1: auto-rebalance toggle — when ON, changing a day's primary muscle focus rebalances the week.
-        options.add(if (viewModel.autoRebalanceEnabled) "Auto-rebalance week: ON" else "Auto-rebalance week: OFF")
+        // Item 4: the auto-rebalance toggle moved to the "App Settings" screen (Profile → Settings).
         // Frozen toggle (assumption N).
         options.add(if (active.isFrozen) "Unfreeze (resume weekly AI adaptation)" else "Freeze (stop weekly AI adaptation)")
         if (viewModel.programs.value.size > 1) options.add("Delete this program")
@@ -823,7 +822,6 @@ class ProgramFragment : Fragment() {
                     }
                     "Make a mesocycle block" -> showMesocycleDialog()
                     "Turn off mesocycle block" -> viewModel.setMesocycle(0)
-                    "Auto-rebalance week: ON", "Auto-rebalance week: OFF" -> showAutoRebalanceDialog()
                     "Freeze (stop weekly AI adaptation)" -> viewModel.setFrozen(true)
                     "Unfreeze (resume weekly AI adaptation)" -> viewModel.setFrozen(false)
                     "Delete this program" -> confirmDeleteProgram(active)
@@ -851,28 +849,6 @@ class ProgramFragment : Fragment() {
             .setPositiveButton("Save") { _, _ ->
                 val name = input.text?.toString()?.trim().orEmpty()
                 if (name.isNotBlank()) viewModel.renameActiveProgram(name)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAutoRebalanceDialog() {
-        val enabled = viewModel.autoRebalanceEnabled
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Auto-rebalance the week")
-            .setMessage(
-                "When ON, changing a day's primary muscle focus — by editing it or regenerating it with " +
-                    "a new focus — automatically rebalances the rest of the week's non-logged days around " +
-                    "the changed day. Logged days are never touched. When OFF, only the day you change " +
-                    "changes."
-            )
-            .setPositiveButton(if (enabled) "Turn OFF" else "Turn ON") { _, _ ->
-                viewModel.setAutoRebalanceEnabled(!enabled)
-                Snackbar.make(
-                    binding.root,
-                    if (!enabled) "Auto-rebalance is ON" else "Auto-rebalance is OFF",
-                    Snackbar.LENGTH_SHORT
-                ).show()
             }
             .setNegativeButton("Cancel", null)
             .show()

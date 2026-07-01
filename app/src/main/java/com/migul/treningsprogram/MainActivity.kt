@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.NavigationUI
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
@@ -75,6 +76,31 @@ class MainActivity : AppCompatActivity() {
         navController = navHostFragment.navController
 
         binding.bottomNav.setupWithNavController(navController)
+        // Item 3: a single tap on the Profile bottom-nav button, from ANY Profile sub-screen (the
+        // Settings list, App Settings, AI & Program, Backup & Data, Debug, Coach Summary, etc.), returns
+        // to the Profile tab's ROOT in one tap. Handle both the reselect case (the tab is already the
+        // selected one — which it is whenever a profile-owned sub-screen is showing) and the select
+        // case, so the guarantee holds regardless of which the framework reports. Other tabs keep the
+        // default multi-back-stack behaviour via NavigationUI.
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            if (item.itemId == R.id.profileFragment) {
+                if (navController.currentDestination?.id != R.id.profileFragment &&
+                    !navController.popBackStack(R.id.profileFragment, false)
+                ) {
+                    NavigationUI.onNavDestinationSelected(item, navController)
+                }
+                true
+            } else {
+                NavigationUI.onNavDestinationSelected(item, navController)
+            }
+        }
+        binding.bottomNav.setOnItemReselectedListener { item ->
+            if (item.itemId == R.id.profileFragment &&
+                navController.currentDestination?.id != R.id.profileFragment
+            ) {
+                navController.popBackStack(R.id.profileFragment, false)
+            }
+        }
         binding.btnHeaderBack.setOnClickListener { navController.navigateUp() }
 
         // P3: a tapped "plan generation finished" notification deep-links to the Program tab.
@@ -94,6 +120,7 @@ class MainActivity : AppCompatActivity() {
             R.id.settingsAiFragment          to R.id.profileFragment,
             R.id.settingsDebugFragment       to R.id.profileFragment,
             R.id.settingsBackupFragment      to R.id.profileFragment,
+            R.id.settingsAppFragment         to R.id.profileFragment,
             R.id.settingsPromptLogFragment   to R.id.profileFragment,
             R.id.settingsRejectionLogFragment to R.id.profileFragment,
             R.id.settingsCrashLogFragment    to R.id.profileFragment,
