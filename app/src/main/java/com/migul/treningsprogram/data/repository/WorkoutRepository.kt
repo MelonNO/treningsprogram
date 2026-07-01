@@ -158,6 +158,62 @@ class WorkoutRepository @Inject constructor(
         return sessionDao.insert(WorkoutSession(dateMs = System.currentTimeMillis()))
     }
 
+    /**
+     * Item 10: describes the session a "start workout" resolved to.
+     * @param startedAtMs when THIS segment began (drives the live elapsed timer).
+     * @param baseDurationMin duration already logged on a reopened session (0 for a fresh one).
+     * @param reopened true when we reopened an already-completed session to append into it — the
+     *   caller must then RESTORE (re-complete) it on abandon rather than delete it.
+     */
+    data class SessionStart(
+        val sessionId: Long,
+        val startedAtMs: Long,
+        val baseDurationMin: Int,
+        val reopened: Boolean
+    )
+
+    /**
+     * Item 10: start a session for a workout attributed to TODAY, appending into today's existing
+     * logged workout if one exists. Resolution order:
+     *  1. an in-progress (active) session → resume it (unchanged behaviour);
+     *  2. else today's (logical-day) already-completed workout session → REOPEN it so the new sets
+     *     append into the same session, so History reads as one continuous session;
+     *  3. else a brand-new session.
+     * Only ever touches the workout_sessions row's completion flag; existing logged sets are untouched.
+     */
+    suspend fun startAppendableTodaySession(): SessionStart {
+        val active = sessionDao.getActiveSession()
+        if (active != null) return SessionStart(active.id, active.dateMs, 0, reopened = false)
+        val todayLogged = todayLoggedWorkoutSession()
+        if (todayLogged != null) {
+            sessionDao.update(todayLogged.copy(isCompleted = false))
+            return SessionStart(
+                sessionId = todayLogged.id,
+                startedAtMs = System.currentTimeMillis(),
+                baseDurationMin = todayLogged.durationMinutes,
+                reopened = true
+            )
+        }
+        val id = sessionDao.insert(WorkoutSession(dateMs = System.currentTimeMillis()))
+        return SessionStart(id, System.currentTimeMillis(), 0, reopened = false)
+    }
+
+    /** Today's (logical-day) most-recent completed real-workout session, if any. */
+    private suspend fun todayLoggedWorkoutSession(): WorkoutSession? {
+        val todayEpoch = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+        // getRecentCompleted already filters to completed sessions that have ≥1 working set (excludes
+        // REST/MISSED placeholders), newest first.
+        return sessionDao.getRecentCompleted(30).firstOrNull {
+            com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it.dateMs) == todayEpoch
+        }
+    }
+
+    /** Item 10: re-complete a session that was reopened for append (abandon-safe restore). */
+    suspend fun recompleteSession(sessionId: Long, durationMinutes: Int) {
+        val session = sessionDao.getById(sessionId) ?: return
+        sessionDao.update(session.copy(isCompleted = true, durationMinutes = durationMinutes))
+    }
+
     suspend fun completeSession(sessionId: Long, durationMinutes: Int): Boolean {
         val session = sessionDao.getActiveSession() ?: return false
         if (setDao.getWorkingSetCount(sessionId) == 0) {
@@ -505,13 +561,14 @@ class WorkoutRepository @Inject constructor(
             if (sourceRows.isEmpty()) return@withTransaction
             val weekRows = plannedDao.getForWeekInProgramOnce(programId, weekStart)
             val weekRationale = weekRows.firstOrNull { it.rationale.isNotBlank() }?.rationale ?: ""
-            // Discard target's original plan and clear the vacated source day.
+            val targetRows = weekRows.filter { it.dayOfWeek == targetDay }
+            // Item 10 (pure rule): APPEND after today's logged rows if today already has logged
+            // activity, else REPLACE today's planned rows. Rebuild the target day from the result.
+            val finalTarget = com.migul.treningsprogram.domain.DayMovePlanner
+                .applyMoveToTarget(targetRows, sourceRows, targetDay, performedNames, weekRationale)
             plannedDao.deleteForDayInProgram(programId, weekStart, targetDay)
             plannedDao.deleteForDayInProgram(programId, weekStart, sourceDay)
-            val moved = com.migul.treningsprogram.domain.DayMovePlanner
-                .movedRows(sourceRows, targetDay, performedNames, weekRationale)
-                .map { it.copy(weekStart = weekStart, programId = programId) }
-            plannedDao.insertAll(moved)
+            plannedDao.insertAll(finalTarget.map { it.copy(weekStart = weekStart, programId = programId) })
         }
         backupScheduler.requestBackup()
     }

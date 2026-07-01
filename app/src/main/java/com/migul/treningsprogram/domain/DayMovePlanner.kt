@@ -31,4 +31,33 @@ object DayMovePlanner {
                 rationale = rationale
             )
         }
+
+    /**
+     * Item 10: the target day's FINAL plan rows after moving [sourceRows] into it, converging the two
+     * cases the merged "Start Workout" must handle:
+     *  - target already has LOGGED activity ([targetRows] contains an isLogged row) → the moved rows
+     *    are APPENDED after the target's existing rows (kept exactly, not discarded), renumbered
+     *    contiguously so the day reads as ONE continuous session;
+     *  - target has NO logged activity → its planned rows are REPLACED by the moved rows.
+     *
+     * All returned rows carry a fresh id (0) so the repository re-inserts them as new rows; the kept
+     * target rows keep their isLogged flag + actuals verbatim (only their id/order/rationale change),
+     * and logged SETS/history (separate tables) are never referenced here. Pure + unit-testable; the
+     * repository stamps weekStart/programId and vacates the source day.
+     */
+    fun applyMoveToTarget(
+        targetRows: List<PlannedExercise>,
+        sourceRows: List<PlannedExercise>,
+        targetDay: Int,
+        performedNames: Set<String>,
+        rationale: String
+    ): List<PlannedExercise> {
+        val moved = movedRows(sourceRows, targetDay, performedNames, rationale)
+        val targetHasLogged = targetRows.any { it.isLogged }
+        if (!targetHasLogged) return moved
+        val kept = targetRows.sortedBy { it.orderInDay }
+            .mapIndexed { idx, row -> row.copy(id = 0L, orderInDay = idx, rationale = rationale) }
+        val appended = moved.mapIndexed { i, r -> r.copy(orderInDay = kept.size + i) }
+        return kept + appended
+    }
 }

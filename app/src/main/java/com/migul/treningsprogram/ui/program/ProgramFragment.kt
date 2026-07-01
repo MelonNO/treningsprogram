@@ -390,6 +390,10 @@ class ProgramFragment : Fragment() {
             val totalMins = WorkoutTimeEstimator.estimateDayMinutes(exercises)
             binding.tvTotalTime.text = "~${totalMins}m"
 
+            // Item 10: a single "Start Workout" button. On another day it performs that day's plan
+            // attributed to TODAY (the move + week rebalance commit on completion — see
+            // LogWorkoutViewModel.completeWorkout / commitDayMove); on today's own day it behaves as
+            // before. The separate "Do this workout today" button is gone.
             binding.btnStartDayWorkout.setOnClickListener {
                 val bundle = Bundle().apply {
                     putLong("sessionId", -1L)
@@ -398,24 +402,10 @@ class ProgramFragment : Fragment() {
                 if (findNavController().currentDestination?.id == R.id.programFragment)
                     findNavController().navigate(R.id.action_program_to_log, bundle)
             }
-
-            // P2: "Do this workout today" — offered for an eligible OTHER day (not today, not yet
-            // logged) while today itself is not already logged. Performing+completing it moves the
-            // workout into today and rebalances the week (see brief-P2 / [P2-A4]).
-            val today = currentDayOfWeek()
-            val dayIsLogged = exercises.any { it.isLogged }
-            val todayPlan = viewModel.weekPlan.value.filter { it.dayOfWeek == today }
-            val todayAlreadyLogged = todayPlan.any { it.isLogged }
-            val eligibleForMove = day != today && !dayIsLogged && !todayAlreadyLogged
-            binding.btnDoToday.visibility = if (eligibleForMove) View.VISIBLE else View.GONE
-            if (eligibleForMove) {
-                binding.btnDoToday.setOnClickListener { confirmDoToday(day) }
-            }
         } else {
             binding.tvDayCompletion.text = ""
             binding.tvWorkoutType.text = "Take it easy today"
             binding.tvTotalTime.text = ""
-            binding.btnDoToday.visibility = View.GONE
         }
 
         binding.btnRegenerateDay.visibility = View.VISIBLE
@@ -513,34 +503,6 @@ class ProgramFragment : Fragment() {
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
-
-    /**
-     * P2: confirm moving another day's workout into today. The move/discard/rebalance commit ONLY on
-     * completion (brief P2 / [P2-A1]) — this just opens the log screen performing that day's plan,
-     * attributed to today. Abandoning leaves the week unchanged.
-     */
-    private fun confirmDoToday(sourceDay: Int) {
-        val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-        val dayName = dayNames.getOrElse(sourceDay - 1) { "Day $sourceDay" }
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Do $dayName's workout today?")
-            .setMessage(
-                "You'll perform and log $dayName's planned workout now. When you finish, it becomes " +
-                    "today's session, today's original plan is dropped, and the rest of the week rebalances. " +
-                    "If you don't finish, nothing changes."
-            )
-            .setPositiveButton("Start it") { _, _ ->
-                val bundle = Bundle().apply {
-                    putLong("sessionId", -1L)
-                    putInt("dayOfWeek", currentDayOfWeek())
-                    putInt("moveFromDay", sourceDay)
-                }
-                if (findNavController().currentDestination?.id == R.id.programFragment)
-                    findNavController().navigate(R.id.action_program_to_log, bundle)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
 
     private fun showRegenerateDayDialog(dayOfWeek: Int) {
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")

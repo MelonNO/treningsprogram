@@ -316,16 +316,6 @@
                 android:text="Start Workout"
                 android:visibility="gone" />
 
-            <!-- P2: do THIS (other) day's workout today — shown only for an eligible non-today day -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_do_today"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="6dp"
-                android:text="Do this workout today"
-                android:visibility="gone" />
-
             <!-- Swap this day's workout -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_regenerate_day"

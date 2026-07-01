@@ -46,6 +46,12 @@ class LogWorkoutViewModel @Inject constructor(
     private var moveFromDay = 0
     private var moveCommitted = false
 
+    // Item 10: when a move-to-today reopened today's already-logged session to APPEND into it,
+    // [isReopenedAppend] is true and [appendBaseDurationMin] holds the duration already logged, so
+    // completion sums both segments and abandon RESTORES (never deletes) the original session.
+    private var isReopenedAppend = false
+    private var appendBaseDurationMin = 0
+
     /** P2: true exactly once after completeWorkout committed a day-move — consumed by the fragment to
      *  ask the Program tab to rebalance the week. */
     fun consumeMoveCommitted(): Boolean = moveCommitted.also { moveCommitted = false }
@@ -234,17 +240,32 @@ class LogWorkoutViewModel @Inject constructor(
     fun resumeSession(dayOfWeek: Int = -1, moveFromDay: Int = 0) {
         if (_sessionId.value != null) return
         viewModelScope.launch {
-            val id = workoutRepository.startSession()
-            _sessionId.value = id
-            hydrateDraft(id)
-            val session = workoutRepository.getActiveSession()
-            _sessionStartMs.value = session?.dateMs ?: System.currentTimeMillis()
-            val day = if (dayOfWeek > 0) dayOfWeek else currentDayOfWeek()
+            val today = currentDayOfWeek()
+            val day = if (dayOfWeek > 0) dayOfWeek else today
+            val effMoveFrom = if (moveFromDay > 0 && moveFromDay != day) moveFromDay else 0
+            this@LogWorkoutViewModel.moveFromDay = effMoveFrom
+            // Item 10: a workout performed for ANOTHER day is attributed to today. If today already has
+            // a logged workout, reopen it so this session APPENDS into it (one continuous session);
+            // otherwise start a fresh session (which replaces today's planned workout on completion).
+            val isMoveToToday = resolveMoveSource(effMoveFrom, day, today) > 0
+            val start = if (isMoveToToday) {
+                workoutRepository.startAppendableTodaySession()
+            } else {
+                val id = workoutRepository.startSession()
+                val session = workoutRepository.getActiveSession()
+                WorkoutRepository.SessionStart(
+                    id, session?.dateMs ?: System.currentTimeMillis(), 0, reopened = false
+                )
+            }
+            _sessionId.value = start.sessionId
+            appendBaseDurationMin = start.baseDurationMin
+            isReopenedAppend = start.reopened
+            hydrateDraft(start.sessionId)
+            _sessionStartMs.value = start.startedAtMs
             _dayOfWeek.value = day
-            this@LogWorkoutViewModel.moveFromDay = if (moveFromDay > 0 && moveFromDay != day) moveFromDay else 0
             _todayChallenges.value = dailyChallengeManager.getTodayChallenges()
             // P2: perform the SOURCE day's plan when a move is active, but attribute to today (_dayOfWeek).
-            loadGuidedPlan(if (this@LogWorkoutViewModel.moveFromDay > 0) this@LogWorkoutViewModel.moveFromDay else day)
+            loadGuidedPlan(if (effMoveFrom > 0) effMoveFrom else day)
         }
     }
 
@@ -471,7 +492,10 @@ class LogWorkoutViewModel @Inject constructor(
                 return@launch
             }
             val durationMs = System.currentTimeMillis() - _sessionStartMs.value
-            workoutRepository.completeSession(sid, (durationMs / 60_000).toInt())
+            // Item 10: on an appended session, add this segment's minutes to what was already logged.
+            val totalDurationMin = appendBaseDurationMin + (durationMs / 60_000).toInt()
+            workoutRepository.completeSession(sid, totalDurationMin)
+            isReopenedAppend = false
             clearDraft(sid)
             // Mark planned exercises done so week progress bar is accurate
             val loggedNames = sets.value.filter { !it.isWarmup }.map { it.exerciseName }.toSet()
@@ -509,7 +533,14 @@ class LogWorkoutViewModel @Inject constructor(
     fun abandonSession() {
         val sid = _sessionId.value ?: return
         viewModelScope.launch {
-            workoutRepository.deleteSession(sid)
+            if (isReopenedAppend) {
+                // Item 10: this session is today's already-logged workout, reopened only to append.
+                // NEVER delete it (that would destroy the original workout) — restore it to completed.
+                workoutRepository.recompleteSession(sid, appendBaseDurationMin)
+                isReopenedAppend = false
+            } else {
+                workoutRepository.deleteSession(sid)
+            }
             clearDraft(sid)
             moveFromDay = 0   // P2: abandoning leaves the week unchanged
             _sessionAbandoned.value = true
