@@ -10,28 +10,11 @@
     <string name="today_plan">Today\'s Plan</string>
     <string name="recent_workouts">Recent Workouts</string>
     <string name="start_workout">Start Workout</string>
-    <string name="no_plan_today">No workout planned for today.\nGenerate a program in the Program tab.</string>
     <string name="no_sessions_yet">No workouts logged yet.</string>
-
-    <string name="add_set">Add Set</string>
-    <string name="add">Add</string>
-    <string name="cancel">Cancel</string>
-    <string name="complete_workout">Complete Workout</string>
-    <string name="workout_completed">Workout completed!</string>
-    <string name="exercise">Exercise</string>
-    <string name="reps">Reps</string>
-    <string name="weight_kg">Weight (kg)</string>
-
-    <string name="generate_program">Generate AI Program</string>
-    <string name="generating">Generating…</string>
 
     <string name="claude_api_key">Claude API Key</string>
     <string name="days_per_week">Training Days / Week</string>
     <string name="fitness_goal">Fitness Goal</string>
     <string name="experience_level">Experience Level</string>
-    <string name="save">Save</string>
-    <string name="settings_saved">Settings saved.</string>
     <string name="profile">Profile</string>
-    <string name="rest_timer">Rest Timer</string>
-    <string name="rest_timer_seconds">Rest timer duration (seconds)</string>
 </resources>

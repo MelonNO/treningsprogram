@@ -27,9 +27,6 @@ class SettingsAiFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: SettingsViewModel by activityViewModels()
 
-    private val goals = listOf("Strength", "Hypertrophy", "Endurance", "Weight Loss")
-    private val experiences = listOf("Beginner", "Intermediate", "Advanced")
-
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSettingsAiBinding.inflate(inflater, container, false)
         return binding.root
