@@ -271,7 +271,7 @@ class ProgramFragment : Fragment() {
             .withEndAction {
                 // At peak: swap to green "done" background
                 abbr.background = requireContext().getDrawable(R.drawable.bg_day_done)
-                abbr.setTextColor(Color.WHITE)
+                abbr.setTextColor(Color.parseColor("#011D1C"))
                 chip.animate()
                     .scaleX(1f).scaleY(1f)
                     .setDuration(420)
@@ -337,23 +337,23 @@ class ProgramFragment : Fragment() {
                 i == selectedDay && isDone -> {
                     // Selected AND fully done — green
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_done)
-                    abbr.setTextColor(Color.WHITE)
+                    abbr.setTextColor(Color.parseColor("#011D1C"))
                     abbr.textSize = 11.5f
                 }
                 i == selectedDay && i == today -> {
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_selected)
-                    abbr.setTextColor(Color.WHITE)
+                    abbr.setTextColor(Color.parseColor("#011D1C"))
                     abbr.textSize = 11.5f
                 }
                 i == selectedDay -> {
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_selected)
-                    abbr.setTextColor(Color.WHITE)
+                    abbr.setTextColor(Color.parseColor("#011D1C"))
                     abbr.textSize = 11f
                 }
                 isDone -> {
                     // Fully done, not selected — green circle
                     abbr.background = requireContext().getDrawable(R.drawable.bg_day_done)
-                    abbr.setTextColor(Color.WHITE)
+                    abbr.setTextColor(Color.parseColor("#011D1C"))
                     abbr.textSize = 11f
                 }
                 i == today -> {

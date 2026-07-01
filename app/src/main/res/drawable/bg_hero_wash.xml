@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Aurora wash: a soft teal light-shaft glowing from the upper-left, fading to
+     nothing. Sits behind hero bands to evoke the abyssal "underwater light".
+     Fades fully to transparent within bounds, so there is no hard rectangle edge. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="260dp"
+        android:centerX="0.16"
+        android:centerY="0.32"
+        android:startColor="#4000827C"
+        android:centerColor="#1A00827C"
+        android:endColor="#0000827C" />
+</shape>

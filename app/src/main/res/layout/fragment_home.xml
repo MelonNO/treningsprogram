@@ -21,7 +21,10 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="22dp">
+                android:layout_marginBottom="22dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="12dp"
+                android:background="@drawable/bg_hero_wash">
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -301,7 +304,10 @@
                         android:id="@+id/btn_start_workout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/start_workout" />
+                        android:text="@string/start_workout"
+                        app:icon="@drawable/ic_arrow_up_right"
+                        app:iconGravity="textEnd"
+                        app:iconTint="@color/auros_on_teal" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
