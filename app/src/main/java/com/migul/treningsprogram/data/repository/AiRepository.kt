@@ -134,6 +134,38 @@ internal const val GENERATION_TIMEOUT_MESSAGE =
  */
 internal const val GENERATION_OVERALL_DEADLINE_MS: Long = 360_000L
 
+// ── Layer-2 (long-session fix 2026-07): output-token budget for the GENERATION call ────────────────
+//
+// Raised 16384 → 24576 for the generation request ONLY (the ClaudeRequest default stays 16384 for every
+// other, smaller call — onboarding questions, injury check, weekly summary, single-day regen, the quality
+// review). A LONG multi-modal plan (a full strength block PLUS warm-up/conditioning entries, each carrying
+// the full P5 auditable metadata) is the largest legitimate response the app produces; at 16384 a 4–5-day
+// plan of 8 strength slots + 2 cardio slots × full metadata could clip mid-JSON → isLikelyTruncated →
+// rejected (the confirmed "mode-2 truncation" failure at long targets). 24576 gives clean headroom.
+//
+// SAFE with streaming: max_tokens is only an UPPER BOUND — it never forces more output (the JSON-first
+// efficiency prompt keeps a normal response at ~2–8k tokens), and generation STREAMS (H4), so the OkHttp
+// readTimeout is an inter-event stall guard, not a whole-response ceiling. A pathological runaway to the
+// full 24576 tokens would exceed callTimeout(300 s)/the 360 s deadline and fail CLEANLY (fail-loud, per
+// the product decision), never save junk. sonnet-4-6 supports up to 64K output, so 24576 is well within
+// range. NOT bundled into the shared default so the coupling warning ([[generation-seam-timeout-and-underfill]])
+// stays scoped to the one call that needs the headroom.
+internal const val GENERATION_MAX_TOKENS: Int = 24576
+
+// ── Layer-2 (long-session fix 2026-07): LONG-session threshold ─────────────────────────────────────
+//
+// A pure strength/hypertrophy session is bounded ~55–70 min by the app's own soundness rules (≤8
+// exercises, per-muscle ~8–10 hard-set cap, junk-volume rejection) even when every set/rep/rest is maxed
+// within the goal bands. So a target whose FLOOR (target−10) sits above that ceiling cannot be reached by
+// lifting volume alone — it must be built MULTI-MODAL (sound strength block + a duration-sized warm-up and/
+// or conditioning finisher). 90 min (floor 80) is the first target the strength block genuinely cannot
+// fill; 100 and 120 clearly need it. Short/mid sessions (≤80 min, incl. the verified-lean 50-min case)
+// are BELOW this threshold and get NO multi-modal steering, so their behaviour is byte-for-byte unchanged
+// — the #1 regression guard. Pure + internal so it is unit-testable and shared by buildPrompt +
+// dayDurationFeedback (they must agree on what "long" means).
+internal const val LONG_SESSION_THRESHOLD_MIN: Int = 90
+internal fun isLongSession(targetMinutes: Int): Boolean = targetMinutes >= LONG_SESSION_THRESHOLD_MIN
+
 /**
  * Runs [block] under an overall [timeoutMs] wall-clock deadline. A timeout is converted into a
  * terminal, friendly [IllegalStateException] (NOT a raw [kotlinx.coroutines.TimeoutCancellationException])
@@ -403,6 +435,32 @@ internal fun dayDurationFeedback(
     val low = targetMinutes - 10
     val high = targetMinutes + 10
     return when {
+        // Layer-2 (long-session fix 2026-07): for a LONG target, sound strength/hypertrophy volume alone
+        // cannot fill the session, so the under-fill lever is NOT "add a set/accessory" (that fights the
+        // ≤N exercise cap + truncates) — it is a DURATION-SIZED conditioning/warm-up block. Steer the model
+        // to build it MULTI-MODAL. The reject CONDITION is unchanged (still est < low); only the wording
+        // differs. Short/mid targets keep the original rest→reps→sets→accessory wording (no regression).
+        estimateMinutes < low && isLongSession(targetMinutes) ->
+            "Day $day estimates ~$estimateMinutes min — that is ${targetMinutes - estimateMinutes} min " +
+                "UNDER the aim of $targetMinutes (window $low–$high). This is a LONG session: sound " +
+                "strength/hypertrophy volume alone will NOT fill $targetMinutes min, and you must NOT force " +
+                "extra strength exercises/sets or junk volume to pad it. Build it MULTI-MODAL — keep the " +
+                "strength block, then ADD or EXTEND a DURATION-SIZED conditioning finisher (and/or an easy " +
+                "warm-up) so the day lands in the UPPER HALF of the window ($targetMinutes–$high, NOT merely " +
+                "the $low floor). You are ${targetMinutes - estimateMinutes} min short of the aim: ADD ABOUT " +
+                "${targetMinutes + 5 - estimateMinutes} MORE MINUTES of conditioning DURATION on top of what " +
+                "this day already has — EXTEND the finisher (a longer stationary bike / incline treadmill " +
+                "walk / easy jog), do NOT under-size or trim it. ERR HIGH — aim this day at about " +
+                "${targetMinutes + 5} min; a day a few minutes OVER is auto-trimmed to fit, but a day UNDER " +
+                "the $low floor is rejected and wastes the whole plan. Give EVERY long day the SAME " +
+                "generous finisher so none is left short. " +
+                "Long-session conditioning is large by design (a 30–60 min finisher is expected, " +
+                "NOT junk). Use only cardio-classified, duration-timed entries the app can count: stationary " +
+                "bike / cycling, incline treadmill walk, easy jog / run intervals, jump rope (low-impact bike " +
+                "or incline walk for any lower-limb injury), with sets=1, targetReps = the DURATION " +
+                "(e.g. \"45 min\"), targetWeightKg=0, rest=60. Do NOT use rowing, carries, sled, or elliptical " +
+                "as the timed entry — the app cannot time those by duration. Do NOT shorten the day — it is " +
+                "already too short."
         estimateMinutes < low ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it CLEARS the $low-min " +
@@ -1009,10 +1067,15 @@ $qa
                         // G2: adaptive thinking + a 32000-token budget were live A/B-tested on this call and
                         // REMOVED — they regressed hard (unbounded adaptive thinking on this large prompt
                         // starved the JSON: 0/3 saves, ~522 s/gen over the 360 s deadline, the full budget
-                        // burned on thinking with NO JSON emitted, ~10× cost vs the proven path). With no
-                        // thinking and the efficiency prompt fix, generation output is ~2200 tokens, so the
-                        // ClaudeRequest default max_tokens=16384 is ample. NO thinking field is sent.
-                        ClaudeRequest(messages = listOf(ClaudeRequest.Message(content = prompt)))
+                        // burned on thinking with NO JSON emitted, ~10× cost vs the proven path). NO thinking
+                        // field is sent. Layer-2 (long-session fix): max_tokens is lifted to
+                        // GENERATION_MAX_TOKENS (24576, this call only) so a LONG multi-modal plan with full
+                        // P5 metadata cannot clip mid-JSON; still just an upper bound (normal output stays
+                        // ~2–8k tokens), safe under streaming — see the const's note.
+                        ClaudeRequest(
+                            messages = listOf(ClaudeRequest.Message(content = prompt)),
+                            maxTokens = GENERATION_MAX_TOKENS
+                        )
                     )
                 }
             } catch (e: Throwable) {
@@ -1260,7 +1323,7 @@ SOFT-BAND GUARD (read first): the rep/rest/volume numbers below are WIDE GUIDELI
 8. DE-DUPLICATION: No two near-identical movement patterns within one session (e.g. RDL + single-leg stiff-leg deadlift). No obvious structural errors (all-chest sessions, cardio the day before heavy legs).
 9. WEEKLY BALANCE (COVERAGE SCALES WITH days × duration): a full week with enough days/time should broadly cover push/pull/squat/hinge and include direct lateral + rear-delt and a knee-dominant quad movement, and not stack only posterior-chain hinges with no quad. But a SHORT or LOW-FREQUENCY week CANNOT fit every pattern — do NOT reject it for missing a pattern it has no room for; on few/short days, multi-pattern compounds are the correct choice. Reject only a clearly lopsided full-capacity week.
 $injuryCheck
-11. EXERCISE COUNT (HARD upper cap): Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session. Fewer is fine (short sessions).
+11. EXERCISE COUNT (HARD upper cap): Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session. COUNT ONLY resistance/strength exercises (roles: primary compound, accessory, isolation) toward this cap — do NOT count warm-up, mobility, conditioning/cardio, or rehab/prehab entries (a long session legitimately adds a duration-sized warm-up/conditioning block ON TOP of a full strength complement to reach its target). Fewer is fine (short sessions).
 12. NOTES: Notes assert no incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest"). Reject any use of "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch", "increases bicep peak"). "Peak contraction" as a squeeze cue (hold the shortened position) is allowed.
 13. TIME BUDGET — DO NOT EVALUATE THIS. Per-day session length is ALREADY enforced by an authoritative deterministic check that has PASSED before this review runs, so every training day is guaranteed to be within the allowed ±10-min window. Do NOT estimate or calculate session duration, and NEVER reject on time-budget, session-length, "too long", "too short", or any duration grounds. Disregard session length entirely when deciding accepted true/false.
 
@@ -1460,6 +1523,37 @@ OR
         else
             "Cardio may follow an upper-body session. Never schedule it the day before or after heavy legs."
 
+        // Layer-2 (long-session fix 2026-07): LONG targets only. A sound strength/hypertrophy block tops
+        // out ~55–70 min under the app's soundness caps (≤ experience exercise cap, per-muscle ~8–10 hard
+        // sets, junk-volume rejection), so a long session that must land in [target−10, target+10] cannot be
+        // reached by lifting volume alone — it is built MULTI-MODAL (sound strength block + a DURATION-sized
+        // warm-up / conditioning finisher the deterministic estimator can time). Empty for short/mid
+        // sessions (< LONG_SESSION_THRESHOLD_MIN), so their prompt — including the verified-lean 50-min case
+        // — is byte-for-byte unchanged (the #1 regression guard).
+        //
+        // CRITICAL: the estimator only times an entry by its DURATION when MuscleClassifier maps the NAME to
+        // "Cardio" (bike/cycling, treadmill/walk, run/jog/sprint, jump rope, HIIT, burpee). "Rowing" maps to
+        // Back and "carries" to Core, so those are NOT timed by duration — they are explicitly excluded from
+        // the timed warm-up/conditioning entry below.
+        val longSessionBlock = if (isLongSession(sessionDurationMinutes)) """
+══════════════════════════════════════════
+LONG SESSION STRUCTURE (target $sessionDurationMinutes min ≥ $LONG_SESSION_THRESHOLD_MIN min — build the day MULTI-MODAL)
+══════════════════════════════════════════
+A sound strength/hypertrophy block is bounded to roughly 55–70 min by the rules above (the experience exercise cap on strength slots, per-muscle ~8–10 hard sets, no junk volume). At this LONG target that block ALONE will NOT reach $sessionDurationMinutes min — and you must NOT pad it with junk lifting volume, a duplicated movement pattern, or an extra strength exercise beyond what the goal warrants just to hit the number. A real long session is MULTI-MODAL. Build EACH long training day in this order:
+1. Build the sound strength/hypertrophy work FIRST — obey every rule above (exercise cap on STRENGTH slots, per-muscle volume, goal rep/rest bands, history-anchored weights, recovery).
+2. THEN fill the remaining minutes with genuinely useful, NON-junk content:
+   • an easy WARM-UP block (about 5–15 min), and/or
+   • a CONDITIONING / cardio FINISHER sized by DURATION — this is the main long-session time filler.
+3. Size the warm-up + conditioning DURATION to land EVERY training day in the UPPER HALF of the window ($sessionDurationMinutes–${sessionDurationMinutes + 10} min). First estimate your strength block's minutes with the TIME BUDGET formula; then set the TOTAL conditioning + warm-up duration so the day totals $sessionDurationMinutes–${sessionDurationMinutes + 10} min — i.e. conditioning ≈ (${sessionDurationMinutes} to ${sessionDurationMinutes + 10}) − (your strength block's minutes). ERR ON THE HIGH SIDE, never low: aim each day at ABOUT ${sessionDurationMinutes + 5} min, NOT the ${sessionDurationMinutes - 10}-min floor and NOT merely the centre. A day that lands a few minutes OVER is automatically trimmed back to fit, but a day UNDER the ${sessionDurationMinutes - 10}-min floor is REJECTED and wastes the ENTIRE week's plan — under-sizing the conditioning (or leaving one day lighter than the rest) is the #1 reason a long plan fails. Give EVERY day a consistently-sized finisher; do not leave any single day short.
+4. Long-session conditioning is LARGE BY DESIGN: a 30–60 min finisher (optionally split into a short warm-up + a longer finisher) is EXPECTED and is NOT junk — do NOT trim it down. The app times a cardio entry as its duration (targetReps) + ~60 s, so this adds clean minutes with ZERO junk lifting volume.
+   WORKED EXAMPLE for this $sessionDurationMinutes-min target: ~60 min of strength work leaves ~${sessionDurationMinutes - 60} min to fill → e.g. a 10-min warm-up walk + a ${sessionDurationMinutes - 70}-min bike / easy-jog finisher lands the day right around $sessionDurationMinutes. Scale the finisher up or down so YOUR day's total lands near $sessionDurationMinutes.
+DURATION-TIMED ENTRIES — USE ONLY MODALITIES THE APP CAN TIME:
+- ALLOWED (the app counts these by their duration): stationary bike / cycling, incline treadmill walk / incline walk, easy jog / outdoor run / interval run / tempo run, jump rope, HIIT (bike- or run-based). For ANY lower-limb injury use LOW-IMPACT only (stationary bike, incline walk) — never jogging / high-impact.
+- Each such entry: sets=1, targetReps = the DURATION or distance ONLY (e.g. "30 min", "5 km"), targetWeightKg=0, recommendedRestSeconds=60, role="cardio" (or "warmup" for the warm-up).
+- DO NOT use rowing, farmer's carries, sled pushes, or the elliptical as the duration-timed warm-up/conditioning entry — the app classifies those as strength/core and will NOT count them by duration, so the day would silently fall under the time budget. (They are fine as ordinary strength accessories inside the strength block, just never as the timed conditioning entry.)
+COUNTING: the warm-up and conditioning/cardio entries do NOT count toward the strength exercise cap (they are not strength volume) — a long day may carry a FULL strength complement PLUS these. Keep the strength portion within its normal cap and per-muscle volume; only the conditioning DURATION grows to reach the long target. This warm-up + conditioning is the session's OWN component (part of this workout) — include it on the training day even if cardio is otherwise kept to separate days.
+""" else ""
+
         val rejectionBlock = if (previousRejectionReason.isNotBlank()) """
 ══════════════════════════════════════════
 PREVIOUS PLAN REJECTED — FIX THIS FIRST
@@ -1640,7 +1734,7 @@ Organise $daysPerWeek days to distribute muscle group stimulus optimally for the
 - Never train the same primary muscle group on consecutive days.
 - Heavy leg sessions (squat, deadlift) need at least ~48 h before the next heavy leg session. A LIGHT second hinge in the week (e.g. an RDL a few days after a deadlift) is fine — only a second HEAVY/near-max barbell hinge is limited.
 - WEEKLY PATTERN BALANCE (scaled to days×duration): across the week aim to include horizontal + vertical push, horizontal + vertical pull, a knee-dominant (squat/quad) and a hip-dominant (hinge) lower movement, and direct lateral-delt + rear-delt work. Do not stack only posterior-chain hinges with NO knee-dominant quad movement.
-- $cardioInstruction (Cardio matters most for weight-loss and endurance; it is largely irrelevant for a pure strength or hypertrophy block — do not add junk cardio to those.)
+- $cardioInstruction (Cardio matters most for weight-loss and endurance; it is largely irrelevant for a pure strength or hypertrophy block — do not add junk cardio to those.${if (isLongSession(sessionDurationMinutes)) " EXCEPTION: a LONG session — see LONG SESSION STRUCTURE below — uses a duration-sized warm-up/conditioning finisher as the sound way to reach a target that strength volume alone cannot fill; that is NOT junk cardio." else ""})
 - Weekday placement may shift week to week as long as the recovery rules hold; space the days evenly where possible.
 $splitBlock$previousPlanBlock
 
@@ -1657,8 +1751,8 @@ UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} 
   2. RAISE reps toward the TOP of each exercise's role range.
   3. ADD 1 set to an accessory/isolation exercise.
   4. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume).
-OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory, reduce sets, or shorten rest until it estimates close to $sessionDurationMinutes. For a LONG target that is hard to reach, add USEFUL rest/warm-up/mobility/carries/conditioning BEFORE junk volume; for a SHORT target, do NOT pad — keep it lean. Aim for the CENTRE ($sessionDurationMinutes), not the edge — a low-edge day tips back under the floor on rounding. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
-
+OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory, reduce sets, or shorten rest until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, add a USEFUL warm-up / duration-sized conditioning finisher (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Aim for the CENTRE ($sessionDurationMinutes), not the edge — a low-edge day tips back under the floor on rounding. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
+$longSessionBlock
 ══════════════════════════════════════════
 SESSION DESIGN RULES
 ══════════════════════════════════════════
@@ -1666,7 +1760,7 @@ SESSION DESIGN RULES
 - DE-DUPLICATE movement patterns: no two near-identical patterns in one session (e.g. do not pair RDL with single-leg stiff-leg deadlift, or barbell bench with dumbbell bench as two separate slots).
 - Order: compound exercises before isolation for the same muscle group.
 - Start each session with the most demanding movement.
-- Exercise count per session (scaled to duration; upper cap is hard): Beginner 3–5, Intermediate 4–7, Advanced 4–8. Short sessions sit at the LOW end, long sessions toward the HIGH end.
+- Exercise count per session (scaled to duration; upper cap is hard): Beginner 3–5, Intermediate 4–7, Advanced 4–8. Short sessions sit at the LOW end, long sessions toward the HIGH end. This cap counts STRENGTH/RESISTANCE exercises ONLY (roles: primary compound, accessory, isolation). Warm-up, mobility, conditioning/cardio, and rehab/prehab entries do NOT count toward it — a long session may carry a full strength complement PLUS a warm-up/conditioning block on top${if (isLongSession(sessionDurationMinutes)) " (see LONG SESSION STRUCTURE below)" else ""}. Short/mid sessions normally carry no such extra entries, so their count is unchanged.
 - Sets per exercise (guideline): Beginner 1–3, Intermediate 2–4, Advanced 2–5.
 ${when {
     experience.lowercase().contains("beginner") -> "- Stick to fundamental, easy-to-learn movements. Avoid complex or high-skill exercises."
@@ -1725,7 +1819,7 @@ OUTPUT — valid JSON only, no prose, no markdown fences
 ══════════════════════════════════════════
 Output ONLY the JSON object — nothing before it, nothing after it. Your VERY FIRST output character MUST be the opening "{" and the VERY LAST MUST be its closing "}". Do NOT write any visible planning preamble, step-by-step reasoning, per-day time-budget arithmetic, set-by-set or recently-used cross-checking, or self-check narration before, around, or after the JSON. Do NOT open with lines like "I'll plan silently" or "Let me compute the days" — just emit the JSON. Apply every rule above internally as you build the plan; the ONLY place any prose belongs is the short "rationale" field. Narrating your planning burns the output budget and makes the response run out of room before the JSON closes — a truncated, unclosed JSON object cannot be used.
 Include a top-level "rationale" string (sibling of "days"): AT MOST 2 short sentences — plain-language note on WHAT changed vs the user's recent training / last week and WHY, referencing ACTUAL exercises (e.g. "Kept your barbell bench and squat and progressed the loads, swapped the accessory rows for a different grip, and added a hamstring isolation for your lagging posterior chain."). Speak directly to the user, no jargon, no essay. New user with no history: one short sentence on how the plan fits their goal.
-ALSO declare AUDITABLE METADATA so the numbers are checkable. Keep every metadata field TERSE (short scalars / short strings / short arrays — no prose): they exist so the plan declares its own numbers, NOT so you narrate. Per exercise add: role ("primary compound"|"accessory"|"isolation"|"cardio"|"rehab"), movementPattern (e.g. "horizontal push"), primaryMuscles (array), secondaryMuscles (array), countsAsHardSets (int), workSeconds (int), restSeconds (int, = recommendedRestSeconds), setupSeconds (int, ~60), estimatedMinutes (number, = the TIME BUDGET formula for this exercise), injuryModification (short string, "" if none). Per day add: dayEstimateMinutes (number), withinDurationWindow (bool). Add a top-level "week" object: weeklyVolumeSummary (object of muscle→hard sets), movementPatternSummary (array of patterns covered), durationSummary (short string), blockState ("continue"|"new"), constraintNotes (short string). These declared numbers are auditable — the app STILL enforces duration with its own deterministic estimate, so the declared minutes must MATCH the formula, not replace it.
+ALSO declare AUDITABLE METADATA so the numbers are checkable. Keep every metadata field TERSE (short scalars / short strings / short arrays — no prose): they exist so the plan declares its own numbers, NOT so you narrate. Per exercise add: role ("primary compound"|"accessory"|"isolation"|"cardio"|"warmup"|"mobility"|"rehab"), movementPattern (e.g. "horizontal push"), primaryMuscles (array), secondaryMuscles (array), countsAsHardSets (int), workSeconds (int), restSeconds (int, = recommendedRestSeconds), setupSeconds (int, ~60), estimatedMinutes (number, = the TIME BUDGET formula for this exercise), injuryModification (short string, "" if none). Per day add: dayEstimateMinutes (number), withinDurationWindow (bool). Add a top-level "week" object: weeklyVolumeSummary (object of muscle→hard sets), movementPatternSummary (array of patterns covered), durationSummary (short string), blockState ("continue"|"new"), constraintNotes (short string). These declared numbers are auditable — the app STILL enforces duration with its own deterministic estimate, so the declared minutes must MATCH the formula, not replace it.
 {
   "rationale": "Short plain-language explanation of what changed in this plan and why.",
   "days": [
