@@ -25,8 +25,15 @@ class ProgramViewModel @Inject constructor(
     private val aiRepository: AiRepository,
     private val prefsManager: PreferencesManager,
     private val gymPresetDao: GymPresetDao,
-    private val gson: Gson
+    private val gson: Gson,
+    generationState: com.migul.treningsprogram.domain.GenerationState
 ) : ViewModel() {
+
+    // Item 8: app-scoped full-generation signal (a generation launched from a Settings screen). The
+    // Program tab observes these to show its own generating animation; single-day regen keeps its own
+    // isDayGenerating/dayGenerationStatus (untouched).
+    val fullGenerating: StateFlow<Boolean> = generationState.fullGenerating
+    val fullGenerationStatus: StateFlow<String> = generationState.status
 
     init {
         viewModelScope.launch { workoutRepository.backfillPlannedExercises() }

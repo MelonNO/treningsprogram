@@ -53,6 +53,10 @@ class ProgramFragment : Fragment() {
     private val dayChipViews = mutableListOf<View>()
     private var progressAnimating = false
 
+    // Item 11: the "Why your program changed" card always starts collapsed on each visit (no
+    // persistence). Reset in onViewCreated so a re-created view never restores a prior open state.
+    private var rationaleExpanded = false
+
     // E2: current program list + the spinner-suppression guard so programmatic selection updates
     // don't fire the "user switched program" callback.
     private var programList: List<Program> = emptyList()
@@ -93,6 +97,12 @@ class ProgramFragment : Fragment() {
         binding.btnSaveProgram.setOnClickListener { showSaveProgramDialog() }
         binding.btnProgramOptions.setOnClickListener { showProgramOptionsDialog() }
 
+        // Item 11: force the rationale card collapsed on every open; tapping the header toggles it.
+        rationaleExpanded = false
+        binding.tvRationale.visibility = View.GONE
+        binding.tvRationaleChevron.text = "▸"   // ▸
+        binding.layoutRationaleHeader.setOnClickListener { toggleRationale() }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
@@ -115,10 +125,40 @@ class ProgramFragment : Fragment() {
                 launch {
                     viewModel.weekPlan.collect { plan ->
                         val hasPlan = plan.isNotEmpty()
-                        binding.cardEmptyState.visibility = if (hasPlan) View.GONE else View.VISIBLE
+                        // Item 8: never show the "No Program Yet" empty state while a full generation runs.
+                        binding.cardEmptyState.visibility =
+                            if (hasPlan || viewModel.fullGenerating.value) View.GONE else View.VISIBLE
                         binding.cardWeek.visibility = if (hasPlan) View.VISIBLE else View.GONE
                         binding.layoutDaySection.visibility = if (hasPlan) View.VISIBLE else View.GONE
                         if (hasPlan) updateDayChips(plan, viewModel.selectedDay.value)
+                    }
+                }
+                // Item 8: full-program generation launched from Settings — show a generating animation
+                // here (additive; the Settings screen keeps its own status). No auto-switch to this tab.
+                launch {
+                    viewModel.fullGenerating.collect { generating ->
+                        binding.cardFullGenerating.visibility = if (generating) View.VISIBLE else View.GONE
+                        binding.cardEmptyState.visibility = when {
+                            generating -> View.GONE
+                            viewModel.weekPlan.value.isEmpty() -> View.VISIBLE
+                            else -> View.GONE
+                        }
+                    }
+                }
+                launch {
+                    viewModel.fullGenerationStatus.collect { status ->
+                        binding.tvFullGeneratingStatus.text = status
+                    }
+                }
+                launch {
+                    viewModel.fullGenerating.collectLatest { generating ->
+                        if (!generating) return@collectLatest
+                        var i = 0
+                        while (true) {
+                            binding.tvFullGeneratingTip.text =
+                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            kotlinx.coroutines.delay(4500)
+                        }
                     }
                 }
                 launch {
@@ -133,7 +173,9 @@ class ProgramFragment : Fragment() {
                     }
                 }
                 launch {
-                    // B2: show the "why your program changed" card only when a non-blank rationale exists.
+                    // B2: show the "why your program changed" card only when a non-blank rationale
+                    // exists. Item 11: the card body stays collapsed (set in onViewCreated / on toggle);
+                    // this observer only sets the text + card visibility, never forces the body open.
                     viewModel.weekRationale.collect { rationale ->
                         if (rationale.isNotBlank()) {
                             binding.tvRationale.text = rationale
@@ -257,6 +299,13 @@ class ProgramFragment : Fragment() {
                 start()
             }
         }, 550)
+    }
+
+    // Item 11: expand/collapse the rationale card body (chevron ▸ collapsed / ▾ expanded).
+    private fun toggleRationale() {
+        rationaleExpanded = !rationaleExpanded
+        binding.tvRationale.visibility = if (rationaleExpanded) View.VISIBLE else View.GONE
+        binding.tvRationaleChevron.text = if (rationaleExpanded) "▾" else "▸"
     }
 
     private fun getDayWorkoutType(exercises: List<PlannedExercise>): String? {

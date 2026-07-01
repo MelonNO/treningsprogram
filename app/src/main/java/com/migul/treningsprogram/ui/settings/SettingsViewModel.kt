@@ -52,6 +52,7 @@ class SettingsViewModel @Inject constructor(
     private val driveBackupUploader: DriveBackupUploader,
     private val backupScheduler: BackupScheduler,
     private val resolutionLog: ExerciseResolutionLog,
+    private val generationState: com.migul.treningsprogram.domain.GenerationState,
     val promptLog: PromptLog,
     val rejectionLog: RejectionLog,
     val crashLog: CrashLog
@@ -318,6 +319,8 @@ class SettingsViewModel @Inject constructor(
     private fun doGenerate(daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
         viewModelScope.launch {
             _isGenerating.value = true
+            // Item 8: publish the app-scoped signal so the Program tab can show a generating animation.
+            generationState.begin()
             _generateStatus.value = null
             _retryLog.value = emptyList()
             val capturedReasons = mutableListOf<String>()
@@ -329,11 +332,16 @@ class SettingsViewModel @Inject constructor(
                 }.getOrElse { emptyList() }
             } ?: emptyList()
             // B08: honour the user's rest-day selection (rest-day mode derives days/week; count mode
-            // falls back to the passed-in count). B09: this Settings path is the FULL-FRESH regen
-            // (replaces every day, including logged ones); make it deload-aware like the auto-gen path.
+            // falls back to the passed-in count). Item 9: this Settings generate path now PRESERVES
+            // already-logged days and rebalances the rest of the week around them — reusing the same
+            // keep-logged mechanism as the Program tab's "Regenerate (keep logged days)" (feed the
+            // logged days to the model as fixed context; persist via savePlanPreservingLoggedDays).
             val monday = thisMonday()
             val eff = com.migul.treningsprogram.domain.TrainingDaySelection.effective(prefs.restDaysCsv, daysPerWeek)
             val mesocycle = workoutRepository.buildRegenMesocycle(monday)
+            val currentPlan = workoutRepository.getActiveProgramPlanForWeek(monday)
+            val loggedDays = com.migul.treningsprogram.domain.RegeneratePlanner.loggedDays(currentPlan)
+            val lockedExercises = com.migul.treningsprogram.domain.RegeneratePlanner.lockedExercises(currentPlan)
             val result = aiRepository.generateAdaptedProgram(
                 daysPerWeek = eff.daysPerWeek,
                 goal = goal,
@@ -349,8 +357,10 @@ class SettingsViewModel @Inject constructor(
                 onboardingContext = prefs.onboardingContext,
                 mesocycle = mesocycle,
                 restDays = eff.restDays,
+                lockedExercises = lockedExercises,
                 onProgress = { msg ->
                     _generateStatus.value = msg
+                    generationState.update(msg)   // Item 8: mirror status to the Program-tab animation
                     val prefix = "Attempt "
                     val marker = " rejected: "
                     if (msg.startsWith(prefix) && msg.contains(marker)) {
@@ -360,9 +370,11 @@ class SettingsViewModel @Inject constructor(
             )
             result.onSuccess { generationResult ->
                 // B2: stamp the week's rationale onto every row so any row of the week carries it.
-                workoutRepository.savePlan(
+                // Item 9: preserve logged days — only NON-logged days are cleared/replaced.
+                workoutRepository.savePlanPreservingLoggedDays(
                     monday,
-                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
+                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) },
+                    loggedDays
                 )
                 workoutRepository.setActiveDeload(mesocycle.isDeload)
                 prefs.lastAutoGenerateWeek = autoGenWeekKey()
@@ -383,6 +395,7 @@ class SettingsViewModel @Inject constructor(
                     friendlyAiErrorMessage(e)
             }
             _isGenerating.value = false
+            generationState.end()   // Item 8: clear the Program-tab animation (success or failure)
         }
     }
 }
