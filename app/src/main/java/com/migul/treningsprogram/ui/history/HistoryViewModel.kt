@@ -82,15 +82,14 @@ class HistoryViewModel @Inject constructor(
 
     /**
      * UX1 Recap overview: total working-set volume per week across ALL exercises, chronological.
-     * Derived from the existing per-exercise [WorkoutRepository.getWeeklyVolume] query (one call per
-     * distinct exercise) merged by [com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints]
-     * — no new DAO query is added, and warm-ups stay excluded (the query filters isWarmup=0).
+     * One logical epoch-day per completed working set, bucketed by
+     * [com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints] into Monday-based weeks
+     * (Item 7 day boundary); warm-ups excluded by the DAO query.
      */
-    suspend fun getWeeklyVolumePoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> {
-        val perExercise = workoutRepository.getDistinctExerciseNames()
-            .map { workoutRepository.getWeeklyVolume(it) }
-        return com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints(perExercise)
-    }
+    suspend fun getWeeklyVolumePoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> =
+        com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints(
+            workoutRepository.getWorkingSetDayEpochs()
+        )
 
     /** UX1 Recap overview: sessions per week over time (training frequency). */
     suspend fun getWeeklyFrequencyPoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> =

@@ -29,10 +29,24 @@ class LogWorkoutViewModel @Inject constructor(
     private val gamificationRepository: GamificationRepository,
     private val dailyChallengeManager: DailyChallengeManager,
     private val prefs: PreferencesManager,
-    private val gson: Gson
+    private val gson: Gson,
+    private val gymPresetDao: com.migul.treningsprogram.data.db.dao.GymPresetDao
 ) : ViewModel() {
 
     private val restTimerFallbackSeconds = 90
+
+    // F4: the plate-calculator profile of the ACTIVE gym preset (bar weight, plate set, loadable
+    // dumbbells). Starts at the app default (the 50 mm home setup) and resolves asynchronously;
+    // the keypad readout re-renders per keypress, so the brief default window is invisible.
+    val plateProfile = MutableStateFlow(PlateMath.PlateProfile.DEFAULT)
+
+    init {
+        viewModelScope.launch {
+            plateProfile.value = PlateMath.PlateProfile.from(
+                gymPresetDao.getById(prefs.selectedGymPresetId)
+            )
+        }
+    }
 
     private val _sessionId = MutableStateFlow<Long?>(null)
     private val _sessionStartMs = MutableStateFlow(0L)

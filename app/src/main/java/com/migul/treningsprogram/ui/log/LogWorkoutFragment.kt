@@ -369,12 +369,14 @@ class LogWorkoutFragment : Fragment() {
         updatePlateHint()
     }
 
-    /** F4: live "plates per side" readout for barbell lifts while the pad is open. */
+    /** F4: live "plates per side" readout for plate-loaded lifts while the pad is open. */
     private fun updatePlateHint() {
         if (_binding == null) return
         val name = if (freestyleMode) binding.etFreestyleExercise.text?.toString().orEmpty()
                    else viewModel.currentExercise.value?.exerciseName.orEmpty()
-        val hint = PlateMath.display(WeightCalculator.value(calcState), name)
+        val hint = PlateMath.display(
+            WeightCalculator.value(calcState), name, viewModel.plateProfile.value
+        )
         binding.tvKpPlates.visibility = if (hint == null) View.GONE else View.VISIBLE
         binding.tvKpPlates.text = hint.orEmpty()
     }

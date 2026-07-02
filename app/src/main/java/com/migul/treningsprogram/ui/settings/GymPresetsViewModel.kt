@@ -28,15 +28,33 @@ class GymPresetsViewModel @Inject constructor(
 
     fun selectPreset(id: Long) { prefs.selectedGymPresetId = id }
 
-    fun addPreset(name: String, equipment: List<String>, notes: String) {
+    fun addPreset(
+        name: String, equipment: List<String>, notes: String,
+        barWeightKg: Float?, dumbbellBarWeightKg: Float?, platesCsv: String?, loadableDumbbells: Boolean?,
+    ) {
         viewModelScope.launch {
-            dao.insert(GymPreset(name = name, equipmentJson = gson.toJson(equipment), notes = notes))
+            dao.insert(
+                GymPreset(
+                    name = name, equipmentJson = gson.toJson(equipment), notes = notes,
+                    barWeightKg = barWeightKg, dumbbellBarWeightKg = dumbbellBarWeightKg,
+                    platesCsv = platesCsv, loadableDumbbells = loadableDumbbells,
+                )
+            )
         }
     }
 
-    fun updatePreset(preset: GymPreset, newName: String, equipment: List<String>, notes: String) {
+    fun updatePreset(
+        preset: GymPreset, newName: String, equipment: List<String>, notes: String,
+        barWeightKg: Float?, dumbbellBarWeightKg: Float?, platesCsv: String?, loadableDumbbells: Boolean?,
+    ) {
         viewModelScope.launch {
-            dao.update(preset.copy(name = newName, equipmentJson = gson.toJson(equipment), notes = notes))
+            dao.update(
+                preset.copy(
+                    name = newName, equipmentJson = gson.toJson(equipment), notes = notes,
+                    barWeightKg = barWeightKg, dumbbellBarWeightKg = dumbbellBarWeightKg,
+                    platesCsv = platesCsv, loadableDumbbells = loadableDumbbells,
+                )
+            )
         }
     }
 

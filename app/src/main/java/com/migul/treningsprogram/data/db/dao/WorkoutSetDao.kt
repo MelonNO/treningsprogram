@@ -15,7 +15,6 @@ data class StrengthPoint(val dateMs: Long, val maxWeight: Float, val bestReps: I
  */
 data class ExerciseSessionCount(val exerciseName: String, val sessionCount: Int)
 
-data class WeekVolume(val weekStart: Long, val totalSets: Int)
 
 data class MuscleVolume(val muscleGroup: String, val totalSets: Int)
 
@@ -151,13 +150,16 @@ interface WorkoutSetDao {
     """)
     suspend fun getStrengthHistory(name: String): List<StrengthPoint>
 
+    /**
+     * Raw session timestamps of every completed working set (one row per set). The caller maps
+     * each to a LOGICAL epoch-day and buckets into Monday-based weeks (RecapGraphs) — replacing
+     * the old SQL `dateMs / 604800000` grouping, whose weeks started on THURSDAYS (epoch quirk).
+     */
     @Query("""
-        SELECT (s.dateMs / 604800000 * 604800000) AS weekStart, COUNT(*) AS totalSets
-        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
-        WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.isWarmup = 0
-        GROUP BY weekStart ORDER BY weekStart ASC
+        SELECT s.dateMs FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND s.kind IS NULL
     """)
-    suspend fun getWeeklyVolume(name: String): List<WeekVolume>
+    suspend fun getCompletedWorkingSetDateMs(): List<Long>
 
     @Query("""
         SELECT muscleGroup, COUNT(*) AS totalSets FROM workout_sets

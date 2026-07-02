@@ -77,7 +77,10 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getStrengthHistory(name: String): List<StrengthPoint> = setDao.getStrengthHistory(name)
 
-    suspend fun getWeeklyVolume(name: String): List<WeekVolume> = setDao.getWeeklyVolume(name)
+    /** One LOGICAL epoch-day per completed working set (Item 7 day boundary), for weekly volume. */
+    suspend fun getWorkingSetDayEpochs(): List<Long> =
+        setDao.getCompletedWorkingSetDateMs()
+            .map { com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it) }
 
     suspend fun getMuscleGroupVolume(): List<MuscleVolume> = setDao.getMuscleGroupVolume()
 

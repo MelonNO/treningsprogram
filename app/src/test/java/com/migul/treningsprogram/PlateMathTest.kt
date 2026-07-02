@@ -1,6 +1,8 @@
 package com.migul.treningsprogram
 
+import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.ui.log.PlateMath
+import com.migul.treningsprogram.ui.log.PlateMath.PlateProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -8,13 +10,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * F4 — plate-loading math behind the keypad's "per side" readout: barbell
- * recognition (with dumbbell/machine vetoes), greedy decomposition, inexact
- * targets, and the below-bar / empty-bar edges.
+ * F4 — plate-loading math behind the keypad's "per side" readout: barbell/dumbbell recognition,
+ * greedy decomposition against a per-preset profile, inexact targets, the below-bar/empty-bar
+ * edges, profile resolution from GymPreset (null = 50 mm home defaults), and plate-CSV parsing.
  */
 class PlateMathTest {
 
-    // ── barbell recognition ────────────────────────────────────────────────────────────────────
+    /** A standard commercial gym: 20 kg bar, full metric plates, fixed dumbbells. */
+    private val gym = PlateProfile(
+        barKg = 20f, dumbbellBarKg = 2f,
+        plates = listOf(25f, 20f, 15f, 10f, 5f, 2.5f, 1.25f),
+        loadableDumbbells = false,
+    )
+
+    // ── exercise recognition ───────────────────────────────────────────────────────────────
 
     @Test fun `classic barbell lifts are recognized`() {
         listOf(
@@ -31,61 +40,106 @@ class PlateMathTest {
         ).forEach { assertFalse(it, PlateMath.isBarbellExercise(it)) }
     }
 
-    @Test fun `unrelated exercises are not barbell`() {
-        listOf("Pull-ups", "Plank", "Running", "Lateral Raise", "").forEach {
-            assertFalse(it, PlateMath.isBarbellExercise(it))
+    @Test fun `dumbbell lifts are recognized as dumbbell`() {
+        listOf("Dumbbell Bench Press", "DB Row", "Incline DB Press").forEach {
+            assertTrue(it, PlateMath.isDumbbellExercise(it))
         }
+        assertFalse(PlateMath.isDumbbellExercise("Barbell Row"))
+        assertFalse(PlateMath.isDumbbellExercise("Pull-ups"))
     }
 
-    // ── decomposition ─────────────────────────────────────────────────────────────────────────
+    // ── decomposition (explicit gym profile) ───────────────────────────────────────────────
 
     @Test fun `exact load decomposes greedily per side`() {
-        // 100 kg → 40 per side → 25 + 15
-        assertEquals(listOf(25f, 15f), PlateMath.perSide(100f)!!.perSide)
-        assertTrue(PlateMath.perSide(100f)!!.exact)
-    }
-
-    @Test fun `small increments use the fractional plates`() {
-        // 62.5 → 21.25/side → 20 + 1.25
-        val l = PlateMath.perSide(62.5f)!!
-        assertEquals(listOf(20f, 1.25f), l.perSide)
+        // 100 kg on a 20 kg bar → 40 per side → 25 + 15
+        val l = PlateMath.perSide(100f, gym.barKg, gym.plates)!!
+        assertEquals(listOf(25f, 15f), l.perSide)
         assertTrue(l.exact)
     }
 
     @Test fun `unreachable total reports the closest achievable weight`() {
-        // 61 → 20.5/side → 20 exact, 0.5 leftover → achievable 60
-        val l = PlateMath.perSide(61f)!!
+        // 61 on 20 kg bar → 20.5/side → 20 loaded, 0.5 left → achievable 60
+        val l = PlateMath.perSide(61f, gym.barKg, gym.plates)!!
         assertEquals(listOf(20f), l.perSide)
         assertFalse(l.exact)
         assertEquals(60f, l.achievableTotal, 0.001f)
     }
 
-    @Test fun `below bar weight yields null`() {
-        assertNull(PlateMath.perSide(15f))
+    @Test fun `below bar weight yields null and empty bar is exact`() {
+        assertNull(PlateMath.perSide(15f, gym.barKg, gym.plates))
+        val empty = PlateMath.perSide(20f, gym.barKg, gym.plates)!!
+        assertTrue(empty.perSide.isEmpty())
+        assertTrue(empty.exact)
     }
 
-    @Test fun `empty bar is exact with no plates`() {
-        val l = PlateMath.perSide(20f)!!
-        assertTrue(l.perSide.isEmpty())
-        assertTrue(l.exact)
+    // ── home (default) profile: 7 kg 50 mm bar + home plate set ───────────────────────────
+
+    @Test fun `home defaults are the 50mm setup`() {
+        val d = PlateProfile.DEFAULT
+        assertEquals(7f, d.barKg, 0f)
+        assertEquals(2f, d.dumbbellBarKg, 0f)
+        assertEquals(listOf(20f, 15f, 10f, 5f, 2f, 1.45f, 1.25f, 1f, 0.5f), d.plates)
+        assertTrue(d.loadableDumbbells)
     }
 
-    // ── display line ───────────────────────────────────────────────────────────────────────────
-
-    @Test fun `display shows plates per side for barbell lifts`() {
-        assertEquals("25 + 15 per side", PlateMath.display(100f, "Barbell Bench Press"))
+    @Test fun `home bar decomposes with the home plate set`() {
+        // 47 kg total on the 7 kg bar → 20/side → 20
+        assertEquals("20 per side", PlateMath.display(47f, "Deadlift"))
+        // 10.9 kg total → 1.95/side → 1.45 + 0.5
+        assertEquals("1.45 + 0.5 per side", PlateMath.display(10.9f, "Squat"))
+        assertEquals("Empty bar (7 kg)", PlateMath.display(7f, "Back Squat"))
     }
 
-    @Test fun `display marks inexact loads with the achievable total`() {
-        assertEquals("≈ 20 per side (60 kg)", PlateMath.display(61f, "Deadlift"))
+    @Test fun `dumbbell lifts get a readout on loadable-dumbbell profiles only`() {
+        // Home default: 12 kg dumbbell on a 2 kg handle → 5/side → 5
+        assertEquals("5 per side (dumbbell)", PlateMath.display(12f, "Dumbbell Bench Press"))
+        // Gym profile: fixed dumbbells → no readout
+        assertNull(PlateMath.display(12f, "Dumbbell Bench Press", gym))
     }
 
-    @Test fun `display hides for non-barbell or below-bar`() {
-        assertNull(PlateMath.display(100f, "Dumbbell Press"))
-        assertNull(PlateMath.display(10f, "Deadlift"))
+    @Test fun `display shows plates per side for barbell lifts on the gym profile`() {
+        assertEquals("25 + 15 per side", PlateMath.display(100f, "Barbell Bench Press", gym))
+        assertEquals("≈ 20 per side (60 kg)", PlateMath.display(61f, "Deadlift", gym))
+        assertNull(PlateMath.display(100f, "Lat Pulldown", gym))
+        assertNull(PlateMath.display(3f, "Deadlift", gym))
     }
 
-    @Test fun `display labels the empty bar`() {
-        assertEquals("Empty bar (20 kg)", PlateMath.display(20f, "Back Squat"))
+    // ── profile resolution from GymPreset ──────────────────────────────────────────────────
+
+    @Test fun `null preset and null fields resolve to the home defaults`() {
+        assertEquals(PlateProfile.DEFAULT, PlateProfile.from(null))
+        assertEquals(PlateProfile.DEFAULT, PlateProfile.from(GymPreset(name = "x")))
+    }
+
+    @Test fun `preset fields override the defaults individually`() {
+        val p = PlateProfile.from(
+            GymPreset(
+                name = "Gym", barWeightKg = 20f, platesCsv = "25, 20, 10",
+                loadableDumbbells = false,
+            )
+        )
+        assertEquals(20f, p.barKg, 0f)
+        assertEquals(listOf(25f, 20f, 10f), p.plates)
+        assertFalse(p.loadableDumbbells)
+        assertEquals(PlateProfile.DEFAULT.dumbbellBarKg, p.dumbbellBarKg, 0f) // untouched → default
+    }
+
+    @Test fun `blank or garbage platesCsv falls back to the default set`() {
+        assertEquals(PlateProfile.DEFAULT.plates, PlateProfile.from(GymPreset(name = "x", platesCsv = "")).plates)
+        assertEquals(PlateProfile.DEFAULT.plates, PlateProfile.from(GymPreset(name = "x", platesCsv = "abc")).plates)
+    }
+
+    // ── plate-CSV parsing ──────────────────────────────────────────────────────────────────
+
+    @Test fun `parsePlates accepts mixed separators and sorts descending`() {
+        assertEquals(
+            listOf(20f, 10f, 5f, 1.25f),
+            PlateProfile.parsePlates("5, 20; 1.25 / 10"),
+        )
+    }
+
+    @Test fun `parsePlates drops invalid and non-positive tokens`() {
+        assertEquals(listOf(10f, 5f), PlateProfile.parsePlates("10, x, -2, 0, 5"))
+        assertTrue(PlateProfile.parsePlates("").isEmpty())
     }
 }

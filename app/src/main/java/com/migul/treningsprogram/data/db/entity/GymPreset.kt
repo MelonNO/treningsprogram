@@ -8,5 +8,13 @@ data class GymPreset(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val equipmentJson: String = "[]",
-    val notes: String = ""
+    val notes: String = "",
+    // Plate-calculator profile (DB v18). All NULLABLE: null = "use the app default" (the user's
+    // 50 mm home setup — 7 kg bar, home plate set, loadable dumbbells; see PlateProfile). Kept
+    // nullable rather than defaulted so old backups (Gson leaves missing fields null) and the
+    // additive migration both resolve identically through PlateProfile.from().
+    val barWeightKg: Float? = null,
+    val dumbbellBarWeightKg: Float? = null,
+    val platesCsv: String? = null,
+    val loadableDumbbells: Boolean? = null
 )

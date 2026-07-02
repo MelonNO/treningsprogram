@@ -22,7 +22,7 @@ import com.migul.treningsprogram.data.db.entity.*
         Program::class,
         XpEvent::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -267,6 +267,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Plate-calculator profile per gym preset. Purely additive nullable columns; NULL means
+        // "app default" (resolved by PlateProfile.from), so existing rows need no backfill.
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE gym_presets ADD COLUMN barWeightKg REAL")
+                db.execSQL("ALTER TABLE gym_presets ADD COLUMN dumbbellBarWeightKg REAL")
+                db.execSQL("ALTER TABLE gym_presets ADD COLUMN platesCsv TEXT")
+                db.execSQL("ALTER TABLE gym_presets ADD COLUMN loadableDumbbells INTEGER")
+            }
+        }
+
         suspend fun seedPresets(dao: GymPresetDao) {
             if (dao.count() > 0) return
             val gson = Gson()
@@ -276,15 +287,20 @@ abstract class AppDatabase : RoomDatabase() {
                     "Incline bench", "Leg press machine", "Leg curl machine", "Leg extension machine",
                     "Lat pulldown machine", "Seated cable row", "Chest fly machine (pec deck)",
                     "Shoulder press machine")),
-                notes = ""))
+                notes = "",
+                // Commercial gym plate profile: 20 kg Olympic bar, full metric set, fixed dumbbells.
+                barWeightKg = 20f, platesCsv = "25,20,15,10,5,2.5,1.25", loadableDumbbells = false))
             dao.insert(GymPreset(name = "Hotel Gym",
                 equipmentJson = gson.toJson(listOf("Dumbbells (limited range)", "Treadmill",
                     "Stationary bike", "Resistance bands")),
-                notes = "Limited equipment — avoid barbell-only exercises"))
+                notes = "Limited equipment — avoid barbell-only exercises",
+                loadableDumbbells = false))
             dao.insert(GymPreset(name = "Home Gym",
                 equipmentJson = gson.toJson(listOf("Pull-up bar", "Bench press bench",
                     "Barbell", "Dumbbells", "Ab roller")),
                 notes = "Low ceiling — standing overhead barbell press not possible. Avoid any exercise requiring a barbell held overhead while standing."))
+                // Home Gym: profile fields left null = the 50 mm home defaults (7 kg bar,
+                // home plate set, plate-loaded dumbbells) from PlateMath.PlateProfile.DEFAULT.
         }
 
         val DEFAULT_EXERCISES = listOf(

@@ -22,6 +22,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.databinding.FragmentGymPresetsBinding
+import com.migul.treningsprogram.ui.log.PlateMath
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -233,6 +234,50 @@ class GymPresetsFragment : Fragment() {
         addRow.addView(tilNewItem); addRow.addView(btnAdd)
         dialogView.addView(addRow)
 
+        // ── Plate-calculator profile (leave blank to use the 50 mm home defaults) ──
+        val defaults = PlateMath.PlateProfile.DEFAULT
+        dialogView.addView(TextView(ctx).apply {
+            text = "Plate calculator"
+            textSize = 14f
+            setTextColor(Color.parseColor("#EDFFFE"))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
+                it.topMargin = dp(16); it.bottomMargin = dp(6)
+            }
+        })
+
+        fun numberField(hintText: String, initial: Float?): Pair<TextInputLayout, TextInputEditText> {
+            val et = TextInputEditText(ctx).apply {
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                setText(initial?.let { if (it == it.toInt().toFloat()) it.toInt().toString() else it.toString() } ?: "")
+            }
+            val til = TextInputLayout(ctx, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+                hint = hintText
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(8) }
+                addView(et)
+            }
+            return til to et
+        }
+
+        val (tilBar, etBar) = numberField("Bar weight kg (default ${defaults.barKg.toInt()} — 50 mm home bar)", existing?.barWeightKg)
+        dialogView.addView(tilBar)
+        val (tilDbBar, etDbBar) = numberField("Dumbbell handle kg (default ${defaults.dumbbellBarKg.toInt()})", existing?.dumbbellBarWeightKg)
+        dialogView.addView(tilDbBar)
+
+        val etPlates = TextInputEditText(ctx).apply { setText(existing?.platesCsv ?: "") }
+        val tilPlates = TextInputLayout(ctx, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = "Plates per pair, dot decimals (default 20 15 10 5 2 1.45 1.25 1 0.5)"
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(8) }
+            addView(etPlates)
+        }
+        dialogView.addView(tilPlates)
+
+        val cbLoadableDb = com.google.android.material.checkbox.MaterialCheckBox(ctx).apply {
+            text = "Plate-loaded dumbbells (readout on dumbbell lifts)"
+            isChecked = existing?.loadableDumbbells ?: defaults.loadableDumbbells
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(4) }
+        }
+        dialogView.addView(cbLoadableDb)
+
         MaterialAlertDialogBuilder(ctx)
             .setTitle(if (existing == null) "New Preset" else "Edit Preset")
             .setView(ScrollView(ctx).apply { addView(dialogView) })
@@ -240,8 +285,14 @@ class GymPresetsFragment : Fragment() {
                 val name = etName.text.toString().trim()
                 if (name.isBlank()) return@setPositiveButton
                 val notes = etNotes.text.toString().trim()
-                if (existing == null) viewModel.addPreset(name, equipmentItems, notes)
-                else viewModel.updatePreset(existing, name, equipmentItems, notes)
+                // Blank numeric/plate fields persist as null = "use the app default".
+                val barKg = etBar.text.toString().trim().toFloatOrNull()
+                val dbBarKg = etDbBar.text.toString().trim().toFloatOrNull()
+                val platesCsv = etPlates.text.toString().trim()
+                    .takeIf { PlateMath.PlateProfile.parsePlates(it).isNotEmpty() }
+                val loadable = cbLoadableDb.isChecked
+                if (existing == null) viewModel.addPreset(name, equipmentItems, notes, barKg, dbBarKg, platesCsv, loadable)
+                else viewModel.updatePreset(existing, name, equipmentItems, notes, barKg, dbBarKg, platesCsv, loadable)
             }
             .setNegativeButton("Cancel", null)
             .show()

@@ -1,17 +1,62 @@
 package com.migul.treningsprogram.ui.log
 
+import com.migul.treningsprogram.data.db.entity.GymPreset
+
 /**
  * F4 — pure plate-loading math behind the keypad's live "per side" readout.
  *
- * Assumes a standard 20 kg bar and metric plate pairs (25/20/15/10/5/2.5/1.25).
- * Greedy decomposition per side; when the target isn't reachable exactly with
- * standard plates the readout is prefixed with "≈" and shows the closest
- * loadable weight below the target. Pure so it is fully unit-testable off-device.
+ * Which bar/plates apply comes from the ACTIVE GYM PRESET via [PlateProfile]; the app-wide
+ * default (no preset, or preset fields left blank) is the user's 50 mm home setup: a 7 kg bar,
+ * a 20/15/10/5/2/1.45/1.25/1/0.5 kg plate set, and plate-loaded (not fixed) dumbbells — so the
+ * readout also applies to dumbbell lifts there, using the dumbbell-handle weight.
+ *
+ * Greedy decomposition per side; when the target isn't reachable exactly with the available
+ * plates the readout is prefixed with "≈" and shows the closest loadable weight below the
+ * target. Pure so it is fully unit-testable off-device.
  */
 object PlateMath {
 
-    const val BAR_KG = 20f
-    private val PLATES_KG = listOf(25f, 20f, 15f, 10f, 5f, 2.5f, 1.25f)
+    /** Resolved equipment profile the calculator works against. */
+    data class PlateProfile(
+        val barKg: Float,
+        val dumbbellBarKg: Float,
+        /** Available plate sizes per PAIR, any order; blank/invalid entries dropped. */
+        val plates: List<Float>,
+        /** True when dumbbells are plate-loaded handles (home style), not fixed gym dumbbells. */
+        val loadableDumbbells: Boolean,
+    ) {
+        companion object {
+            /** The user's 50 mm home setup — the app-wide default. */
+            val DEFAULT = PlateProfile(
+                barKg = 7f,
+                dumbbellBarKg = 2f,
+                plates = listOf(20f, 15f, 10f, 5f, 2f, 1.45f, 1.25f, 1f, 0.5f),
+                loadableDumbbells = true,
+            )
+
+            /** Resolve a preset's profile; null preset or null fields fall back to [DEFAULT]. */
+            fun from(preset: GymPreset?): PlateProfile = PlateProfile(
+                barKg = preset?.barWeightKg ?: DEFAULT.barKg,
+                dumbbellBarKg = preset?.dumbbellBarWeightKg ?: DEFAULT.dumbbellBarKg,
+                plates = preset?.platesCsv?.let(::parsePlates)?.takeIf { it.isNotEmpty() }
+                    ?: DEFAULT.plates,
+                loadableDumbbells = preset?.loadableDumbbells ?: DEFAULT.loadableDumbbells,
+            )
+
+            /**
+             * Parse a user-typed plate list. Separators: comma/semicolon/slash/whitespace.
+             * When the string mixes commas WITH dots, commas are separators and dots decimals;
+             * when only commas appear they are treated as separators (so "20,10,5" works) —
+             * decimals should be typed with a dot ("1.25").
+             */
+            fun parsePlates(csv: String): List<Float> =
+                csv.split(',', ';', '/', ' ', '\n')
+                    .mapNotNull { it.trim().toFloatOrNull() }
+                    .filter { it > 0f }
+                    .sortedDescending()
+        }
+    }
+
     private const val EPS = 0.001f
 
     /** Words that mean "not a barbell" even when the lift name matches a barbell hint. */
@@ -34,39 +79,51 @@ object PlateMath {
         return BARBELL_HINTS.any { it in n }
     }
 
+    /** Explicitly-dumbbell lifts — plate math applies only when the profile has loadable handles. */
+    fun isDumbbellExercise(name: String): Boolean {
+        val n = name.lowercase()
+        return "dumbbell" in n || n.startsWith("db ") || " db " in n
+    }
+
     data class Loadout(val perSide: List<Float>, val exact: Boolean, val achievableTotal: Float)
 
     /** Greedy per-side decomposition, or null when the total doesn't reach the bar. */
-    fun perSide(totalKg: Float, barKg: Float = BAR_KG): Loadout? {
+    fun perSide(totalKg: Float, barKg: Float, plates: List<Float>): Loadout? {
         if (totalKg < barKg - EPS) return null
         var side = (totalKg - barKg) / 2f
-        val plates = mutableListOf<Float>()
-        for (p in PLATES_KG) {
+        val loaded = mutableListOf<Float>()
+        for (p in plates.sortedDescending()) {
             while (side >= p - EPS) {
-                plates.add(p)
+                loaded.add(p)
                 side -= p
             }
         }
         return Loadout(
-            perSide = plates,
+            perSide = loaded,
             exact = side < EPS,
-            achievableTotal = barKg + plates.sum() * 2f,
+            achievableTotal = barKg + loaded.sum() * 2f,
         )
     }
 
     /**
-     * The keypad readout line, or null when it shouldn't be shown (non-barbell
-     * exercise, or weight below the bar).
+     * The keypad readout line, or null when it shouldn't be shown (exercise isn't plate-loaded
+     * under [profile], or the weight doesn't reach the bar). For dumbbell lifts the entered
+     * weight is ONE dumbbell's total, decomposed against the handle weight.
      */
-    fun display(totalKg: Float, exerciseName: String): String? {
-        if (!isBarbellExercise(exerciseName)) return null
-        val l = perSide(totalKg) ?: return null
+    fun display(totalKg: Float, exerciseName: String, profile: PlateProfile = PlateProfile.DEFAULT): String? {
+        val (barKg, suffix) = when {
+            isDumbbellExercise(exerciseName) ->
+                if (profile.loadableDumbbells) profile.dumbbellBarKg to " (dumbbell)" else return null
+            isBarbellExercise(exerciseName) -> profile.barKg to ""
+            else -> return null
+        }
+        val l = perSide(totalKg, barKg, profile.plates) ?: return null
         if (l.perSide.isEmpty()) {
-            return if (l.exact) "Empty bar (${fmt(BAR_KG)} kg)" else null
+            return if (l.exact) "Empty bar (${fmt(barKg)} kg)$suffix" else null
         }
         val plates = l.perSide.joinToString(" + ") { fmt(it) }
-        return if (l.exact) "$plates per side"
-        else "≈ $plates per side (${fmt(l.achievableTotal)} kg)"
+        return if (l.exact) "$plates per side$suffix"
+        else "≈ $plates per side (${fmt(l.achievableTotal)} kg)$suffix"
     }
 
     private fun fmt(w: Float): String =
