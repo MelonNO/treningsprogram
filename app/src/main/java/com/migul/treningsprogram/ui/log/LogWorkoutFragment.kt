@@ -306,6 +306,16 @@ class LogWorkoutFragment : Fragment() {
                     }
                 }
 
+                // R7: "beat last time" chip + inline PR flare.
+                launch {
+                    viewModel.beatTarget.collect { target ->
+                        if (!prFlashActive) renderBeatChip(target)
+                    }
+                }
+                launch {
+                    viewModel.prFlash.collect { newBest -> playPrFlash(newBest) }
+                }
+
                 launch {
                     viewModel.sessionAbandoned.collect { abandoned ->
                         if (abandoned) findNavController().popBackStack(R.id.homeFragment, false)
@@ -697,6 +707,47 @@ class LogWorkoutFragment : Fragment() {
 
     private fun getMuscleGroupName(exerciseName: String): String =
         MuscleClassifier.displayName(exerciseName)
+
+    // ── R7: "beat last time" chip + inline PR moment ─────────────────────────────────────────
+
+    /** True while the gold "PR!" flare owns the chip, so a beatTarget re-emission can't overwrite it. */
+    private var prFlashActive = false
+
+    private fun renderBeatChip(target: Float?) {
+        if (_binding == null) return
+        if (target == null) {
+            binding.chipBeatTarget.visibility = View.GONE
+        } else {
+            binding.chipBeatTarget.visibility = View.VISIBLE
+            binding.chipBeatTarget.text = "Beat: ${formatWeight(target)} kg"
+            binding.chipBeatTarget.setTextColor(requireContext().getColor(R.color.auros_cyan))
+        }
+    }
+
+    /**
+     * The inline PR moment (A-P2: small and local — the big celebration stays at completion).
+     * The chip flares gold "PR! 62.5 kg" with a quick pulse, then settles back into the raised
+     * "Beat:" target, which the ViewModel has already lifted to the new best.
+     */
+    private fun playPrFlash(newBestKg: Float) {
+        if (_binding == null) return
+        prFlashActive = true
+        val chip = binding.chipBeatTarget
+        chip.visibility = View.VISIBLE
+        chip.text = "PR! ${formatWeight(newBestKg)} kg"
+        chip.setTextColor(requireContext().getColor(R.color.game_gold))
+        chip.performHapticFeedback(
+            if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM
+            else android.view.HapticFeedbackConstants.VIRTUAL_KEY
+        )
+        chip.animate().scaleX(1.25f).scaleY(1.25f).setDuration(140).withEndAction {
+            _binding?.chipBeatTarget?.animate()?.scaleX(1f)?.scaleY(1f)?.setDuration(140)?.start()
+        }.start()
+        chip.postDelayed({
+            prFlashActive = false
+            if (_binding != null && isAdded) renderBeatChip(viewModel.beatTarget.value)
+        }, 1600L)
+    }
 
     private fun showRestTimer(rest: RestStart, exerciseName: String = "") {
         if (!restTimerManager.isRunning.value) {

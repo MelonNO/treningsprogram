@@ -14,6 +14,7 @@ import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.data.repository.thisMonday
+import com.migul.treningsprogram.domain.BeatTarget
 import com.migul.treningsprogram.domain.model.DailyChallenge
 import com.migul.treningsprogram.domain.model.WorkoutResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -96,6 +97,68 @@ class LogWorkoutViewModel @Inject constructor(
             if (exercise == null) emptyList()
             else allSets.filter { it.exerciseName == exercise.exerciseName }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ── R7: "beat last time" target chip + live PR flash (preview only — the official award
+    //    stays in processWorkoutCompletion; BeatTarget mirrors its exact rule) ─────────────────
+
+    /** The current exercise's number to beat (null = no history = no chip). */
+    private val _beatTarget = MutableStateFlow<Float?>(null)
+    val beatTarget: StateFlow<Float?> = _beatTarget.asStateFlow()
+
+    /** One event per NEW in-session best that beats the historical best — drives the chip flare. */
+    private val _prFlash = MutableSharedFlow<Float>(extraBufferCapacity = 4)
+    val prFlash: SharedFlow<Float> = _prFlash.asSharedFlow()
+
+    /** Historical best per exercise, fetched once per session (excludes this session's sets). */
+    private val historicalBest = mutableMapOf<String, Float?>()
+
+    /** Best weight already flashed this session per exercise — re-flash only when beaten. */
+    private val sessionFlashed = mutableMapOf<String, Float>()
+
+    private suspend fun historicalBestFor(name: String): Float? {
+        val sid = _sessionId.value ?: return null
+        return historicalBest.getOrPut(name) { workoutRepository.getPreviousMaxWeight(name, sid) }
+    }
+
+    init {
+        // Chip value: the CURRENT exercise's historical best, raised live once an in-session
+        // working set beats it (the sets flow re-emits after every log). Re-resolves on
+        // next/prev/swap so the chip always shows the shown exercise's own history; a
+        // first-ever exercise resolves to null → no chip (baselines, never targets).
+        viewModelScope.launch {
+            combine(currentExercise, sets) { ex, all ->
+                ex?.exerciseName?.let { name ->
+                    name to all.filter { it.exerciseName == name && !it.isWarmup }
+                        .maxOfOrNull { it.weightKg }
+                }
+            }
+                .distinctUntilChanged()
+                .collect { current ->
+                    _beatTarget.value = current?.let { (name, sessionMax) ->
+                        BeatTarget.chipTarget(historicalBestFor(name), sessionMax)
+                    }
+                }
+        }
+    }
+
+    /**
+     * Called after a set is persisted: fires the inline PR moment when [weight] beats the
+     * exercise's historical best AND everything already lifted or flashed this session.
+     * [priorSessionMax] (the working-set max logged BEFORE this set) covers resumed sessions
+     * whose earlier sets predate this ViewModel — an already-beaten number never re-flashes,
+     * keeping the preview in exact agreement with completion's one-PR-per-exercise credit.
+     */
+    private suspend fun checkPrPreview(
+        name: String, weight: Float, isWarmup: Boolean, priorSessionMax: Float?
+    ) {
+        if (isWarmup) return
+        val prev = historicalBestFor(name) ?: return  // first-ever performance: baseline, never a PR
+        val alreadyBeaten = listOfNotNull(sessionFlashed[name], priorSessionMax).maxOrNull()
+        if (BeatTarget.shouldFlash(weight, false, prev, alreadyBeaten)) {
+            sessionFlashed[name] = weight
+            _prFlash.emit(weight)
+        }
+    }
 
     // Item 5 (rest-UX batch 2026-07): per-exercise timer, wall-clock based. The elapsed value is
     // derived from a persisted "start of the current exercise" timestamp, NOT from a flow-local
@@ -510,6 +573,11 @@ class LogWorkoutViewModel @Inject constructor(
                     loggedAtMs = System.currentTimeMillis()
                 )
             )
+            // R7: inline PR preview — fires after the set is real (persisted), never before.
+            checkPrPreview(
+                exercise.exerciseName, weight, isWarmup,
+                existingSets.filter { !it.isWarmup }.maxOfOrNull { it.weightKg }
+            )
         }
     }
 
@@ -529,6 +597,11 @@ class LogWorkoutViewModel @Inject constructor(
                     rpeLabel = rpeLabel,
                     loggedAtMs = System.currentTimeMillis()
                 )
+            )
+            // R7: freestyle sets earn the same inline PR moment (completion credits them too).
+            checkPrPreview(
+                exerciseName, weight, isWarmup,
+                existingSets.filter { !it.isWarmup }.maxOfOrNull { it.weightKg }
             )
         }
     }
