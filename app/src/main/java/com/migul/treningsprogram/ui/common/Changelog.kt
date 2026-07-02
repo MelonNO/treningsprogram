@@ -13,6 +13,14 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 64, versionName = "1.24.1",
+            highlights = listOf(
+                "Fixed: the History sessions list could stay stuck on loading placeholders and never show your workouts",
+                "Bodyweight exercises now read \"BW × reps\" in the session recap instead of \"0 kg\"",
+                "Clearer History search: the hint and empty state now say it searches by date",
+            ),
+        ),
+        Entry(
             versionCode = 63, versionName = "1.24.0",
             highlights = listOf(
                 "Recap, redesigned: a hero session header with stat chips, a new \"Earned this session\" card (achievements + PRs), and specific muscles — triceps, not just arms",

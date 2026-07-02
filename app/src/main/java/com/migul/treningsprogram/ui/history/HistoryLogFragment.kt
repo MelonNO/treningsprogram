@@ -99,10 +99,13 @@ class HistoryLogFragment : Fragment() {
 
     private fun renderSessions(sessions: List<WorkoutSession>) {
         binding.tvEmpty.isVisible = sessions.isEmpty()
-        // Item 12: an empty RESULT for an active range reads as a filter miss, not a fresh install.
-        binding.tvEmpty.text = if (viewModel.logDateRange.value != null)
-            "No sessions in the selected date range."
-        else "No sessions yet. Complete a workout to see your history!"
+        // Item 12 / F3 secondary: an empty RESULT for an active range or search reads as a
+        // filter miss, not a fresh install.
+        binding.tvEmpty.text = when {
+            viewModel.logDateRange.value != null -> "No sessions in the selected date range."
+            viewModel.searchQuery.value.isNotBlank() -> "No sessions match your search."
+            else -> "No sessions yet. Complete a workout to see your history!"
+        }
         binding.layoutSessions.removeAllViews()
         val inflater = LayoutInflater.from(requireContext())
         for (session in sessions) {

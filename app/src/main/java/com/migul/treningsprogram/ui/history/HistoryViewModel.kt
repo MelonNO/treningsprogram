@@ -10,8 +10,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
 import javax.inject.Inject
 
 @HiltViewModel
@@ -28,39 +26,36 @@ class HistoryViewModel @Inject constructor(
         workoutRepository.getAllCompletedSessions()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // History "Log" timeline — real workouts PLUS auto-logged REST/MISSED days, so empty days are
-    // visible as distinct entries. Separate from [allSessions] so placeholders never reach the Stats.
-    // Stage-3 item 2: starts null (= still loading) so the UI can show a skeleton instead of a
-    // premature "no sessions yet" empty state before the first DB emission.
-    private val timelineSessions: StateFlow<List<WorkoutSession>?> =
-        workoutRepository.getHistoryTimeline()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
     val searchQuery = MutableStateFlow("")
 
     // Stage-3 item 12: the calendar start/end range replaces the Week/Month/3-Months chips.
     // null = All (default); deliberately in-memory only so every visit starts at All (A-12a).
     val logDateRange = MutableStateFlow<com.migul.treningsprogram.domain.DateRangeFilter.Range?>(null)
 
-    // null = still loading (item 2 skeleton); non-null = render (possibly an empty state).
+    // History "Log" timeline — real workouts PLUS auto-logged REST/MISSED days, so empty days are
+    // visible as distinct entries. Uses getHistoryTimeline (not [allSessions]) so placeholders
+    // never reach the Stats. null = still loading (item 2 skeleton); non-null = render (possibly
+    // an empty state).
+    //
+    // F3 (v1.24.1): this was a two-layer chain — the timeline had its own
+    // stateIn(WhileSubscribed) whose null/loading sentinel was threaded through the combine —
+    // and on device (release build) that chain never delivered its first emission, leaving the
+    // list permanently on skeletons with no recovery path (search/range changes couldn't emit
+    // either, since the transform kept returning null). The intermediate share only existed for
+    // the CSV export, which item 15 removed. Now a single sharing layer: the combine reads the
+    // DAO flow directly and only ever sees real lists; null exists solely as stateIn's
+    // pre-first-emission initial value — the shape every other (working) chain in the app uses.
     val filteredSessions: StateFlow<List<WorkoutSession>?> =
-        combine(timelineSessions, searchQuery, logDateRange) { sessions, query, range ->
-            if (sessions == null) return@combine null
-            // Inclusive on both ends, evaluated on the logical day boundary (item 12).
-            val filtered = sessions.filter {
-                com.migul.treningsprogram.domain.DateRangeFilter.contains(range, it.dateMs)
-            }
-            if (query.isBlank()) {
-                filtered
-            } else {
-                val fmt = SimpleDateFormat("dd MMM yyyy EEE", Locale.getDefault())
-                filtered.filter { s ->
-                    // Item 7: match against the LOGICAL day shown in the list, so searching a date
-                    // finds the session where History actually files it.
-                    fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(s.dateMs)))
-                        .contains(query, ignoreCase = true)
-                }
-            }
+        combine(
+            workoutRepository.getHistoryTimeline(),
+            searchQuery,
+            logDateRange
+        ) { sessions, query, range ->
+            // Range inclusive on both ends; both filters evaluate the LOGICAL day (items 7/12),
+            // so searching a date finds the session where History actually files it.
+            sessions.filter {
+                com.migul.treningsprogram.domain.HistorySearch.matches(it.dateMs, query, range)
+            } as List<WorkoutSession>?
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     suspend fun getSetsForSession(sessionId: Long): List<WorkoutSet> =

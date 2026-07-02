@@ -31,7 +31,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="Search exercises or dates..."
+            android:hint="Search by date (e.g. 12 Jun or Thu)..."
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_search"

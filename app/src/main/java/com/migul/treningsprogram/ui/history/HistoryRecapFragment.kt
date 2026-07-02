@@ -382,8 +382,13 @@ class HistoryRecapFragment : Fragment() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         top.addView(TextView(requireContext()).apply {
-            text = if (ex.isCardio) "${ex.totalReps} reps · ${ex.sets} sets"
-                   else "${fmt(ex.topWeightKg)} kg × ${ex.topReps}"
+            // F2 (v1.24.1): bodyweight work (0 kg) reads "BW × reps", matching the log screen's
+            // "BW" label — "0 kg × 6" read as no load.
+            text = when {
+                ex.isCardio -> "${ex.totalReps} reps · ${ex.sets} sets"
+                ex.topWeightKg > 0f -> "${fmt(ex.topWeightKg)} kg × ${ex.topReps}"
+                else -> "BW × ${ex.topReps}"
+            }
             textSize = 13f
             setTextColor(if (ex.isPrThisSession) gold else neutral)
             if (ex.isPrThisSession) setTypeface(typeface, Typeface.BOLD)
