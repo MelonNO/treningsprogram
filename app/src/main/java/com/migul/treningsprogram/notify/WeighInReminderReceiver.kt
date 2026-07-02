@@ -13,32 +13,29 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.migul.treningsprogram.MainActivity
 import com.migul.treningsprogram.R
+import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
 import com.migul.treningsprogram.data.preferences.PreferencesManager
-import com.migul.treningsprogram.data.repository.WorkoutRepository
-import com.migul.treningsprogram.data.repository.currentDayOfWeek
-import com.migul.treningsprogram.data.repository.thisMonday
+import com.migul.treningsprogram.domain.DayBoundary
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * F3 — fires once a day at the user's chosen time and posts a reminder IFF:
- * reminders are enabled, today (by the app's 04:00-style logical day) is a
- * scheduled training day, and the session hasn't been fully logged yet.
- * Silent no-op in every other case — including when the notification
- * permission is missing (same graceful degradation as [GenerationNotifier]).
+ * R2 — weekly weigh-in reminder: fires at the user's chosen weekday+time and posts a gentle nudge
+ * IFF no body-weight entry was logged on today's logical day. Same graceful degradation as the
+ * other receivers: missing permission, foreground app, or a load failure ⇒ silent no-op.
+ * Condition logic lives in [NotificationGate].
  */
 @AndroidEntryPoint
-class WorkoutReminderReceiver : BroadcastReceiver() {
+class WeighInReminderReceiver : BroadcastReceiver() {
 
-    @Inject lateinit var workoutRepository: WorkoutRepository
+    @Inject lateinit var bodyMeasurementDao: BodyMeasurementDao
     @Inject lateinit var prefs: PreferencesManager
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (!prefs.workoutRemindersEnabled) return
+        if (!prefs.weighInReminderEnabled) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
@@ -47,36 +44,34 @@ class WorkoutReminderReceiver : BroadcastReceiver() {
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val plan = runCatching {
-                    workoutRepository.getPlannedForDay(thisMonday(), currentDayOfWeek()).first()
-                }.getOrDefault(emptyList())
-                // Rest day or already done → no nagging. AppForegroundState: someone actively
-                // using the app doesn't need a status-bar poke either.
-                if (!NotificationGate.workoutReminderShouldFire(
+                val today = DayBoundary.todayEpochDay()
+                val loggedToday = runCatching {
+                    bodyMeasurementDao.getAllOnce().any { DayBoundary.logicalEpochDay(it.dateMs) == today }
+                }.getOrDefault(false)
+                if (!NotificationGate.weighInShouldFire(
                         enabled = true, // the toggle was checked above, before goAsync
-                        plannedExerciseCount = plan.size,
-                        allLogged = plan.isNotEmpty() && plan.all { it.isLogged },
+                        weighInLoggedToday = loggedToday,
                         isForeground = AppForegroundState.isForeground,
                     )
                 ) return@launch
-                postReminder(context, plan.size)
+                postReminder(context)
             } finally {
                 result.finish()
             }
         }
     }
 
-    private fun postReminder(context: Context, exerciseCount: Int) = runCatching {
+    private fun postReminder(context: Context) = runCatching {
         val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
             mgr.createNotificationChannel(
                 NotificationChannel(
-                    CHANNEL_ID, "Workout reminders", NotificationManager.IMPORTANCE_DEFAULT
-                ).apply { description = "Reminds you on scheduled training days" }
+                    CHANNEL_ID, "Weigh-in reminders", NotificationManager.IMPORTANCE_DEFAULT
+                ).apply { description = "A weekly reminder to log your body weight" }
             )
         }
         val tap = PendingIntent.getActivity(
-            context, 2,
+            context, 4,
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
             },
@@ -86,11 +81,8 @@ class WorkoutReminderReceiver : BroadcastReceiver() {
             NOTIF_ID,
             NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("Training day")
-                .setContentText(
-                    if (exerciseCount == 1) "1 exercise planned today — tap to start."
-                    else "$exerciseCount exercises planned today — tap to start."
-                )
+                .setContentTitle("Weigh-in day")
+                .setContentText("A quick weigh-in keeps your trend accurate — log it on Home.")
                 .setContentIntent(tap)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -99,7 +91,7 @@ class WorkoutReminderReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val CHANNEL_ID = "workout_reminders"
-        private const val NOTIF_ID = 5152
+        const val CHANNEL_ID = "weigh_in_reminders"
+        private const val NOTIF_ID = 5156
     }
 }

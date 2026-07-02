@@ -17,10 +17,10 @@ import com.migul.treningsprogram.notify.ReminderScheduler
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * Item 4: the "App Settings" screen — the single home for the two app-wide controls the user asked
- * to gather here: the day-boundary (day-reset) hour picker and the auto-rebalance-week toggle. Both
- * were relocated here (from Training Profile and the Program tab's options dialog respectively);
- * nothing else lives here.
+ * Item 4: the "App Settings" screen — the day-boundary (day-reset) hour picker, the
+ * auto-rebalance-week toggle, and (R2) the notification center: every notification type the app
+ * can send — workout-day reminder, streak warning, weigh-in reminder, program-ready — each with
+ * its own switch so any combination is possible.
  */
 @AndroidEntryPoint
 class SettingsAppFragment : Fragment() {
@@ -42,6 +42,9 @@ class SettingsAppFragment : Fragment() {
         setupDayBoundarySpinner()
         setupAutoRebalanceSwitch()
         setupWorkoutReminder()
+        setupStreakWarning()
+        setupWeighInReminder()
+        setupProgramReady()
     }
 
     // Item 1: 24-hour labels (no AM/PM anywhere). Range is 00:00..06:00; annotate midnight + default.
@@ -121,6 +124,110 @@ class SettingsAppFragment : Fragment() {
                 prefs.reminderHour, prefs.reminderMinute, true, // 24h — house style, no AM/PM
             ).show()
         }
+    }
+
+    // R2: streak warning — toggle + its own evening time; alarm resynced immediately on every
+    // change so disabling stops it at once (same pattern as the workout reminder above).
+    private fun setupStreakWarning() {
+        val prefs = viewModel.prefs
+        binding.switchStreakWarning.isChecked = prefs.streakWarningEnabled
+        binding.tvStreakWarningTime.text = "%02d:%02d".format(prefs.streakWarningHour, prefs.streakWarningMinute)
+        binding.rowStreakWarningTime.isVisible = prefs.streakWarningEnabled
+
+        binding.switchStreakWarning.setOnCheckedChangeListener { _, isChecked ->
+            prefs.streakWarningEnabled = isChecked
+            binding.rowStreakWarningTime.isVisible = isChecked
+            ReminderScheduler.sync(requireContext(), prefs)
+            Snackbar.make(
+                binding.root,
+                if (isChecked) "Streak warning ON — %02d:%02d on training days"
+                    .format(prefs.streakWarningHour, prefs.streakWarningMinute)
+                else "Streak warning OFF",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+
+        binding.rowStreakWarningTime.setOnClickListener {
+            TimePickerDialog(
+                requireContext(),
+                { _, hour, minute ->
+                    prefs.streakWarningHour = hour
+                    prefs.streakWarningMinute = minute
+                    binding.tvStreakWarningTime.text = "%02d:%02d".format(hour, minute)
+                    ReminderScheduler.sync(requireContext(), prefs)
+                },
+                prefs.streakWarningHour, prefs.streakWarningMinute, true,
+            ).show()
+        }
+    }
+
+    // R2: weekly weigh-in reminder — toggle + weekday + time (1 = Monday … 7 = Sunday, app-wide).
+    private fun setupWeighInReminder() {
+        val prefs = viewModel.prefs
+        binding.switchWeighIn.isChecked = prefs.weighInReminderEnabled
+        binding.tvWeighInDay.text = weekdayName(prefs.weighInDayOfWeek)
+        binding.tvWeighInTime.text = "%02d:%02d".format(prefs.weighInHour, prefs.weighInMinute)
+        binding.rowWeighInDay.isVisible = prefs.weighInReminderEnabled
+        binding.rowWeighInTime.isVisible = prefs.weighInReminderEnabled
+
+        binding.switchWeighIn.setOnCheckedChangeListener { _, isChecked ->
+            prefs.weighInReminderEnabled = isChecked
+            binding.rowWeighInDay.isVisible = isChecked
+            binding.rowWeighInTime.isVisible = isChecked
+            ReminderScheduler.sync(requireContext(), prefs)
+            Snackbar.make(
+                binding.root,
+                if (isChecked) "Weigh-in reminder ON — ${weekdayName(prefs.weighInDayOfWeek)} %02d:%02d"
+                    .format(prefs.weighInHour, prefs.weighInMinute)
+                else "Weigh-in reminder OFF",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+
+        binding.rowWeighInDay.setOnClickListener {
+            val days = (1..7).map { weekdayName(it) }.toTypedArray()
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Weigh-in day")
+                .setSingleChoiceItems(days, prefs.weighInDayOfWeek - 1) { dialog, which ->
+                    prefs.weighInDayOfWeek = which + 1
+                    binding.tvWeighInDay.text = weekdayName(which + 1)
+                    ReminderScheduler.sync(requireContext(), prefs)
+                    dialog.dismiss()
+                }
+                .show()
+        }
+
+        binding.rowWeighInTime.setOnClickListener {
+            TimePickerDialog(
+                requireContext(),
+                { _, hour, minute ->
+                    prefs.weighInHour = hour
+                    prefs.weighInMinute = minute
+                    binding.tvWeighInTime.text = "%02d:%02d".format(hour, minute)
+                    ReminderScheduler.sync(requireContext(), prefs)
+                },
+                prefs.weighInHour, prefs.weighInMinute, true,
+            ).show()
+        }
+    }
+
+    // R2: program-ready toggle — event-driven (GenerationNotifier checks it), no alarm to sync.
+    private fun setupProgramReady() {
+        val prefs = viewModel.prefs
+        binding.switchProgramReady.isChecked = prefs.programReadyEnabled
+        binding.switchProgramReady.setOnCheckedChangeListener { _, isChecked ->
+            prefs.programReadyEnabled = isChecked
+            Snackbar.make(
+                binding.root,
+                if (isChecked) "Program-ready notification ON" else "Program-ready notification OFF",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun weekdayName(day: Int): String = when (day) {
+        1 -> "Monday"; 2 -> "Tuesday"; 3 -> "Wednesday"; 4 -> "Thursday"
+        5 -> "Friday"; 6 -> "Saturday"; else -> "Sunday"
     }
 
     override fun onDestroyView() {

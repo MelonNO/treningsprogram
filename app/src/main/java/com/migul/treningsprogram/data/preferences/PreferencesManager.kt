@@ -239,6 +239,48 @@ class PreferencesManager(context: Context) {
         get() = prefs.getInt(KEY_REMINDER_MINUTE, 0)
         set(value) { prefs.edit().putInt(KEY_REMINDER_MINUTE, value.coerceIn(0, 59)).apply() }
 
+    // R2 (notification center): every notification type individually toggleable. Like the F3
+    // reminder prefs above, these are DEVICE-LOCAL (alarms/channels are per-device) and are
+    // intentionally NOT part of the backup schema.
+
+    // Streak warning — one evening nudge when today's planned workout isn't logged yet and a
+    // real streak (>= 2) would end with the day. Default ON (rare + high value).
+    var streakWarningEnabled: Boolean
+        get() = prefs.getBoolean(KEY_STREAK_WARNING_ENABLED, true)
+        set(value) { prefs.edit().putBoolean(KEY_STREAK_WARNING_ENABLED, value).apply() }
+
+    var streakWarningHour: Int
+        get() = prefs.getInt(KEY_STREAK_WARNING_HOUR, 20)
+        set(value) { prefs.edit().putInt(KEY_STREAK_WARNING_HOUR, value.coerceIn(0, 23)).apply() }
+
+    var streakWarningMinute: Int
+        get() = prefs.getInt(KEY_STREAK_WARNING_MINUTE, 0)
+        set(value) { prefs.edit().putInt(KEY_STREAK_WARNING_MINUTE, value.coerceIn(0, 59)).apply() }
+
+    // Weigh-in reminder — weekly, on a user-chosen weekday (1=Mon … 7=Sun, app convention) and
+    // time; skipped when a weigh-in was already logged that logical day. Default OFF.
+    var weighInReminderEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WEIGH_IN_ENABLED, false)
+        set(value) { prefs.edit().putBoolean(KEY_WEIGH_IN_ENABLED, value).apply() }
+
+    var weighInDayOfWeek: Int
+        get() = prefs.getInt(KEY_WEIGH_IN_DAY, 1)
+        set(value) { prefs.edit().putInt(KEY_WEIGH_IN_DAY, value.coerceIn(1, 7)).apply() }
+
+    var weighInHour: Int
+        get() = prefs.getInt(KEY_WEIGH_IN_HOUR, 9)
+        set(value) { prefs.edit().putInt(KEY_WEIGH_IN_HOUR, value.coerceIn(0, 23)).apply() }
+
+    var weighInMinute: Int
+        get() = prefs.getInt(KEY_WEIGH_IN_MINUTE, 0)
+        set(value) { prefs.edit().putInt(KEY_WEIGH_IN_MINUTE, value.coerceIn(0, 59)).apply() }
+
+    // Program ready — the P3 generation-complete notification, now toggleable. Default ON
+    // (the shipped behavior; the toggle only adds an OFF option).
+    var programReadyEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PROGRAM_READY_ENABLED, true)
+        set(value) { prefs.edit().putBoolean(KEY_PROGRAM_READY_ENABLED, value).apply() }
+
     init {
         // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
         // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
@@ -286,5 +328,13 @@ class PreferencesManager(context: Context) {
         private const val KEY_REMINDERS_ENABLED = "workout_reminders_enabled"
         private const val KEY_REMINDER_HOUR = "workout_reminder_hour"
         private const val KEY_REMINDER_MINUTE = "workout_reminder_minute"
+        private const val KEY_STREAK_WARNING_ENABLED = "streak_warning_enabled"
+        private const val KEY_STREAK_WARNING_HOUR = "streak_warning_hour"
+        private const val KEY_STREAK_WARNING_MINUTE = "streak_warning_minute"
+        private const val KEY_WEIGH_IN_ENABLED = "weigh_in_reminder_enabled"
+        private const val KEY_WEIGH_IN_DAY = "weigh_in_day_of_week"
+        private const val KEY_WEIGH_IN_HOUR = "weigh_in_hour"
+        private const val KEY_WEIGH_IN_MINUTE = "weigh_in_minute"
+        private const val KEY_PROGRAM_READY_ENABLED = "program_ready_enabled"
     }
 }

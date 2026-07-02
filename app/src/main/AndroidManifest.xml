@@ -48,9 +48,15 @@
                 android:resource="@xml/widget_today_info" />
         </receiver>
 
-        <!-- F3: workout-reminder alarm receivers -->
+        <!-- F3/R2: notification alarm receivers -->
         <receiver
             android:name=".notify.WorkoutReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notify.StreakWarningReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notify.WeighInReminderReceiver"
             android:exported="false" />
         <receiver
             android:name=".notify.ReminderBootReceiver"

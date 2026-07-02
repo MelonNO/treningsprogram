@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.migul.treningsprogram.MainActivity
 import com.migul.treningsprogram.R
+import com.migul.treningsprogram.data.preferences.PreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,7 +30,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class GenerationNotifier @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val prefs: PreferencesManager
 ) {
     companion object {
         const val CHANNEL_ID = "generation_complete"
@@ -39,6 +41,8 @@ class GenerationNotifier @Inject constructor(
     }
 
     fun notifyProgramGenerationComplete(success: Boolean) {
+        // R2: the "Program ready" type is individually toggleable like every other notification.
+        if (!prefs.programReadyEnabled) return
         // Only when backgrounded — a foreground completion already shows its status on screen.
         if (AppForegroundState.isForeground) return
         // Android 13+: no runtime permission ⇒ post nothing (no crash, no nagging).
