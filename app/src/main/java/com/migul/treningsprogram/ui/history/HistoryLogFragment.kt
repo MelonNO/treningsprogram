@@ -23,6 +23,7 @@ import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.databinding.FragmentHistoryLogBinding
+import com.migul.treningsprogram.domain.DateRangeFilter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -55,19 +56,42 @@ class HistoryLogFragment : Fragment() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        binding.cgDateFilter.setOnCheckedStateChangeListener { _, checkedIds ->
-            viewModel.dateFilter.value = when {
-                checkedIds.contains(R.id.chip_filter_week) -> HistoryViewModel.DateFilter.WEEK
-                checkedIds.contains(R.id.chip_filter_month) -> HistoryViewModel.DateFilter.MONTH
-                checkedIds.contains(R.id.chip_filter_3months) -> HistoryViewModel.DateFilter.THREE_MONTHS
-                else -> HistoryViewModel.DateFilter.ALL
+        // Stage-3 item 12: calendar start/end range picker (replaces the preset chips).
+        binding.btnDateRange.setOnClickListener {
+            val picker = MaterialDatePicker.Builder.dateRangePicker()
+                .setTitleText("Filter sessions by date")
+                .build()
+            picker.addOnPositiveButtonClickListener { sel ->
+                val start = sel.first
+                val end = sel.second
+                if (start != null && end != null) {
+                    viewModel.logDateRange.value = DateRangeFilter.fromPickerUtc(start, end)
+                }
+            }
+            picker.show(parentFragmentManager, "history_range_picker")
+        }
+        binding.btnDateRangeClear.setOnClickListener { viewModel.logDateRange.value = null }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.logDateRange.collect { range ->
+                    binding.btnDateRange.text = DateRangeFilter.label(range)
+                    binding.btnDateRangeClear.isVisible = range != null
+                }
             }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.filteredSessions.collect { sessions ->
-                    renderSessions(sessions)
+                    // Stage-3 item 2: null = still loading → skeleton (delayed, no flicker);
+                    // a real (possibly empty) list swaps it for content or the true empty state.
+                    if (sessions == null) {
+                        com.migul.treningsprogram.ui.common.Skeleton.showDelayed(binding.skeletonLog)
+                    } else {
+                        com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonLog)
+                        renderSessions(sessions)
+                    }
                 }
             }
         }
@@ -75,6 +99,10 @@ class HistoryLogFragment : Fragment() {
 
     private fun renderSessions(sessions: List<WorkoutSession>) {
         binding.tvEmpty.isVisible = sessions.isEmpty()
+        // Item 12: an empty RESULT for an active range reads as a filter miss, not a fresh install.
+        binding.tvEmpty.text = if (viewModel.logDateRange.value != null)
+            "No sessions in the selected date range."
+        else "No sessions yet. Complete a workout to see your history!"
         binding.layoutSessions.removeAllViews()
         val inflater = LayoutInflater.from(requireContext())
         for (session in sessions) {

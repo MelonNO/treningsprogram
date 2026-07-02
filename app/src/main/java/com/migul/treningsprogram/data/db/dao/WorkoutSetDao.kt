@@ -24,6 +24,9 @@ data class MuscleLastTrained(val muscleGroup: String, val lastTrainedMs: Long)
 /** F5: one completed working set's muscle group + its session's wall-clock day. */
 data class MuscleSetDay(val muscleGroup: String, val dateMs: Long)
 
+/** Stage-3 item 11: a session that trained [muscleGroup], for heatmap cell → Recap drill-down. */
+data class MuscleSessionDay(val sessionId: Long, val dateMs: Long, val muscleGroup: String)
+
 /**
  * One exercise-session stimulus row for the weighted recovery model (U1).
  * Contains the exercise name, the session it was logged in, and the session timestamp.
@@ -41,6 +44,9 @@ data class ExerciseSessionRow(
 data class RepRange(val label: String, val setCount: Int)
 
 data class ExercisePrWithDate(val exerciseName: String, val maxWeight: Float, val dateMs: Long)
+
+/** Stage-3 item 4: one weighted working set with its session date (RecentPrs candidate pool). */
+data class ExerciseSetSample(val exerciseName: String, val weightKg: Float, val dateMs: Long)
 
 @Dao
 interface WorkoutSetDao {
@@ -119,15 +125,29 @@ interface WorkoutSetDao {
     """)
     suspend fun getWorkingSetsBetween(fromMs: Long, toMs: Long): List<WorkoutSet>
 
+    /**
+     * Stage-3 item 4: weighted working sets from completed sessions since [fromMs], with their
+     * session dates — the candidate pool for the Profile "PRs in the last 7 days" derivation
+     * (see domain/RecentPrs).
+     */
     @Query("""
-        SELECT exerciseName, MAX(weightKg) AS maxWeight
-        FROM workout_sets
-        WHERE weightKg > 0 AND isWarmup = 0
-        GROUP BY exerciseName
-        ORDER BY maxWeight DESC
-        LIMIT 10
+        SELECT ws.exerciseName AS exerciseName, ws.weightKg AS weightKg, s.dateMs AS dateMs
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE s.isCompleted = 1 AND s.dateMs >= :fromMs AND ws.isWarmup = 0 AND ws.weightKg > 0
     """)
-    suspend fun getTopPersonalRecords(): List<ExercisePr>
+    suspend fun getWeightedWorkingSetsSince(fromMs: Long): List<ExerciseSetSample>
+
+    /**
+     * Stage-3 item 4: per-exercise max working weight from completed sessions BEFORE [beforeMs] —
+     * the historical baseline a recent PR must strictly beat.
+     */
+    @Query("""
+        SELECT ws.exerciseName AS exerciseName, MAX(ws.weightKg) AS maxWeight
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE s.isCompleted = 1 AND s.dateMs < :beforeMs AND ws.isWarmup = 0 AND ws.weightKg > 0
+        GROUP BY ws.exerciseName
+    """)
+    suspend fun getMaxWeightsBefore(beforeMs: Long): List<ExercisePr>
 
     @Query("SELECT COALESCE(SUM(CAST(reps AS REAL) * weightKg), 0.0) FROM workout_sets WHERE isWarmup = 0")
     suspend fun getTotalVolumeKg(): Float
@@ -162,6 +182,20 @@ interface WorkoutSetDao {
     suspend fun getStrengthHistory(name: String): List<StrengthPoint>
 
     /**
+     * Stage-3 item 1: per-session working-set summary INCLUDING bodyweight (0-kg) sets — unlike
+     * [getStrengthHistory], which is weighted-only. The two MAXes are independent aggregates:
+     * maxWeight = heaviest working set (0 = all-bodyweight session), bestReps = best working-set
+     * reps regardless of load (A-01a). Feeds domain/RepsProgress for the Progress reps chart.
+     */
+    @Query("""
+        SELECT s.dateMs AS dateMs, MAX(ws.weightKg) AS maxWeight, MAX(ws.reps) AS bestReps
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.isWarmup = 0
+        GROUP BY ws.sessionId ORDER BY s.dateMs ASC
+    """)
+    suspend fun getSessionRepsHistory(name: String): List<StrengthPoint>
+
+    /**
      * Raw session timestamps of every completed working set (one row per set). The caller maps
      * each to a LOGICAL epoch-day and buckets into Monday-based weeks (RecapGraphs) — replacing
      * the old SQL `dateMs / 604800000` grouping, whose weeks started on THURSDAYS (epoch quirk).
@@ -190,6 +224,19 @@ interface WorkoutSetDao {
               AND ws.muscleGroup != '' AND s.dateMs >= :sinceMs
     """)
     suspend fun getMuscleSetDaysSince(sinceMs: Long): List<MuscleSetDay>
+
+    /**
+     * Stage-3 item 11: (sessionId, sessionDateMs, muscleGroup) per completed real session that
+     * has working sets for that muscle — the heatmap cell → session drill-down source. Mirrors
+     * [getMuscleSetDaysSince]'s filters exactly so the drill target matches what the cell counted.
+     */
+    @Query("""
+        SELECT DISTINCT ws.sessionId AS sessionId, s.dateMs AS dateMs, ws.muscleGroup AS muscleGroup
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND s.kind IS NULL
+              AND ws.muscleGroup != '' AND s.dateMs >= :sinceMs
+    """)
+    suspend fun getMuscleSessionDaysSince(sinceMs: Long): List<MuscleSessionDay>
 
     /**
      * Most recent completed working-set timestamp per muscle group — drives the Home

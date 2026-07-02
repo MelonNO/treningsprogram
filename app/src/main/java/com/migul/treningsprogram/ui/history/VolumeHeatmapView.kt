@@ -23,6 +23,12 @@ class VolumeHeatmapView @JvmOverloads constructor(
 
     private var grid: VolumeHeatmap.Grid? = null
 
+    /**
+     * Stage-3 item 11: invoked when a NON-EMPTY cell is tapped, with the cell's muscle row and
+     * week-start column. Empty cells are ignored here (no navigation, no crash).
+     */
+    var onCellTap: ((muscle: String, weekStartMs: Long) -> Unit)? = null
+
     private val density = resources.displayMetrics.density
     private val cellHeight = 22f * density
     private val cellGap = 3f * density
@@ -90,6 +96,52 @@ class VolumeHeatmapView @JvmOverloads constructor(
             val cx = labelWidth + col * (cellWidth + cellGap) + cellWidth / 2f
             canvas.drawText(weekLabel(g.weekStarts[col]), cx, footerY, weekPaint)
         }
+    }
+
+    // ── Stage-3 item 11: tap → cell mapping (mirrors the onDraw geometry exactly) ────────────
+
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (onCellTap == null) return super.onTouchEvent(event)
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> return true
+            android.view.MotionEvent.ACTION_UP -> {
+                val cell = cellAt(event.x, event.y)
+                if (cell != null) {
+                    val g = grid ?: return true
+                    val (row, col) = cell
+                    if (g.sets[row][col] > 0) {
+                        performClick()
+                        onCellTap?.invoke(g.muscles[row], g.weekStarts[col])
+                    }
+                }
+                return true
+            }
+        }
+        return super.onTouchEvent(event)
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
+
+    /** The (row, col) under point (x, y), or null when outside the drawn cell area. */
+    private fun cellAt(x: Float, y: Float): Pair<Int, Int>? {
+        val g = grid ?: return null
+        if (g.muscles.isEmpty() || g.weekStarts.isEmpty()) return null
+        val cols = g.weekStarts.size
+        val gridWidth = width - labelWidth
+        if (gridWidth <= 0f) return null
+        val cellWidth = (gridWidth - cellGap * (cols - 1)) / cols
+
+        val row = (y / (cellHeight + cellGap)).toInt()
+        if (row < 0 || row >= g.muscles.size) return null
+        if (y - row * (cellHeight + cellGap) > cellHeight + cellGap / 2f) return null
+
+        if (x < labelWidth) return null
+        val col = ((x - labelWidth) / (cellWidth + cellGap)).toInt()
+        if (col < 0 || col >= cols) return null
+        return row to col
     }
 
     private fun weekLabel(ms: Long): String = Calendar.getInstance().run {

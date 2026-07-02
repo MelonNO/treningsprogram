@@ -13,6 +13,28 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 63, versionName = "1.24.0",
+            highlights = listOf(
+                "Recap, redesigned: a hero session header with stat chips, a new \"Earned this session\" card (achievements + PRs), and specific muscles — triceps, not just arms",
+                "Bodyweight exercises finally chart: the Progress tab plots your reps over time (plus the weight chart once you add load)",
+                "Pick any date range: History and Progress now filter with a start/end calendar instead of preset chips",
+                "Tap a square on the Stats heatmap to jump straight to that session's recap",
+                "Profile now spotlights the PRs you set in the last 7 days",
+                "Exercise images animate in the library, the weight keypad closes when you tap elsewhere, skeleton loaders while data loads, and App Settings moved to the top",
+            ),
+        ),
+        Entry(
+            versionCode = 62, versionName = "1.23.0",
+            highlights = listOf(
+                "Streaks are schedule-aware: rest days never break your chain — only missed planned days do",
+                "Notification center: workout reminders, streak alerts, weekly summary and challenge nudges — each individually toggleable",
+                "The AI now knows your body weight, and Home + Progress show your weight trend",
+                "Weekly challenges 2.0 with a Perfect Week bonus for completing every planned day",
+                "Achievement gallery: categories, rarity tiers, live progress bars and a \"next up\" strip",
+                "Finishing a workout is now a celebration — and a \"beat last time\" chip with a live PR flash cheers you on while logging",
+            ),
+        ),
+        Entry(
             versionCode = 61, versionName = "1.22.0",
             highlights = listOf(
                 "Your own rest times: enable \"Use my own rest times\" in Settings → Training or the setup wizard — one time for heavy compounds, one for accessories — and both the rest timer and generated programs are sized around them",

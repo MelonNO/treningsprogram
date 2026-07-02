@@ -30,6 +30,9 @@ class HistoryStatsFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: HistoryViewModel by viewModels({ requireParentFragment() })
 
+    // Stage-3 item 2: skeleton only until the FIRST render — onResume refreshes over live content.
+    private var statsRendered = false
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -40,16 +43,17 @@ class HistoryStatsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         loadStats()
+        // Stage-3 item 15: the CSV export button is gone — Settings → Backup & Data covers export.
 
-        binding.btnExport.setOnClickListener {
-            val sessions = viewModel.allSessions.value
-            viewModel.exportCsv(sessions) { csv ->
-                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(android.content.Intent.EXTRA_TEXT, csv)
-                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Workout History Export")
+        // Stage-3 item 11: tapping a non-empty heatmap cell opens the Recap tab with the most
+        // recent session that week which trained that muscle, and that muscle highlighted
+        // (existing openRecap/highlight mechanism). Empty cells never invoke this callback.
+        binding.viewVolumeHeatmap.onCellTap = { muscle, weekStartMs ->
+            viewLifecycleOwner.lifecycleScope.launch {
+                val sessionId = viewModel.resolveHeatmapSession(muscle, weekStartMs)
+                if (sessionId != null && isAdded) {
+                    (requireParentFragment() as? HistoryFragment)?.openRecap(sessionId, muscle)
                 }
-                startActivity(android.content.Intent.createChooser(intent, "Export CSV"))
             }
         }
     }
@@ -60,6 +64,9 @@ class HistoryStatsFragment : Fragment() {
     }
 
     private fun loadStats() {
+        if (!statsRendered && _binding != null) {
+            com.migul.treningsprogram.ui.common.Skeleton.showDelayed(binding.skeletonStats)
+        }
         viewLifecycleOwner.lifecycleScope.launch {
             val totalSets = viewModel.getTotalSets()
             val totalVolume = viewModel.getTotalVolume()
@@ -71,6 +78,8 @@ class HistoryStatsFragment : Fragment() {
             val repRanges = viewModel.getRepRanges()
 
             if (_binding == null) return@launch
+            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonStats)
+            statsRendered = true
 
             // First-run / no-data state (UX1): show a single friendly prompt instead of a wall of
             // zero-cards and empty charts. Switches to the full dashboard once any set is logged.

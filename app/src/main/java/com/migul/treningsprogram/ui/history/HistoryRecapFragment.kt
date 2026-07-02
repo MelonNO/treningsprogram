@@ -21,9 +21,10 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.MuscleClassifier
+import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.databinding.FragmentHistoryRecapBinding
-import com.migul.treningsprogram.domain.RecapGraphs
+import com.migul.treningsprogram.domain.AchievementCatalog
 import com.migul.treningsprogram.domain.model.ExerciseRecap
 import com.migul.treningsprogram.domain.model.SessionRecap
 import dagger.hilt.android.AndroidEntryPoint
@@ -31,6 +32,15 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Per-session recap — stage-3 H1 overhaul:
+ *  - item 3: the aggregate overview graphs are gone; Recap is purely "pick a session, see it"
+ *    (the Stats tab keeps all aggregates).
+ *  - item 9: the muscles card lists FINE labels (Triceps, not Arms) via SessionRecap.
+ *  - item 14: an "Earned this session" highlights card — achievements unlocked + new PRs.
+ *  - item 10: Auros restyle — hero session header with stat chips, eyebrow section headers,
+ *    vivid accents (celebratory PRs, colored muscle bars, visualized effort).
+ */
 @AndroidEntryPoint
 class HistoryRecapFragment : Fragment() {
 
@@ -47,6 +57,7 @@ class HistoryRecapFragment : Fragment() {
     private val accent = Color.parseColor("#7FE9E1")
     private val up = Color.parseColor("#37D67A")     // green — improvement
     private val neutral = Color.parseColor("#7E908E") // muted — never red, even for a down day
+    private val gold = Color.parseColor("#FFD54A")   // celebration gold (tier_legendary)
     // B06: translucent accent fill for a highlighted "culprit" exercise row (recovery-muscle tap).
     private val highlightFill = Color.parseColor("#3300827C")
 
@@ -74,18 +85,19 @@ class HistoryRecapFragment : Fragment() {
     }
 
     private fun loadSessions() {
+        // Stage-3 item 2: skeleton (delayed — no flicker on fast loads) until the first recap
+        // renders or the true empty state takes over.
+        com.migul.treningsprogram.ui.common.Skeleton.showDelayed(binding.skeletonRecap)
         viewLifecycleOwner.lifecycleScope.launch {
             sessions = viewModel.getRecentSessions(30)
             if (_binding == null) return@launch
             binding.tvRecapEmpty.isVisible = sessions.isEmpty()
             binding.tilSession.isVisible = sessions.isNotEmpty()
-            binding.layoutOverview.isVisible = sessions.isNotEmpty()
             if (sessions.isEmpty()) {
+                com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonRecap)
                 binding.layoutRecap.removeAllViews()
-                binding.layoutOverview.removeAllViews()
                 return@launch
             }
-            renderOverview()
             val labels = sessions.map { sessionLabel(it) }
             val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, labels)
             binding.acSession.setAdapter(adapter)
@@ -104,154 +116,6 @@ class HistoryRecapFragment : Fragment() {
         }
     }
 
-    // ── Overview graphs (UX1) ──────────────────────────────────────────────────
-    // Aggregate trends across all sessions, rendered once (not per-session). Built from
-    // warm-up-excluded data already exposed on the ViewModel; shaped by RecapGraphs (unit-tested).
-
-    private fun renderOverview() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val volume = viewModel.getWeeklyVolumePoints()
-            val frequency = viewModel.getWeeklyFrequencyPoints()
-            val muscles = viewModel.getMuscleRows()
-            if (_binding == null) return@launch
-            binding.layoutOverview.removeAllViews()
-            // B07: build only the cards that have data; empty ones are skipped (hidden) rather than
-            // showing per-field "log more to see X" copy. The Overview header (and the whole layout)
-            // appears only if at least one overview card is present.
-            val cards = listOfNotNull(
-                buildVolumeOverTimeCard(volume),
-                buildFrequencyCard(frequency),
-                buildMuscleDistributionCard(muscles)
-            )
-            binding.layoutOverview.isVisible = cards.isNotEmpty()
-            if (cards.isEmpty()) return@launch
-            binding.layoutOverview.addView(overviewHeader())
-            cards.forEach { binding.layoutOverview.addView(it) }
-        }
-    }
-
-    private fun overviewHeader(): View {
-        val col = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(4) }
-        }
-        col.addView(TextView(requireContext()).apply {
-            text = "Overview"
-            setTypeface(null, Typeface.BOLD)
-            textSize = 18f
-            setTextColor(onSurface())
-        })
-        col.addView(mutedText("Trends across your recent training · working sets only").apply {
-            textSize = 12f
-            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(2)
-        })
-        return col
-    }
-
-    /** B07: returns null (card hidden) when the chart can't draw (< 2 weekly points). */
-    private fun buildVolumeOverTimeCard(points: List<RecapGraphs.WeekPoint>): View? {
-        if (points.size < 2) return null
-        val card = card()
-        val col = cardColumn(card)
-        col.addView(sectionTitle("Volume over time"))
-        col.addView(mutedText("Total working sets per week").apply {
-            textSize = 12f
-            (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
-        })
-        addChart(col, points, label = "sets")
-        return card
-    }
-
-    /** B07: returns null (card hidden) when the chart can't draw (< 2 weekly points). */
-    private fun buildFrequencyCard(points: List<RecapGraphs.WeekPoint>): View? {
-        if (points.size < 2) return null
-        val card = card()
-        val col = cardColumn(card)
-        col.addView(sectionTitle("Training frequency"))
-        col.addView(mutedText("Workout days per week").apply {
-            textSize = 12f
-            (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
-        })
-        addChart(col, points, label = "sessions")
-        return card
-    }
-
-    /** B07: returns null (card hidden) when there is no muscle-group data yet. */
-    private fun buildMuscleDistributionCard(rows: List<RecapGraphs.MuscleRow>): View? {
-        if (rows.isEmpty()) return null
-        val card = card()
-        val col = cardColumn(card)
-        col.addView(sectionTitle("Muscle group distribution"))
-        col.addView(mutedText("All-time working sets per muscle group (sets)").apply {
-            textSize = 12f
-            (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(8)
-        })
-        // Categorical data → labelled horizontal bars (clearer than a line chart for categories).
-        val maxSets = rows.maxOf { it.sets }.coerceAtLeast(1)
-        rows.forEach { (muscle, sets) -> col.addView(muscleBarRow(muscle, sets, maxSets)) }
-        return card
-    }
-
-    /**
-     * One coloured horizontal bar row for a muscle group, shared by the Overview "Muscle group
-     * distribution" and the per-session "Muscles hit" sections so both read the same. Bars are
-     * coloured by muscle group via the app-wide [MuscleClassifier.colorFor] mapping (UX1 restyle);
-     * the count text reuses that colour so the legend is implicit.
-     */
-    private fun muscleBarRow(muscle: String, sets: Int, maxSets: Int): View {
-        val barColor = Color.parseColor(MuscleClassifier.colorFor(muscle, "#7E908E"))
-        val rowLayout = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(4))
-        }
-        rowLayout.addView(TextView(requireContext()).apply {
-            text = muscle
-            textSize = 13f
-            layoutParams = LinearLayout.LayoutParams(dp(90), LinearLayout.LayoutParams.WRAP_CONTENT)
-        })
-        rowLayout.addView(View(requireContext()).apply {
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(barColor)
-                cornerRadius = dp(3).toFloat()
-            }
-            val w = (dp(120) * sets / maxSets).coerceAtLeast(dp(6))
-            layoutParams = LinearLayout.LayoutParams(w, dp(10)).apply { marginEnd = dp(8) }
-        })
-        rowLayout.addView(TextView(requireContext()).apply {
-            text = if (sets == 1) "1 set" else "$sets sets"
-            textSize = 12f
-            setTextColor(barColor)
-        })
-        return rowLayout
-    }
-
-    /**
-     * Adds a [StrengthChartView] for [points]. B07: callers only invoke this when the card has
-     * enough data to draw (>= 2 points), so there is no per-field empty branch here — an empty
-     * card is simply not built (the whole card is hidden instead of showing guidance copy).
-     */
-    private fun addChart(
-        col: LinearLayout,
-        points: List<RecapGraphs.WeekPoint>,
-        label: String
-    ) {
-        val chart = StrengthChartView(requireContext()).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(168)
-            )
-            // These overview series are whole counts (sets / sessions) — render integer labels.
-            setData(
-                points.map { StrengthChartView.Entry(it.weekStartMs, it.value) },
-                label,
-                integerValues = true
-            )
-        }
-        col.addView(chart)
-    }
-
     private fun selectSession(sessionId: Long, highlightMuscle: String? = null) {
         val idx = sessions.indexOfFirst { it.id == sessionId }.takeIf { it >= 0 } ?: 0
         binding.acSession.setText(sessionLabel(sessions[idx]), false)
@@ -267,6 +131,7 @@ class HistoryRecapFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             val recap = viewModel.buildRecap(sessionId)
             if (_binding == null) return@launch
+            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonRecap)
             binding.layoutRecap.removeAllViews()
             if (recap == null) {
                 binding.layoutRecap.addView(mutedText("This session has no logged sets."))
@@ -276,15 +141,15 @@ class HistoryRecapFragment : Fragment() {
             // session hit the tapped muscle so the deltas section can highlight them.
             val highlightNames = if (highlightMuscle.isNullOrBlank()) emptySet()
                 else exercisesHittingMuscle(recap.exercises.map { it.exerciseName }, highlightMuscle)
-            buildHeader(recap)
+            buildHero(recap)
+            buildEarned(recap)
             val firstHighlightedRow = buildDeltas(recap, highlightNames)
-            buildPrs(recap)
             buildMuscleVolume(recap)
             buildEffort(recap)
             buildAdherence(recap)
             buildDuration(recap)
             buildPacing(recap)
-            buildTotals(recap)
+            buildFooterTip()
             // Scroll the first highlighted exercise into view once layout is complete.
             firstHighlightedRow?.let { scrollRowIntoView(it) }
         }
@@ -308,26 +173,166 @@ class HistoryRecapFragment : Fragment() {
 
     // ── Sections ──────────────────────────────────────────────────────────────
 
-    private fun buildHeader(r: SessionRecap) {
-        val card = card()
-        val col = cardColumn(card)
+    /**
+     * Item 10: hero-style session header — eyebrow, headline date, focus muscle, and the key
+     * numbers (duration / sets / volume) as styled stat chips, on the app-wide hero wash.
+     */
+    private fun buildHero(r: SessionRecap) {
+        val col = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            background = requireContext().getDrawable(R.drawable.bg_hero_wash)
+            setPadding(0, dp(6), 0, dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(16) }
+        }
+
+        // Eyebrow row: teal beacon dot + tracked-out label.
+        val eyebrowRow = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) }
+        }
+        eyebrowRow.addView(View(requireContext()).apply {
+            background = requireContext().getDrawable(R.drawable.bg_eyebrow_dot)
+            layoutParams = LinearLayout.LayoutParams(dp(6), dp(6)).apply { marginEnd = dp(8) }
+        })
+        eyebrowRow.addView(TextView(requireContext()).apply {
+            setTextAppearance(R.style.TextAppearance_Auros_Eyebrow)
+            text = "Session recap"
+        })
+        col.addView(eyebrowRow)
+
         col.addView(TextView(requireContext()).apply {
             text = dateFmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(r.session.dateMs)))
-            setTypeface(null, Typeface.BOLD)
-            textSize = 18f
-            setTextColor(onSurface())
+            setTypeface(typeface, Typeface.BOLD)
+            textSize = 22f
+            letterSpacing = -0.01f
+            setTextColor(requireContext().getColor(R.color.auros_snow))
         })
-        val bits = buildList {
-            if (r.focusMuscle.isNotBlank()) add(r.focusMuscle)
-            if (r.durationMinutes > 0) add("${r.durationMinutes} min")
-        }
-        if (bits.isNotEmpty()) {
-            col.addView(mutedText(bits.joinToString("  ·  ")).apply {
+        if (r.focusMuscle.isNotBlank()) {
+            col.addView(mutedText("${r.focusMuscle} focus").apply {
                 (layoutParams as LinearLayout.LayoutParams).topMargin = dp(2)
             })
         }
+
+        // Stat chips: the session's key numbers.
+        val chips = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(12) }
+        }
+        if (r.durationMinutes > 0) chips.addView(statChip("${r.durationMinutes} min"))
+        chips.addView(statChip("${r.totalSets} sets"))
+        chips.addView(statChip("${r.totalVolumeKg.toInt()} kg"))
+        col.addView(chips)
+
+        // Accent underline — the hero band signature.
+        col.addView(View(requireContext()).apply {
+            background = requireContext().getDrawable(R.drawable.bg_gradient_accent)
+            layoutParams = LinearLayout.LayoutParams(dp(52), dp(3)).apply { topMargin = dp(14) }
+        })
+        binding.layoutRecap.addView(col)
+    }
+
+    /** A rounded stat pill: reef fill, luminous cyan number text. */
+    private fun statChip(text: String): View = TextView(requireContext()).apply {
+        this.text = text
+        textSize = 13f
+        setTypeface(typeface, Typeface.BOLD)
+        setTextColor(accent)
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(requireContext().getColor(R.color.auros_reef))
+            cornerRadius = dp(20).toFloat()
+        }
+        setPadding(dp(12), dp(6), dp(12), dp(6))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { marginEnd = dp(8) }
+    }
+
+    /**
+     * Item 14: "Earned this session" — the achievements this session unlocked (with their R5
+     * rarity styling) and the new heaviest-weight PRs, folded into one highlights story
+     * (A-14b). Sessions that earned nothing simply don't get the card.
+     */
+    private fun buildEarned(r: SessionRecap) {
+        val newPrs = r.exercises.filter { it.isPrThisSession && it.topWeightKg > 0f }
+        if (newPrs.isEmpty() && r.earnedAchievements.isEmpty()) return
+        val card = card()
+        val col = cardColumn(card)
+        col.addView(eyebrow("Earned this session"))
+
+        r.earnedAchievements.forEach { a -> col.addView(achievementRow(a)) }
+
+        newPrs.forEach { ex ->
+            col.addView(TextView(requireContext()).apply {
+                text = "🏆 ${ex.exerciseName} — new heaviest weight ${fmt(ex.topWeightKg)} kg!"
+                textSize = 13f
+                setTextColor(gold)
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(0, dp(5), 0, dp(5))
+            })
+        }
+        col.addView(mutedText("Full PR history (estimated 1RM) is on the Progress tab.").apply {
+            textSize = 11f
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        })
         binding.layoutRecap.addView(card)
     }
+
+    /** One unlocked achievement: emoji + name + rarity chip, consistent with the R5 gallery. */
+    private fun achievementRow(a: Achievement): View {
+        val row = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(5), 0, dp(5))
+        }
+        row.addView(TextView(requireContext()).apply {
+            text = a.emoji
+            textSize = 18f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(10) }
+        })
+        val nameCol = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        nameCol.addView(TextView(requireContext()).apply {
+            text = a.name
+            textSize = 14f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(requireContext().getColor(R.color.auros_snow))
+        })
+        if (a.description.isNotBlank()) {
+            nameCol.addView(mutedText(a.description).apply { textSize = 12f })
+        }
+        row.addView(nameCol)
+        val meta = AchievementCatalog.metaFor(a.id)
+        if (meta != null) {
+            row.addView(TextView(requireContext()).apply {
+                text = meta.tier.label.uppercase()
+                textSize = 10f
+                letterSpacing = 0.08f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(tierColor(meta.tier))
+            })
+        }
+        return row
+    }
+
+    private fun tierColor(tier: AchievementCatalog.Tier): Int = requireContext().getColor(
+        when (tier) {
+            AchievementCatalog.Tier.COMMON -> R.color.tier_common
+            AchievementCatalog.Tier.RARE -> R.color.tier_rare
+            AchievementCatalog.Tier.EPIC -> R.color.tier_epic
+            AchievementCatalog.Tier.LEGENDARY -> R.color.tier_legendary
+        }
+    )
 
     /**
      * Builds the "Vs. last time" card. When [highlightNames] is non-empty (B06: arriving from a
@@ -337,7 +342,7 @@ class HistoryRecapFragment : Fragment() {
     private fun buildDeltas(r: SessionRecap, highlightNames: Set<String> = emptySet()): View? {
         val card = card()
         val col = cardColumn(card)
-        col.addView(sectionTitle("Vs. last time"))
+        col.addView(eyebrow("Vs. last time"))
         var firstHighlighted: View? = null
         r.exercises.forEach { ex ->
             val highlighted = ex.exerciseName in highlightNames
@@ -372,14 +377,16 @@ class HistoryRecapFragment : Fragment() {
         top.addView(TextView(requireContext()).apply {
             text = ex.exerciseName
             textSize = 14f
-            setTypeface(null, Typeface.BOLD)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(requireContext().getColor(R.color.auros_snow))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         top.addView(TextView(requireContext()).apply {
             text = if (ex.isCardio) "${ex.totalReps} reps · ${ex.sets} sets"
                    else "${fmt(ex.topWeightKg)} kg × ${ex.topReps}"
             textSize = 13f
-            setTextColor(neutral)
+            setTextColor(if (ex.isPrThisSession) gold else neutral)
+            if (ex.isPrThisSession) setTypeface(typeface, Typeface.BOLD)
         })
         row.addView(top)
         row.addView(TextView(requireContext()).apply {
@@ -391,6 +398,17 @@ class HistoryRecapFragment : Fragment() {
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(2) }
         })
+        // Item 14 information parity: the old "Heaviest weight" card's existing-best reference
+        // lives here now — per exercise, the best on record and when it was set.
+        if (!ex.isCardio && !ex.isPrThisSession &&
+            ex.existingPrWeightKg != null && ex.existingPrWeightKg > 0f
+        ) {
+            val whenStr = ex.existingPrDateMs?.let { " · ${relativeTime(it)}" } ?: ""
+            row.addView(mutedText("Best on record: ${fmt(ex.existingPrWeightKg)} kg$whenStr").apply {
+                textSize = 11f
+                (layoutParams as LinearLayout.LayoutParams).topMargin = dp(2)
+            })
+        }
         return row
     }
 
@@ -423,53 +441,102 @@ class HistoryRecapFragment : Fragment() {
         }
     }
 
-    private fun buildPrs(r: SessionRecap) {
-        val newPrs = r.exercises.filter { it.isPrThisSession && it.topWeightKg > 0f }
-        val existing = r.exercises.filter { !it.isPrThisSession && it.existingPrWeightKg != null && it.existingPrWeightKg > 0f }
-        if (newPrs.isEmpty() && existing.isEmpty()) return
+    /** Item 9: fine muscle labels; bars coloured by the label's broad group (implicit legend). */
+    private fun buildMuscleVolume(r: SessionRecap) {
+        if (r.muscleVolume.isEmpty()) return
         val card = card()
         val col = cardColumn(card)
-        // Terminology (UX1/F2): this section is the in-session HEAVIEST-WEIGHT milestone, kept
-        // distinct from the Progress tab's "PR history (estimated 1RM)" so the two don't contradict.
-        col.addView(sectionTitle("Heaviest weight"))
-        newPrs.forEach { ex ->
-            col.addView(TextView(requireContext()).apply {
-                text = "🎉 ${ex.exerciseName} — new heaviest weight ${fmt(ex.topWeightKg)} kg!"
-                textSize = 13f
-                setTextColor(accent)
-                setTypeface(null, Typeface.BOLD)
-                setPadding(0, dp(4), 0, dp(4))
-            })
-        }
-        existing.forEach { ex ->
-            val whenStr = ex.existingPrDateMs?.let { "  ·  ${relativeTime(it)}" } ?: ""
-            col.addView(mutedText("${ex.exerciseName} — heaviest ${fmt(ex.existingPrWeightKg!!)} kg$whenStr").apply {
-                setPadding(0, dp(4), 0, dp(4))
-            })
-        }
-        col.addView(mutedText("Full PR history (estimated 1RM) is on the Progress tab.").apply {
+        col.addView(eyebrow("Muscles hit this session"))
+        val maxSets = r.muscleVolume.maxOf { it.second }.coerceAtLeast(1)
+        r.muscleVolume.forEach { (muscle, sets) -> col.addView(muscleBarRow(muscle, sets, maxSets)) }
+        col.addView(mutedText("Weighted by each exercise's muscle contributions — same model as the recovery panel.").apply {
             textSize = 11f
             (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
         })
         binding.layoutRecap.addView(card)
     }
 
-    private fun buildMuscleVolume(r: SessionRecap) {
-        if (r.muscleVolume.isEmpty()) return
-        val card = card()
-        val col = cardColumn(card)
-        col.addView(sectionTitle("Muscles hit this session"))
-        val maxSets = r.muscleVolume.maxOf { it.second }.coerceAtLeast(1)
-        r.muscleVolume.forEach { (muscle, sets) -> col.addView(muscleBarRow(muscle, sets, maxSets)) }
-        binding.layoutRecap.addView(card)
+    /**
+     * One coloured horizontal bar row for a (fine) muscle label. Colour comes from the label's
+     * BROAD group via the app-wide [MuscleClassifier] mapping, so Triceps/Biceps share the Arms
+     * hue, all delts the Shoulders hue, etc. — an implicit legend.
+     */
+    private fun muscleBarRow(muscle: String, sets: Int, maxSets: Int): View {
+        val barColor = Color.parseColor(
+            MuscleClassifier.colorFor(MuscleClassifier.broadGroupFor(muscle), "#7E908E")
+        )
+        val rowLayout = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        rowLayout.addView(TextView(requireContext()).apply {
+            text = muscle
+            textSize = 13f
+            layoutParams = LinearLayout.LayoutParams(dp(96), LinearLayout.LayoutParams.WRAP_CONTENT)
+        })
+        rowLayout.addView(View(requireContext()).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(barColor)
+                cornerRadius = dp(3).toFloat()
+            }
+            val w = (dp(114) * sets / maxSets).coerceAtLeast(dp(6))
+            layoutParams = LinearLayout.LayoutParams(w, dp(10)).apply { marginEnd = dp(8) }
+        })
+        rowLayout.addView(TextView(requireContext()).apply {
+            text = if (sets == 1) "1 set" else "$sets sets"
+            textSize = 12f
+            setTextColor(barColor)
+        })
+        return rowLayout
     }
 
+    /** Item 10: effort visualized — a proportional segmented bar plus a coloured legend. */
     private fun buildEffort(r: SessionRecap) {
         if (r.effort.isEmpty()) return
         val card = card()
         val col = cardColumn(card)
-        col.addView(sectionTitle("Effort"))
-        col.addView(mutedText(r.effort.joinToString("    ") { "${it.first}: ${it.second}" }))
+        col.addView(eyebrow("Effort"))
+
+        val colors = mapOf("Easy" to up, "Moderate" to accent, "Hard" to gold)
+        val bar = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(10)
+            ).apply { bottomMargin = dp(8) }
+        }
+        r.effort.forEach { (label, count) ->
+            bar.addView(View(requireContext()).apply {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(colors[label] ?: neutral)
+                    cornerRadius = dp(3).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(0, dp(10), count.toFloat()).apply {
+                    marginEnd = dp(2)
+                }
+            })
+        }
+        col.addView(bar)
+
+        val legend = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        r.effort.forEach { (label, count) ->
+            legend.addView(TextView(requireContext()).apply {
+                text = "$label $count"
+                textSize = 12f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(colors[label] ?: neutral)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = dp(14) }
+            })
+        }
+        col.addView(legend)
+        col.addView(mutedText("Working sets by logged effort.").apply {
+            textSize = 11f
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        })
         binding.layoutRecap.addView(card)
     }
 
@@ -477,15 +544,43 @@ class HistoryRecapFragment : Fragment() {
         if (r.plannedSets == null) return
         val card = card()
         val col = cardColumn(card)
-        col.addView(sectionTitle("Adherence"))
+        col.addView(eyebrow("Adherence"))
         col.addView(TextView(requireContext()).apply {
             text = "Completed ${r.totalSets} of ${r.plannedSets} planned sets"
-            textSize = 13f
+            textSize = 14f
+            setTypeface(typeface, Typeface.BOLD)
             setTextColor(onSurface())
         })
+        // A slim completion bar: accent fill over the inert track.
+        if (r.plannedSets > 0) {
+            val frac = (r.totalSets.toFloat() / r.plannedSets).coerceIn(0f, 1f)
+            val track = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(requireContext().getColor(R.color.auros_reef_dim))
+                    cornerRadius = dp(3).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(8)
+                ).apply { topMargin = dp(8) }
+            }
+            if (frac > 0f) {
+                track.addView(View(requireContext()).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(accent)
+                        cornerRadius = dp(3).toFloat()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(0, dp(8), frac)
+                })
+                track.addView(View(requireContext()).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, dp(8), 1f - frac)
+                })
+            }
+            col.addView(track)
+        }
         if (r.skippedExercises.isNotEmpty()) {
             col.addView(mutedText("Skipped: ${r.skippedExercises.joinToString(", ")}").apply {
-                (layoutParams as LinearLayout.LayoutParams).topMargin = dp(4)
+                (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
             })
         }
         binding.layoutRecap.addView(card)
@@ -495,7 +590,7 @@ class HistoryRecapFragment : Fragment() {
         if (r.estimatedMinutes == null || r.durationMinutes <= 0) return
         val card = card()
         val col = cardColumn(card)
-        col.addView(sectionTitle("Duration"))
+        col.addView(eyebrow("Duration"))
         col.addView(mutedText("Planned ~${r.estimatedMinutes} min  ·  Actual ${r.durationMinutes} min"))
         binding.layoutRecap.addView(card)
     }
@@ -504,7 +599,7 @@ class HistoryRecapFragment : Fragment() {
         val p = r.pacing ?: return
         val card = card()
         val col = cardColumn(card)
-        col.addView(sectionTitle("Rest & pacing"))
+        col.addView(eyebrow("Rest & pacing"))
 
         // Rest adherence — neutral framing, never red.
         val restLine = if (p.targetRestSeconds != null) {
@@ -515,7 +610,7 @@ class HistoryRecapFragment : Fragment() {
         col.addView(TextView(requireContext()).apply {
             text = restLine
             textSize = 14f
-            setTypeface(null, Typeface.BOLD)
+            setTypeface(typeface, Typeface.BOLD)
             setTextColor(onSurface())
         })
         if (p.targetRestSeconds != null) {
@@ -567,20 +662,17 @@ class HistoryRecapFragment : Fragment() {
         binding.layoutRecap.addView(card)
     }
 
-    private fun buildTotals(r: SessionRecap) {
-        val card = card()
-        val col = cardColumn(card)
-        val bits = buildList {
-            add("${r.totalVolumeKg.toInt()} kg volume")
-            add("${r.totalSets} sets")
-            if (r.durationMinutes > 0) add("${r.durationMinutes} min")
-        }
-        col.addView(mutedText(bits.joinToString("  ·  ")).apply { textSize = 12f })
-        col.addView(mutedText("Tip: tap an exercise above to see its trend over time.").apply {
+    /** The hero chips already carry the totals — only the drill-in tip remains down here. */
+    private fun buildFooterTip() {
+        binding.layoutRecap.addView(mutedText("Tip: tap an exercise above to see its trend over time.").apply {
             textSize = 11f
-            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(2)
+                bottomMargin = dp(12)
+            }
         })
-        binding.layoutRecap.addView(card)
     }
 
     private fun openTrends(exerciseName: String, sessionDateMs: Long) {
@@ -606,7 +698,8 @@ class HistoryRecapFragment : Fragment() {
     private fun card(): MaterialCardView = MaterialCardView(requireContext()).apply {
         radius = dp(16).toFloat()
         strokeWidth = dp(1)
-        strokeColor = requireContext().getColor(com.google.android.material.R.color.material_on_background_emphasis_medium)
+        strokeColor = requireContext().getColor(R.color.auros_hairline)
+        setCardBackgroundColor(requireContext().getColor(R.color.auros_trench))
         cardElevation = 0f
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -622,13 +715,11 @@ class HistoryRecapFragment : Fragment() {
         return col
     }
 
-    private fun sectionTitle(text: String) = TextView(requireContext()).apply {
+    /** Item 10: eyebrow-style section header (tracked-out uppercase label). */
+    private fun eyebrow(text: String) = TextView(requireContext()).apply {
+        setTextAppearance(R.style.TextAppearance_Auros_Eyebrow)
         this.text = text
-        textSize = 13f
-        setTypeface(null, Typeface.BOLD)
-        setTextColor(onSurface())
-        (this.layoutParams as? LinearLayout.LayoutParams)
-        setPadding(0, 0, 0, dp(8))
+        setPadding(0, 0, 0, dp(10))
     }
 
     private fun mutedText(text: String) = TextView(requireContext()).apply {
@@ -675,16 +766,22 @@ class HistoryRecapFragment : Fragment() {
     companion object {
         /**
          * B06 (pure, unit-tested): given the exercise names logged in a session and a tapped
-         * fine-grain [muscle] label, returns the subset of names whose [MuscleClassifier.finerMusclesFor]
+         * [muscle] label, returns the subset of names whose [MuscleClassifier.finerMusclesFor]
          * attribution includes that muscle — i.e. the exercises that drove that muscle's fatigue and
          * should be highlighted in the session view. Match is case-insensitive on the muscle label;
          * a blank muscle yields an empty set.
+         *
+         * Stage-3 item 11: the label may also be a BROAD group ("Arms", "Legs" — the heatmap's
+         * rows); it then matches every exercise whose fine labels roll up to that group.
          */
         fun exercisesHittingMuscle(exerciseNames: List<String>, muscle: String?): Set<String> {
             val target = muscle?.trim().orEmpty()
             if (target.isEmpty()) return emptySet()
             return exerciseNames.filter { name ->
-                MuscleClassifier.finerMusclesFor(name).any { (label, _) -> label.equals(target, ignoreCase = true) }
+                MuscleClassifier.finerMusclesFor(name).any { (label, _) ->
+                    label.equals(target, ignoreCase = true) ||
+                        MuscleClassifier.broadGroupFor(label).equals(target, ignoreCase = true)
+                }
             }.toSet()
         }
     }

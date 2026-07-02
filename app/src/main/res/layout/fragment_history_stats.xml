@@ -24,12 +24,37 @@
             android:paddingVertical="48dp"
             android:visibility="gone" />
 
-        <!-- Full dashboard (UX1): hidden on first run, shown once data exists. -->
+        <!-- Stage-3 item 2: dashboard-shaped skeleton while the stats queries run. -->
+        <LinearLayout
+            android:id="@+id/skeleton_stats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <View android:layout_width="match_parent" android:layout_height="96dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+                <View android:layout_width="0dp" android:layout_height="72dp" android:layout_weight="1"
+                    android:layout_marginEnd="8dp" android:background="@drawable/bg_skeleton_block" />
+                <View android:layout_width="0dp" android:layout_height="72dp" android:layout_weight="1"
+                    android:background="@drawable/bg_skeleton_block" />
+            </LinearLayout>
+            <View android:layout_width="match_parent" android:layout_height="160dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+        </LinearLayout>
+
+        <!-- Full dashboard (UX1): hidden on first run, shown once data exists.
+             Stage-3 item 2: starts GONE so the first frame shows skeleton, not zero-cards. -->
         <LinearLayout
             android:id="@+id/content_stats"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="gone">
 
         <!-- This-week pulse: sets + sessions vs last week, on the aurora wash -->
         <com.google.android.material.card.MaterialCardView
@@ -378,14 +403,8 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Export button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_export"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Export as CSV"
-            android:layout_marginBottom="16dp" />
+        <!-- Stage-3 item 15: the CSV export button was removed — Settings → Backup & Data's
+             JSON export/import is the data-portability path. -->
 
         </LinearLayout>
         <!-- /content_stats -->

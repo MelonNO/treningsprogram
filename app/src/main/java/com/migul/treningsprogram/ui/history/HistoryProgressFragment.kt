@@ -17,10 +17,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.migul.treningsprogram.R
+import com.google.android.material.datepicker.MaterialDatePicker
 import com.migul.treningsprogram.databinding.FragmentHistoryProgressBinding
 import com.migul.treningsprogram.domain.DataScreenEmptyState
+import com.migul.treningsprogram.domain.DateRangeFilter
 import com.migul.treningsprogram.domain.Epley
 import com.migul.treningsprogram.domain.OneRmTrend
+import com.migul.treningsprogram.domain.RepsProgress
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -60,14 +63,21 @@ class HistoryProgressFragment : Fragment() {
             val screenEmpty = DataScreenEmptyState.isProgressEmpty(names.size)
             binding.tvProgressEmpty.isVisible = screenEmpty
             binding.cardExerciseSelector.isVisible = !screenEmpty
+            // Stage-3 item 2: with data but no exercise picked yet, hint at the chart/cards to
+            // come with a placeholder skeleton (the true first-run state keeps its copy above).
+            if (!screenEmpty && viewModel.selectedExercise.value.isBlank()) {
+                com.migul.treningsprogram.ui.common.Skeleton.show(binding.skeletonProgress)
+            }
         }
 
         binding.acExercise.setOnItemClickListener { _, _, _, _ ->
+            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonProgress)
             viewModel.selectedExercise.value = binding.acExercise.text.toString()
         }
 
         // Also trigger on text commit
         binding.acExercise.setOnEditorActionListener { _, _, _ ->
+            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonProgress)
             viewModel.selectedExercise.value = binding.acExercise.text.toString()
             false
         }
@@ -87,13 +97,29 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
-        // Time window chips
-        binding.cgTime.setOnCheckedStateChangeListener { _, checkedIds ->
-            viewModel.timeWindowMonths.value = when {
-                checkedIds.contains(com.migul.treningsprogram.R.id.chip_1m) -> 1
-                checkedIds.contains(com.migul.treningsprogram.R.id.chip_3m) -> 3
-                checkedIds.contains(com.migul.treningsprogram.R.id.chip_6m) -> 6
-                else -> 0
+        // Stage-3 item 13: calendar start/end range picker (replaces the 1M/3M/6M/All chips) —
+        // identical look/behavior to the History sub-tab's control (item 12).
+        binding.btnProgressRange.setOnClickListener {
+            val picker = MaterialDatePicker.Builder.dateRangePicker()
+                .setTitleText("Filter progress by date")
+                .build()
+            picker.addOnPositiveButtonClickListener { sel ->
+                val start = sel.first
+                val end = sel.second
+                if (start != null && end != null) {
+                    viewModel.progressDateRange.value = DateRangeFilter.fromPickerUtc(start, end)
+                }
+            }
+            picker.show(parentFragmentManager, "progress_range_picker")
+        }
+        binding.btnProgressRangeClear.setOnClickListener { viewModel.progressDateRange.value = null }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.progressDateRange.collect { range ->
+                    binding.btnProgressRange.text = DateRangeFilter.label(range)
+                    binding.btnProgressRangeClear.isVisible = range != null
+                }
             }
         }
 
@@ -154,6 +180,27 @@ class HistoryProgressFragment : Fragment() {
                     // C1 PR timeline — replaces the legacy max-weight PR widget.
                     // Warm-ups are already excluded upstream; OneRmTrend does not re-filter.
                     renderPrTimeline(history, viewModel.selectedExercise.value)
+                }
+            }
+        }
+
+        // Stage-3 item 1: reps chart for bodyweight exercises. Shown when the selected exercise
+        // has at least one all-bodyweight session (RepsProgress); for mixed histories the weight
+        // chart above stays too, each labelled. Loaded lifts: hidden — exactly as today.
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.repsHistory.collect { history ->
+                    val hasSelection = viewModel.selectedExercise.value.isNotBlank()
+                    val show = hasSelection && history.isNotEmpty() &&
+                        RepsProgress.showRepsChart(history)
+                    binding.cardReps.isVisible = show
+                    if (show) {
+                        binding.chartReps.setData(
+                            history.map { StrengthChartView.Entry(it.dateMs, it.bestReps.toFloat()) },
+                            "reps",
+                            integerValues = true
+                        )
+                    }
                 }
             }
         }

@@ -11,14 +11,8 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Overview graphs (UX1): aggregate trends across all sessions, rendered programmatically.
-             Placed above the per-session recap so the tab opens on the visual trend story.
-             Hidden entirely when there are no sessions (the empty state below covers that case). -->
-        <LinearLayout
-            android:id="@+id/layout_overview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
+        <!-- Stage-3 item 3: the aggregate overview graphs are gone — Recap is purely the
+             per-session view; the Stats tab keeps all aggregates. -->
 
         <!-- Session selector -->
         <com.google.android.material.textfield.TextInputLayout
@@ -36,6 +30,21 @@
                 android:inputType="none"
                 android:focusable="false" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Stage-3 item 2: hero + card shaped skeleton while sessions/recap load. -->
+        <LinearLayout
+            android:id="@+id/skeleton_recap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <View android:layout_width="match_parent" android:layout_height="120dp"
+                android:layout_marginBottom="16dp" android:background="@drawable/bg_skeleton_block" />
+            <View android:layout_width="match_parent" android:layout_height="140dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+            <View android:layout_width="match_parent" android:layout_height="100dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+        </LinearLayout>
 
         <!-- Empty / first-time state -->
         <TextView

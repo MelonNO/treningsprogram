@@ -22,33 +22,34 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
 
     // ── Log tab ──────────────────────────────────────────────────────────
-    // Completed real workouts only — drives the Stats tab totals (totalWorkouts / best streak) and
-    // CSV export, so it must NOT include auto-logged rest/missed placeholders.
+    // Completed real workouts only — drives the Stats tab totals (totalWorkouts / best streak),
+    // so it must NOT include auto-logged rest/missed placeholders.
     val allSessions: StateFlow<List<WorkoutSession>> =
         workoutRepository.getAllCompletedSessions()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // History "Log" timeline — real workouts PLUS auto-logged REST/MISSED days, so empty days are
     // visible as distinct entries. Separate from [allSessions] so placeholders never reach the Stats.
-    private val timelineSessions: StateFlow<List<WorkoutSession>> =
+    // Stage-3 item 2: starts null (= still loading) so the UI can show a skeleton instead of a
+    // premature "no sessions yet" empty state before the first DB emission.
+    private val timelineSessions: StateFlow<List<WorkoutSession>?> =
         workoutRepository.getHistoryTimeline()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val searchQuery = MutableStateFlow("")
-    val dateFilter = MutableStateFlow(DateFilter.ALL)
 
-    enum class DateFilter { ALL, WEEK, MONTH, THREE_MONTHS }
+    // Stage-3 item 12: the calendar start/end range replaces the Week/Month/3-Months chips.
+    // null = All (default); deliberately in-memory only so every visit starts at All (A-12a).
+    val logDateRange = MutableStateFlow<com.migul.treningsprogram.domain.DateRangeFilter.Range?>(null)
 
-    val filteredSessions: StateFlow<List<WorkoutSession>> =
-        combine(timelineSessions, searchQuery, dateFilter) { sessions, query, filter ->
-            val now = System.currentTimeMillis()
-            val cutoff = when (filter) {
-                DateFilter.WEEK -> now - 7 * 86_400_000L
-                DateFilter.MONTH -> now - 30 * 86_400_000L
-                DateFilter.THREE_MONTHS -> now - 90 * 86_400_000L
-                DateFilter.ALL -> 0L
+    // null = still loading (item 2 skeleton); non-null = render (possibly an empty state).
+    val filteredSessions: StateFlow<List<WorkoutSession>?> =
+        combine(timelineSessions, searchQuery, logDateRange) { sessions, query, range ->
+            if (sessions == null) return@combine null
+            // Inclusive on both ends, evaluated on the logical day boundary (item 12).
+            val filtered = sessions.filter {
+                com.migul.treningsprogram.domain.DateRangeFilter.contains(range, it.dateMs)
             }
-            val filtered = sessions.filter { it.dateMs >= cutoff }
             if (query.isBlank()) {
                 filtered
             } else {
@@ -60,7 +61,7 @@ class HistoryViewModel @Inject constructor(
                         .contains(query, ignoreCase = true)
                 }
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     suspend fun getSetsForSession(sessionId: Long): List<WorkoutSet> =
         workoutRepository.getSetsForSessionOnce(sessionId)
@@ -80,30 +81,17 @@ class HistoryViewModel @Inject constructor(
     suspend fun buildRecap(sessionId: Long): com.migul.treningsprogram.domain.model.SessionRecap? =
         workoutRepository.buildSessionRecap(sessionId)
 
-    /**
-     * UX1 Recap overview: total working-set volume per week across ALL exercises, chronological.
-     * One logical epoch-day per completed working set, bucketed by
-     * [com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints] into Monday-based weeks
-     * (Item 7 day boundary); warm-ups excluded by the DAO query.
-     */
-    suspend fun getWeeklyVolumePoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> =
-        com.migul.treningsprogram.domain.RecapGraphs.weeklyVolumePoints(
-            workoutRepository.getWorkingSetDayEpochs()
-        )
-
-    /** UX1 Recap overview: sessions per week over time (training frequency). */
-    suspend fun getWeeklyFrequencyPoints(): List<com.migul.treningsprogram.domain.RecapGraphs.WeekPoint> =
-        com.migul.treningsprogram.domain.RecapGraphs.weeklyFrequencyPoints(
-            workoutRepository.getTrainingDayEpochs()
-        )
-
-    /** UX1 Recap overview: per-muscle-group working-set distribution, desc by sets. */
-    suspend fun getMuscleRows(): List<com.migul.treningsprogram.domain.RecapGraphs.MuscleRow> =
-        com.migul.treningsprogram.domain.RecapGraphs.muscleRows(workoutRepository.getMuscleGroupVolume())
+    // Stage-3 item 3: the Recap overview getters (weekly volume/frequency points, muscle rows)
+    // were removed with the overview section. RecapGraphs itself stays — WeekDelta and the Stats
+    // tab still build on it.
 
     // ── Progress tab ──────────────────────────────────────────────────────
     val selectedExercise = MutableStateFlow("")
-    val timeWindowMonths = MutableStateFlow(0)
+
+    // Stage-3 item 13: calendar start/end range replaces the 1M/3M/6M/All chips.
+    // null = All (default); in-memory only, same non-persistence as item 12 (A-13a).
+    val progressDateRange =
+        MutableStateFlow<com.migul.treningsprogram.domain.DateRangeFilter.Range?>(null)
 
     /**
      * Exercise names for the Progress-tab picker, ordered most-trained-first (B03):
@@ -122,13 +110,34 @@ class HistoryViewModel @Inject constructor(
                 if (name.isBlank()) flowOf(emptyList())
                 else flow { emit(workoutRepository.getStrengthHistory(name)) }
             },
-            timeWindowMonths
-        ) { history, months ->
-            if (months == 0) history
-            else {
-                val cutoff = System.currentTimeMillis() - months * 30 * 86_400_000L
-                history.filter { it.dateMs >= cutoff }
+            progressDateRange
+        ) { history, range ->
+            history.filter {
+                com.migul.treningsprogram.domain.DateRangeFilter.contains(range, it.dateMs)
             }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Stage-3 item 1: per-session reps history INCLUDING bodyweight (0-kg) sets, windowed by the
+     * same range as the strength chart. Drives the Progress reps chart for bodyweight exercises
+     * (domain/RepsProgress decides whether it shows).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val repsHistory: StateFlow<List<com.migul.treningsprogram.domain.RepsProgress.Point>> =
+        combine(
+            selectedExercise.flatMapLatest { name ->
+                if (name.isBlank()) flowOf(emptyList())
+                else flow { emit(workoutRepository.getSessionRepsHistory(name)) }
+            },
+            progressDateRange
+        ) { history, range ->
+            history
+                .filter { com.migul.treningsprogram.domain.DateRangeFilter.contains(range, it.dateMs) }
+                .map {
+                    com.migul.treningsprogram.domain.RepsProgress.Point(
+                        it.dateMs, it.maxWeight, it.bestReps
+                    )
+                }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
@@ -193,20 +202,24 @@ class HistoryViewModel @Inject constructor(
     suspend fun getTrainingDays(): List<Long> = workoutRepository.getTrainingDayEpochs()
     suspend fun getTotalSets(): Int = workoutRepository.getTotalSets()
     suspend fun getTotalVolume(): Float = workoutRepository.getTotalVolumeKg()
-    fun exportCsv(sessions: List<WorkoutSession>, callback: (String) -> Unit) {
-        viewModelScope.launch {
-            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val sb = StringBuilder("Date,Duration(min),Exercise,Set,Reps,Weight(kg)\n")
-            sessions.forEach { session ->
-                // Item 7: export the LOGICAL day so the CSV agrees with History grouping.
-                val date = fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))
-                val dur = session.durationMinutes
-                val sets = workoutRepository.getSetsForSessionOnce(session.id)
-                sets.forEach { set ->
-                    sb.append("$date,$dur,${set.exerciseName},${set.setNumber},${set.reps},${set.weightKg}\n")
-                }
-            }
-            callback(sb.toString())
-        }
-    }
+
+    /**
+     * Stage-3 item 11: the session a tapped heatmap cell (muscle × week) should open — the most
+     * recent session that week with working sets for that muscle (HeatmapDrill, A-11a). Uses the
+     * same LOGICAL-millis shift as the heatmap build so the drill target matches the drawn cell.
+     */
+    suspend fun resolveHeatmapSession(muscle: String, weekStartMs: Long, weeks: Int = 8): Long? =
+        com.migul.treningsprogram.domain.HeatmapDrill.resolve(
+            workoutRepository.getMuscleSessionDays(weeks).map {
+                com.migul.treningsprogram.domain.HeatmapDrill.Row(
+                    it.sessionId,
+                    com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(it.dateMs),
+                    it.muscleGroup
+                )
+            },
+            muscle, weekStartMs
+        )
+
+    // Stage-3 item 15: the CSV export (exportCsv + the Stats-tab share button) was removed —
+    // Settings → Backup & Data's JSON export/import is the data-portability path.
 }

@@ -121,7 +121,15 @@
         android:id="@+id/settingsAboutFragment"
         android:name="com.migul.treningsprogram.ui.settings.SettingsAboutFragment"
         android:label="About"
-        tools:layout="@layout/fragment_settings_about" />
+        tools:layout="@layout/fragment_settings_about">
+        <!-- Stage-3 item 8: Debug now lives under About. -->
+        <action android:id="@+id/action_settings_about_to_debug"
+            app:destination="@id/settingsDebugFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
 
     <fragment
         android:id="@+id/settingsTrainingFragment"
@@ -216,15 +224,7 @@
         android:id="@+id/settingsBackupFragment"
         android:name="com.migul.treningsprogram.ui.settings.SettingsBackupFragment"
         android:label="Backup &amp; Data"
-        tools:layout="@layout/fragment_settings_backup">
-        <!-- Item 5: Debug now lives under Backup &amp; Data. -->
-        <action android:id="@+id/action_settings_backup_to_debug"
-            app:destination="@id/settingsDebugFragment"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
-    </fragment>
+        tools:layout="@layout/fragment_settings_backup" />
 
     <fragment
         android:id="@+id/gymPresetsFragment"

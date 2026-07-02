@@ -19,6 +19,7 @@ import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.databinding.FragmentProfileBinding
 import com.migul.treningsprogram.domain.AchievementCatalog
+import com.migul.treningsprogram.domain.DayBoundary
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -74,15 +75,12 @@ class ProfileFragment : Fragment() {
                     val xpToNext = GamificationRepository.xpForLevel(level + 1) - xp
                     binding.tvProfileXpLabel.text = "$xp XP  •  $xpToNext to Level ${level + 1}"
 
-                    binding.tvStatWorkouts.text = "${stats?.totalWorkouts ?: 0}"
-                    binding.tvStatSets.text = "${state.totalSets}"
-                    val kg = state.totalVolumeKg
-                    binding.tvStatVolume.text = if (kg >= 1000f) "%.1ft".format(kg / 1000f) else "${kg.toInt()}kg"
-                    binding.tvStatStreak.text = "${stats?.currentStreak ?: 0}"
-
-                    // PRs
-                    binding.tvPrs.text = if (state.topPrs.isEmpty()) "No records yet. Complete a workout!"
-                    else state.topPrs.joinToString("\n") { "🏆 ${it.exerciseName}: ${formatWeight(it.maxWeight)}kg" }
+                    // Stage-3 item 4: only PRs earned in the last 7 days — a recent-wins surface.
+                    binding.tvPrs.text = if (state.recentPrs.isEmpty())
+                        "No PRs in the last 7 days — your next one is waiting."
+                    else state.recentPrs.joinToString("\n") {
+                        "🏆 ${it.exerciseName}: ${formatWeight(it.weightKg)}kg · ${daysAgoLabel(it.dateMs)}"
+                    }
 
                     // R5: the achievement GALLERY — categories with counts, rarity tiers, live
                     // progress on locked threshold achievements, and a "next up" teaser strip.
@@ -100,6 +98,14 @@ class ProfileFragment : Fragment() {
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    /** How recent a PR is, in logical days ("today" / "yesterday" / "N days ago"). */
+    private fun daysAgoLabel(dateMs: Long): String =
+        when (val d = DayBoundary.todayEpochDay() - DayBoundary.logicalEpochDay(dateMs)) {
+            0L -> "today"
+            1L -> "yesterday"
+            else -> "$d days ago"
+        }
 
     // ── R5: achievement gallery ─────────────────────────────────────────────────────────────────
 

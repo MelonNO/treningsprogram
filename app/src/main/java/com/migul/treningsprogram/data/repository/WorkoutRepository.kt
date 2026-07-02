@@ -34,7 +34,9 @@ class WorkoutRepository @Inject constructor(
     private val programDao: ProgramDao,
     private val resolver: ExerciseDbResolver,
     private val backupScheduler: BackupScheduler,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    // Stage-3 item 14: read-only, for attributing achievement unlocks to sessions in the recap.
+    private val achievementDao: AchievementDao
 ) {
 
     companion object {
@@ -77,6 +79,10 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getStrengthHistory(name: String): List<StrengthPoint> = setDao.getStrengthHistory(name)
 
+    /** Stage-3 item 1: per-session summary including bodyweight sets (reps progression). */
+    suspend fun getSessionRepsHistory(name: String): List<StrengthPoint> =
+        setDao.getSessionRepsHistory(name)
+
     /** One LOGICAL epoch-day per completed working set (Item 7 day boundary), for weekly volume. */
     suspend fun getWorkingSetDayEpochs(): List<Long> =
         setDao.getCompletedWorkingSetDateMs()
@@ -87,6 +93,12 @@ class WorkoutRepository @Inject constructor(
     /** F5: working-set (muscle, day) pairs covering the last [weeks] whole weeks. */
     suspend fun getMuscleSetDays(weeks: Int): List<MuscleSetDay> =
         setDao.getMuscleSetDaysSince(
+            System.currentTimeMillis() - weeks.toLong() * 7L * 24L * 60L * 60L * 1000L
+        )
+
+    /** Stage-3 item 11: sessions per muscle for the heatmap drill-down, same window/filters. */
+    suspend fun getMuscleSessionDays(weeks: Int): List<MuscleSessionDay> =
+        setDao.getMuscleSessionDaysSince(
             System.currentTimeMillis() - weeks.toLong() * 7L * 24L * 60L * 60L * 1000L
         )
 
@@ -713,10 +725,12 @@ class WorkoutRepository @Inject constructor(
 
         val focusMuscle = working.filter { it.muscleGroup.isNotBlank() }
             .groupBy { it.muscleGroup }.maxByOrNull { it.value.size }?.key ?: ""
-        val muscleVolume = working.filter { it.muscleGroup.isNotBlank() }
-            .groupBy { it.muscleGroup }
-            .map { it.key to it.value.size }
-            .sortedByDescending { it.second }
+        // Stage-3 item 9: FINE muscle labels (Triceps, not Arms) — resolved from exercise names
+        // via the same taxonomy/weighting the Home recovery panel uses, so the two screens agree.
+        val muscleVolume = com.migul.treningsprogram.domain.FineMuscleVolume.rows(
+            working.groupBy { it.exerciseName }.map { (name, sets) -> name to sets.size },
+            com.migul.treningsprogram.data.MuscleClassifier::finerMusclesFor
+        )
 
         val effortCounts = working.filter { it.rpeLabel.isNotBlank() }
             .groupingBy { it.rpeLabel }.eachCount()
@@ -764,6 +778,19 @@ class WorkoutRepository @Inject constructor(
             }
         }
 
+        // Stage-3 item 14: achievements earned in THIS session — unlock moments attributed to
+        // completed real sessions' completion windows (SessionEarned; omit-when-unsure).
+        val unlockedAchievements = achievementDao.getAllOnce()
+            .filter { it.isUnlocked && it.unlockedAtMs > 0L }
+        val earnedAchievements = if (unlockedAchievements.isEmpty()) emptyList() else {
+            val windows = sessionDao.getAllOnce()
+                .filter { it.isCompleted && !it.isPlaceholder }
+                .map { com.migul.treningsprogram.domain.SessionEarned.Window(it.id, it.dateMs, it.durationMinutes) }
+            unlockedAchievements.filter {
+                com.migul.treningsprogram.domain.SessionEarned.attributeTo(it.unlockedAtMs, windows) == sessionId
+            }
+        }
+
         return SessionRecap(
             session = session,
             focusMuscle = focusMuscle,
@@ -776,7 +803,8 @@ class WorkoutRepository @Inject constructor(
             plannedSets = plannedSets,
             estimatedMinutes = estimatedMinutes,
             skippedExercises = skipped,
-            pacing = pacing
+            pacing = pacing,
+            earnedAchievements = earnedAchievements
         )
     }
 }

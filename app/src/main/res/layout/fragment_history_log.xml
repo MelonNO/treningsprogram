@@ -41,45 +41,50 @@
                 android:imeOptions="actionSearch" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Date filter chips -->
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/cg_date_filter"
+        <!-- Stage-3 item 12: calendar start/end range control (replaces the Week/Month/3M chips).
+             Default All; the Reset action reappears only while a range is active. -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:singleSelection="true"
-            app:selectionRequired="true">
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_filter_all"
-                style="@style/Widget.Material3.Chip.Filter"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_date_range"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="All time"
+                app:icon="@drawable/ic_lucide_calendar"
+                app:iconGravity="textStart" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_date_range_clear"
+                style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="All"
-                android:checked="true" />
+                android:layout_marginStart="8dp"
+                android:text="Reset"
+                android:visibility="gone" />
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_filter_week"
-                style="@style/Widget.Material3.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Week" />
+        </LinearLayout>
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_filter_month"
-                style="@style/Widget.Material3.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Month" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_filter_3months"
-                style="@style/Widget.Material3.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="3 Months" />
-
-        </com.google.android.material.chip.ChipGroup>
+        <!-- Stage-3 item 2: session-card-shaped skeleton while the list loads. -->
+        <LinearLayout
+            android:id="@+id/skeleton_log"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <View android:layout_width="match_parent" android:layout_height="76dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+            <View android:layout_width="match_parent" android:layout_height="76dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+            <View android:layout_width="match_parent" android:layout_height="76dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+        </LinearLayout>
 
         <!-- Empty state -->
         <TextView

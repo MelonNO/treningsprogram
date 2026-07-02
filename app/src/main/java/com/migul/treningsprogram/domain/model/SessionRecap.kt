@@ -44,10 +44,15 @@ data class SessionRecap(
     val totalVolumeKg: Float,
     val totalSets: Int,
     val exercises: List<ExerciseRecap>,
-    val muscleVolume: List<Pair<String, Int>>,   // muscle -> working set count, desc
+    // Stage-3 item 9: FINE muscle labels (Triceps, not Arms) -> weighted whole-set count, desc —
+    // same taxonomy/weighting as the Home recovery panel (FineMuscleVolume).
+    val muscleVolume: List<Pair<String, Int>>,
     val effort: List<Pair<String, Int>>,         // Easy/Moderate/Hard (ordered) -> count
     val plannedSets: Int?,                        // null = no plan for this day
     val estimatedMinutes: Int?,                   // null = no plan for this day
     val skippedExercises: List<String>,          // planned but not performed
-    val pacing: SessionPacing?                    // null = too few timestamped sets to measure
+    val pacing: SessionPacing?,                   // null = too few timestamped sets to measure
+    // Stage-3 item 14: achievements this session unlocked (timestamp-attributed via
+    // SessionEarned; omit-when-unsure, so historical ambiguity never mis-claims).
+    val earnedAchievements: List<com.migul.treningsprogram.data.db.entity.Achievement> = emptyList()
 )

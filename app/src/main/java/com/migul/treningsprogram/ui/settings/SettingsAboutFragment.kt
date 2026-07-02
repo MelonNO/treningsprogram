@@ -14,6 +14,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
+import com.migul.treningsprogram.R
 import com.migul.treningsprogram.UpdateChecker
 import com.migul.treningsprogram.databinding.FragmentSettingsAboutBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -53,6 +55,12 @@ class SettingsAboutFragment : Fragment() {
             val newest = com.migul.treningsprogram.ui.common.Changelog.ENTRIES.maxOf { it.versionCode }
             com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.newInstance(newest - 2)
                 .show(parentFragmentManager, com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.TAG)
+        }
+
+        // Stage-3 item 8: Debug now lives under About (moved from Backup & Data).
+        binding.rowDebug.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.settingsAboutFragment)
+                findNavController().navigate(R.id.action_settings_about_to_debug)
         }
     }
 

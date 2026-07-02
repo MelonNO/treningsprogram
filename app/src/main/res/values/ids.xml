@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stage-3 item 2: view-tag key for a skeleton's pending delayed-show runnable. -->
+    <item name="skeleton_pending_show" type="id" />
+</resources>

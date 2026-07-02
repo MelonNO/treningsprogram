@@ -153,7 +153,10 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Stats grid -->
+        <!-- Stage-3 item 5: the four-stat block (workouts/sets/volume/streak) was removed —
+             those figures live on the Stats tab (and the streak on Home). -->
+
+        <!-- Personal Records — stage-3 item 4: last 7 days only -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -173,79 +176,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     style="@style/Widget.Auros.Eyebrow"
-                    android:text="Stats"
-                    android:layout_marginBottom="14dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-                        <TextView android:id="@+id/tv_stat_workouts" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
-                            android:textColor="@color/auros_cyan" android:text="0" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Workouts" android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-                    </LinearLayout>
-
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-                        <TextView android:id="@+id/tv_stat_sets" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
-                            android:textColor="@color/auros_cyan" android:text="0" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Sets" android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-                    </LinearLayout>
-
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-                        <TextView android:id="@+id/tv_stat_volume" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
-                            android:textColor="@color/auros_cyan" android:text="0kg" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Volume" android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-                    </LinearLayout>
-
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-                        <TextView android:id="@+id/tv_stat_streak" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
-                            android:textColor="@color/auros_cyan" android:text="0" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Streak" android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-                    </LinearLayout>
-
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Personal Records -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardElevation="0dp"
-            app:cardCornerRadius="16dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="?attr/colorOutlineVariant">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Auros.Eyebrow"
-                    android:text="Personal Records"
+                    android:text="PRs · Last 7 Days"
                     android:layout_marginBottom="8dp" />
 
                 <TextView
@@ -255,7 +186,7 @@
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:lineSpacingExtra="4dp"
-                    android:text="No records yet. Complete a workout!" />
+                    android:text="No PRs in the last 7 days — your next one is waiting." />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

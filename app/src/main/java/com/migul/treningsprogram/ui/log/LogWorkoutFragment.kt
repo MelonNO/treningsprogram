@@ -367,6 +367,28 @@ class LogWorkoutFragment : Fragment() {
         binding.btnKpBack.setOnClickListener { applyCalc(WeightCalculator.backspace(calcState)) }
         binding.btnKpClear.setOnClickListener { applyCalc(WeightCalculator.clear()) }
         binding.btnKpDone.setOnClickListener { hideWeightKeypad() }
+
+        // Stage-3 item 16: while the pad is open, a tap anywhere OUTSIDE it closes it (resolving
+        // any pending expression, same as Done) and the tap still performs its normal action
+        // (pass-through, A-16a). Exempt the weight-editing surface itself: the pad, the weight
+        // field, and the ±2.5 quick-steps (which keep reseeding the open pad as before).
+        binding.root.onDispatchDown = { ev ->
+            if (_binding != null && binding.layoutWeightKeypad.visibility == View.VISIBLE &&
+                !isTouchInside(ev, binding.layoutWeightKeypad) &&
+                !isTouchInside(ev, binding.etWeight) &&
+                !isTouchInside(ev, binding.btnWeightMinus) &&
+                !isTouchInside(ev, binding.btnWeightPlus)
+            ) hideWeightKeypad()
+        }
+    }
+
+    /** True when the raw touch point of [ev] lands within [v]'s on-screen bounds. */
+    private fun isTouchInside(ev: android.view.MotionEvent, v: View): Boolean {
+        if (v.visibility != View.VISIBLE) return false
+        val loc = IntArray(2)
+        v.getLocationOnScreen(loc)
+        return ev.rawX >= loc[0] && ev.rawX <= loc[0] + v.width &&
+            ev.rawY >= loc[1] && ev.rawY <= loc[1] + v.height
     }
 
     private fun applyCalc(newState: WeightCalculator.State) {

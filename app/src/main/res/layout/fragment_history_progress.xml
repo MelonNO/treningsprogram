@@ -92,43 +92,34 @@
                         android:completionThreshold="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/cg_time"
+                <!-- Stage-3 item 13: same calendar range control as the History sub-tab
+                     (replaces the 1M/3M/6M/All chips). Default All; Reset shows while active. -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:singleSelection="true"
-                    app:selectionRequired="true">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_1m"
-                        style="@style/Widget.Material3.Chip.Filter"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_progress_range"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="All time"
+                        app:icon="@drawable/ic_lucide_calendar"
+                        app:iconGravity="textStart" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_progress_range_clear"
+                        style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="1M" />
+                        android:layout_marginStart="8dp"
+                        android:text="Reset"
+                        android:visibility="gone" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_3m"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="3M" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_6m"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="6M" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_all"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="All"
-                        android:checked="true" />
-
-                </com.google.android.material.chip.ChipGroup>
+                </LinearLayout>
 
             </LinearLayout>
 
@@ -201,6 +192,65 @@
                     android:text="View full trends"
                     android:layout_marginTop="4dp"
                     android:visibility="gone" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Stage-3 item 2: chart/card-shaped placeholder skeleton for the "no exercise selected
+             yet" state — hints at what will appear (the true first-run empty state above keeps
+             its copy instead). -->
+        <LinearLayout
+            android:id="@+id/skeleton_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <View android:layout_width="match_parent" android:layout_height="200dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+            <View android:layout_width="match_parent" android:layout_height="88dp"
+                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
+        </LinearLayout>
+
+        <!-- Stage-3 item 1: reps progression card — shown for exercises trained at body weight
+             (any all-0-kg session in history). For mixed history the strength card above appears
+             in addition, each clearly labelled. -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_reps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="?attr/colorOutlineVariant">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
+                    android:text="Reps"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Best working-set reps per session"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginBottom="12dp" />
+
+                <com.migul.treningsprogram.ui.history.StrengthChartView
+                    android:id="@+id/chart_reps"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp" />
 
             </LinearLayout>
 

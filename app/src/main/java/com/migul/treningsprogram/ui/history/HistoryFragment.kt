@@ -48,9 +48,9 @@ class HistoryFragment : Fragment() {
         }
     }
 
-    /** Open the Recap tab for [sessionId] (null = latest). */
-    fun openRecap(sessionId: Long?) {
-        recapTarget.request(sessionId)
+    /** Open the Recap tab for [sessionId] (null = latest), optionally highlighting a muscle. */
+    fun openRecap(sessionId: Long?, highlightMuscle: String? = null) {
+        recapTarget.request(sessionId, highlightMuscle)
         _binding?.viewPager?.currentItem = RECAP_TAB
     }
 
