@@ -26,7 +26,8 @@ object XpEventBuilder {
         prXp: Int,
         prCount: Int,
         bonusChallengeXp: Int,
-        challengeNames: List<String> = emptyList()
+        challengeNames: List<String> = emptyList(),
+        perfectWeekXp: Int = 0
     ): List<XpEvent> {
         val events = mutableListOf<XpEvent>()
 
@@ -66,6 +67,16 @@ object XpEventBuilder {
                 timestampMs = timestampMs,
                 amount = bonusChallengeXp,
                 reason = reason,
+                sessionId = sessionId
+            )
+        }
+
+        // R4: the Perfect Week adherence bonus — its own itemized row (explicit AC).
+        if (perfectWeekXp > 0) {
+            events += XpEvent(
+                timestampMs = timestampMs,
+                amount = perfectWeekXp,
+                reason = "Perfect Week",
                 sessionId = sessionId
             )
         }

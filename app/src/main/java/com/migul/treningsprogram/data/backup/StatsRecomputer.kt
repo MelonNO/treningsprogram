@@ -1,11 +1,13 @@
 package com.migul.treningsprogram.data.backup
 
 import com.migul.treningsprogram.data.db.entity.Achievement
+import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.domain.StreakPolicy
+import com.migul.treningsprogram.domain.WeekCompletion
 
 /**
  * Deterministic, from-scratch recompute of [UserStats] from a MERGED history.
@@ -38,11 +40,17 @@ object StatsRecomputer {
      * @param sets all merged sets (linked to sessions by sessionId).
      * @param achievements the MERGED achievement set; [UserStats] is not driven by these but they
      *        are accepted for symmetry / future use and to keep the call site explicit.
+     * @param plannedExercises the MERGED plan rows — they drive the R4 Perfect Week replay
+     *        (+150 XP per week whose planned days are all logged, same [WeekCompletion] rule as
+     *        the live award). NOTE: this deterministically re-derives Perfect Weeks for the WHOLE
+     *        merged history, including weeks before the feature shipped — accepted (deterministic,
+     *        merge-only). Ordinary challenge bonus XP remains the known accepted under-count.
      */
     fun recompute(
         sessions: List<WorkoutSession>,
         sets: List<WorkoutSet>,
-        @Suppress("UNUSED_PARAMETER") achievements: List<Achievement> = emptyList()
+        @Suppress("UNUSED_PARAMETER") achievements: List<Achievement> = emptyList(),
+        plannedExercises: List<PlannedExercise> = emptyList()
     ): UserStats {
         val setsBySession: Map<Long, List<WorkoutSet>> = sets.groupBy { it.sessionId }
 
@@ -119,6 +127,15 @@ object StatsRecomputer {
         if (lastDay != null && missedEpochDays.any { it > lastDay }) {
             currentStreak = 0
         }
+
+        // R4 Perfect Week replay: one +150 per weekStart where SOME program's plan for that week
+        // is fully logged (mirrors the live award, which checks the then-active program's plan).
+        val perfectWeeks = plannedExercises
+            .groupBy { it.weekStart }
+            .count { (_, weekRows) ->
+                weekRows.groupBy { it.programId }.values.any { WeekCompletion.isPerfect(it) }
+            }
+        totalXp += perfectWeeks * GamificationRepository.PERFECT_WEEK_XP
 
         return UserStats(
             id = 1,

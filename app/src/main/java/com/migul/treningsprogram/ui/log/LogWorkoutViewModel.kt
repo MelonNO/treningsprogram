@@ -153,38 +153,13 @@ class LogWorkoutViewModel @Inject constructor(
 
     private val _todayChallenges = MutableStateFlow<List<DailyChallenge>>(emptyList())
 
+    // R4: the live progress readout shares its metric math with the completion award via
+    // ChallengeProgress — the preview can no longer disagree with what completion credits.
     @OptIn(ExperimentalCoroutinesApi::class)
     val challengeProgress: StateFlow<String> = sets
         .combine(_todayChallenges) { currentSets, challenges ->
-            if (challenges.isEmpty()) return@combine ""
-            val workingSets = currentSets.filter { !it.isWarmup }
-            val muscleGroups = workingSets.map { it.muscleGroup }.toSet()
-            val exerciseNames = workingSets.map { it.exerciseName }.toSet()
-            challenges.joinToString("   ") { ch ->
-                val metNow = when (ch.id) {
-                    "complete_workout" -> workingSets.isNotEmpty()
-                    "sets_10"          -> workingSets.size >= 10
-                    "sets_15"          -> workingSets.size >= 15
-                    "sets_20"          -> workingSets.size >= 20
-                    "chest_day"        -> "Chest" in muscleGroups
-                    "back_day"         -> "Back" in muscleGroups
-                    "leg_day"          -> "Legs" in muscleGroups
-                    "arms_day"         -> "Arms" in muscleGroups
-                    "core_day"         -> "Core" in muscleGroups
-                    "exercises_3"      -> exerciseNames.size >= 3
-                    "exercises_5"      -> exerciseNames.size >= 5
-                    else               -> false
-                }
-                when {
-                    ch.isCompleted || metNow -> "✅ ${ch.name}"
-                    ch.id == "sets_10"     -> "⬜ ${ch.name} ${workingSets.size}/10"
-                    ch.id == "sets_15"     -> "⬜ ${ch.name} ${workingSets.size}/15"
-                    ch.id == "sets_20"     -> "⬜ ${ch.name} ${workingSets.size}/20"
-                    ch.id == "exercises_3" -> "⬜ ${ch.name} ${exerciseNames.size}/3"
-                    ch.id == "exercises_5" -> "⬜ ${ch.name} ${exerciseNames.size}/5"
-                    else                   -> "⬜ ${ch.name}"
-                }
-            }
+            com.migul.treningsprogram.domain.ChallengeProgress
+                .liveLine(challenges, currentSets.filter { !it.isWarmup })
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 

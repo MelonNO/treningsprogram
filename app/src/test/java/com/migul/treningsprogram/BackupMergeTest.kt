@@ -330,6 +330,39 @@ class BackupMergeTest {
     private fun placeholder(id: Long, dateMs: Long, kind: String) =
         WorkoutSession(id = id, dateMs = dateMs, isCompleted = true, kind = kind)
 
+    // R4: Perfect Week XP is replayed deterministically from the merged plan rows.
+    @Test fun statsRecompute_perfectWeekXpReplayedFromPlan() {
+        val sessions = listOf(session(1, dayMs(0)), session(2, dayMs(1)))
+        val sets = listOf(set(1, 1, "Squat", 5, 100f), set(2, 2, "Bench", 5, 80f))
+        val perfectWeekPlan = listOf(
+            plannedRow(10L, day = 1, logged = true),
+            plannedRow(10L, day = 3, logged = true)
+        )
+        val imperfectWeekPlan = listOf(
+            plannedRow(20L, day = 1, logged = true),
+            plannedRow(20L, day = 3, logged = false)
+        )
+        val recomputed = StatsRecomputer.recompute(
+            sessions, sets, emptyList(), perfectWeekPlan + imperfectWeekPlan
+        )
+        // Base 140 (see statsRecompute_isFromScratchNotCopied — but Bench is a baseline here, no
+        // PR: 55 + 55 = 110) + exactly ONE Perfect Week bonus (+150) = 260.
+        assertEquals(110 + GamificationRepository.PERFECT_WEEK_XP, recomputed.totalXp)
+    }
+
+    @Test fun statsRecompute_noPlanNoPerfectWeekXp() {
+        val sessions = listOf(session(1, dayMs(0)))
+        val sets = listOf(set(1, 1, "Squat", 5, 100f))
+        val recomputed = StatsRecomputer.recompute(sessions, sets)
+        assertEquals(55, recomputed.totalXp) // A-C2: no plan rows -> no Perfect Week bonus
+    }
+
+    private fun plannedRow(weekStart: Long, day: Int, logged: Boolean) =
+        com.migul.treningsprogram.data.db.entity.PlannedExercise(
+            weekStart = weekStart, dayOfWeek = day, orderInDay = 0, exerciseName = "X",
+            sets = 3, targetReps = "8", targetWeightKg = 0f, isLogged = logged
+        )
+
     /** Day index converted to an ms timestamp at local noon (stable across the start-of-day calc). */
     private fun dayMs(dayOffset: Int): Long {
         val cal = java.util.Calendar.getInstance().apply {

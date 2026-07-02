@@ -149,8 +149,9 @@ class ExportRepository @Inject constructor(
         mergedPresets.presets.forEach { gymPresetDao.insertWithId(it) }
 
         // 5) Stats / streak / level / XP: RECOMPUTE from merged history (never copy from a side).
+        //    The merged plan rows ride along so the R4 Perfect Week XP is replayed deterministically.
         gamificationRepository.recomputeStatsFromHistory(
-            mergedWorkouts.sessions, mergedWorkouts.sets, mergedAchievements
+            mergedWorkouts.sessions, mergedWorkouts.sets, mergedAchievements, mergedPlanned
         )
 
         // 6) Preferences: per-field resolution. Repoint the backup's selectedGymPresetId through

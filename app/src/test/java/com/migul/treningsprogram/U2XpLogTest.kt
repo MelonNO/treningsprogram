@@ -54,6 +54,22 @@ class U2XpLogTest {
         assertEquals(80, events.sumOf { it.amount })
     }
 
+    @Test fun perfectWeek_getsItsOwnItemizedRow_andSumStillMatches() {
+        val events = XpEventBuilder.buildWorkoutEvents(
+            timestampMs = 9L, sessionId = 4L,
+            baseXp = 50, setXp = 20, setCount = 4, prXp = 0, prCount = 0,
+            bonusChallengeXp = 0, perfectWeekXp = 150
+        )
+        assertTrue(events.any { it.reason == "Perfect Week" && it.amount == 150 })
+        assertEquals(50 + 20 + 150, events.sumOf { it.amount })
+        // And a normal workout emits no Perfect Week row.
+        val plain = XpEventBuilder.buildWorkoutEvents(
+            timestampMs = 9L, sessionId = 4L,
+            baseXp = 50, setXp = 20, setCount = 4, prXp = 0, prCount = 0, bonusChallengeXp = 0
+        )
+        assertTrue(plain.none { it.reason == "Perfect Week" })
+    }
+
     @Test fun reasonStrings_areHumanReadable_withCountsAndPluralization() {
         val single = XpEventBuilder.buildWorkoutEvents(
             timestampMs = 1L, sessionId = null,

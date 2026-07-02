@@ -108,6 +108,17 @@ interface WorkoutSetDao {
     """)
     suspend fun getPreviousMaxWeight(exerciseName: String, excludeSessionId: Long): Float?
 
+    /**
+     * R4: all WORKING sets of COMPLETED sessions in [fromMs, toMs) — the adaptive-challenge
+     * context window ("last week's sets", "recent best session", …).
+     */
+    @Query("""
+        SELECT ws.* FROM workout_sets ws
+        JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE s.isCompleted = 1 AND s.dateMs >= :fromMs AND s.dateMs < :toMs AND ws.isWarmup = 0
+    """)
+    suspend fun getWorkingSetsBetween(fromMs: Long, toMs: Long): List<WorkoutSet>
+
     @Query("""
         SELECT exerciseName, MAX(weightKg) AS maxWeight
         FROM workout_sets

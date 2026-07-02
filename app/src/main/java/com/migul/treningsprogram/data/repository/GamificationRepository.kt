@@ -2,16 +2,21 @@ package com.migul.treningsprogram.data.repository
 
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.AchievementDao
+import com.migul.treningsprogram.data.db.dao.PlannedExerciseDao
+import com.migul.treningsprogram.data.db.dao.ProgramDao
 import com.migul.treningsprogram.data.db.dao.UserStatsDao
 import com.migul.treningsprogram.data.db.dao.WorkoutSessionDao
 import com.migul.treningsprogram.data.db.dao.WorkoutSetDao
 import com.migul.treningsprogram.data.db.dao.XpEventDao
 import com.migul.treningsprogram.data.db.entity.Achievement
+import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.preferences.DailyChallengeManager
+import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.domain.DayBoundary
 import com.migul.treningsprogram.domain.StreakPolicy
+import com.migul.treningsprogram.domain.WeekCompletion
 import com.migul.treningsprogram.domain.model.PrDetail
 import com.migul.treningsprogram.domain.model.WorkoutResult
 import kotlinx.coroutines.flow.Flow
@@ -26,8 +31,11 @@ class GamificationRepository @Inject constructor(
     private val achievementDao: AchievementDao,
     private val workoutSetDao: WorkoutSetDao,
     private val workoutSessionDao: WorkoutSessionDao,
+    private val plannedExerciseDao: PlannedExerciseDao,
+    private val programDao: ProgramDao,
     private val xpEventDao: XpEventDao,
-    private val dailyChallengeManager: DailyChallengeManager
+    private val dailyChallengeManager: DailyChallengeManager,
+    private val preferencesManager: PreferencesManager
 ) {
     val userStats: Flow<UserStats?> = userStatsDao.observe()
 
@@ -56,10 +64,11 @@ class GamificationRepository @Inject constructor(
     suspend fun recomputeStatsFromHistory(
         sessions: List<com.migul.treningsprogram.data.db.entity.WorkoutSession>,
         sets: List<WorkoutSet>,
-        achievements: List<Achievement> = emptyList()
+        achievements: List<Achievement> = emptyList(),
+        plannedExercises: List<PlannedExercise> = emptyList()
     ) {
         val recomputed = com.migul.treningsprogram.data.backup.StatsRecomputer
-            .recompute(sessions, sets, achievements)
+            .recompute(sessions, sets, achievements, plannedExercises)
         userStatsDao.upsert(recomputed)
     }
 
@@ -78,13 +87,27 @@ class GamificationRepository @Inject constructor(
         // preview (which also uses working sets). Previously all sets were passed, causing a
         // mismatch: warmup sets could satisfy e.g. sets_10 at completion even though the
         // real-time progress display showed the goal not yet reached.
-        val completedChallenges = dailyChallengeManager.completeChallenges(workingSets, prExercises.isNotEmpty())
+        val completedChallenges = dailyChallengeManager.completeChallenges(workingSets, prExercises)
         val bonusChallengeXp = completedChallenges.sumOf { it.bonusXp }
+
+        // R4 — Perfect Week: every planned day of the current ISO week complete, by the SAME
+        // definition as the Program-tab week bar (WeekCompletion). Runs after the caller marked
+        // this session's planned exercises logged (LogWorkoutViewModel does so before calling us).
+        // Awarded at most once per week via a persisted weekStart guard; a week with no planned
+        // days is never perfect (A-C2).
+        val weekStart = thisMonday()
+        val perfectWeekXp = run {
+            if (preferencesManager.perfectWeekAwardedWeekStart == weekStart) return@run 0
+            val weekPlan = activeProgramWeekPlan(weekStart)
+            if (!WeekCompletion.isPerfect(weekPlan)) return@run 0
+            preferencesManager.perfectWeekAwardedWeekStart = weekStart
+            PERFECT_WEEK_XP
+        }
 
         val baseXp = 50
         val setXp = workingSets.size * 5
         val prXp = prExercises.size * 30
-        val xpEarned = baseXp + setXp + prXp + bonusChallengeXp
+        val xpEarned = baseXp + setXp + prXp + bonusChallengeXp + perfectWeekXp
 
         val stats = userStatsDao.get() ?: UserStats()
         val prevLevel = stats.level
@@ -129,7 +152,8 @@ class GamificationRepository @Inject constructor(
             prXp = prXp,
             prCount = prExercises.size,
             bonusChallengeXp = bonusChallengeXp,
-            challengeNames = completedChallenges.map { it.name }
+            challengeNames = completedChallenges.map { it.name },
+            perfectWeekXp = perfectWeekXp
         ).forEach { xpEventDao.insert(it) }
 
         val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg, prExercises.size)
@@ -151,8 +175,16 @@ class GamificationRepository @Inject constructor(
             setsLogged = setsLogged,
             totalVolumeKg = totalVolumeKg,
             exerciseCount = exerciseCount,
-            prDetails = prDetails
+            prDetails = prDetails,
+            perfectWeekXp = perfectWeekXp
         )
+    }
+
+    /** The active program's plan for [weekStart] — the exact rows the Program-tab week bar shows. */
+    private suspend fun activeProgramWeekPlan(weekStart: Long): List<PlannedExercise> {
+        val programId = programDao.getActiveOnce()?.id
+            ?: return plannedExerciseDao.getForWeekOnce(weekStart)
+        return plannedExerciseDao.getForWeekInProgramOnce(programId, weekStart)
     }
 
     /**
@@ -468,6 +500,12 @@ class GamificationRepository @Inject constructor(
     }
 
     companion object {
+        /**
+         * R4 — the Perfect Week bonus (A-C1): between the biggest single challenge (150/200) and
+         * a plain workout's typical total. Shared by the live award and the recompute replay.
+         */
+        const val PERFECT_WEEK_XP = 150
+
         /**
          * A heaviest-weight PR is awarded ONLY when a real prior performance is beaten.
          * The first-ever performance ([previousMax] == null) establishes the baseline

@@ -281,6 +281,12 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_PROGRAM_READY_ENABLED, true)
         set(value) { prefs.edit().putBoolean(KEY_PROGRAM_READY_ENABLED, value).apply() }
 
+    // R4: the weekStart (epoch ms, Monday) whose Perfect Week bonus has already been awarded —
+    // the once-per-week guard for the +150 XP adherence reward. 0 = never awarded.
+    var perfectWeekAwardedWeekStart: Long
+        get() = prefs.getLong(KEY_PERFECT_WEEK_AWARDED, 0L)
+        set(value) { prefs.edit().putLong(KEY_PERFECT_WEEK_AWARDED, value).apply() }
+
     init {
         // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
         // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
@@ -336,5 +342,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_WEIGH_IN_HOUR = "weigh_in_hour"
         private const val KEY_WEIGH_IN_MINUTE = "weigh_in_minute"
         private const val KEY_PROGRAM_READY_ENABLED = "program_ready_enabled"
+        private const val KEY_PERFECT_WEEK_AWARDED = "perfect_week_awarded_week_start"
     }
 }

@@ -130,14 +130,11 @@ class ProgramViewModel @Inject constructor(
         combine(weekPlan, selectedDay) { plan, day -> plan.filter { it.dayOfWeek == day } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Progress in workout-days: (days with ≥1 logged exercise) / (days with ≥1 planned exercise)
+    // Progress in workout-days: (days with ≥1 logged exercise) / (days with ≥1 planned exercise).
+    // R4: the math lives in WeekCompletion so the Perfect Week award provably uses THE SAME rule.
     val weekProgress: StateFlow<Pair<Int, Int>> =
-        weekPlan.map { plan ->
-            val byDay = plan.groupBy { it.dayOfWeek }
-            val workoutDays = byDay.values.filter { it.isNotEmpty() }
-            val doneDays = workoutDays.count { exercises -> exercises.any { it.isLogged } }
-            doneDays to workoutDays.size
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to 0)
+        weekPlan.map { plan -> com.migul.treningsprogram.domain.WeekCompletion.dayCounts(plan) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to 0)
 
     val presets: StateFlow<List<GymPreset>> = gymPresetDao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

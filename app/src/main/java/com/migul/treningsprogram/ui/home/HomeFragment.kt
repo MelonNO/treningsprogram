@@ -241,7 +241,9 @@ class HomeFragment : Fragment() {
             check.background = requireContext().getDrawable(R.drawable.bg_check_todo)
         }
         name.text = ch.name
-        desc.text = ch.description
+        // R4: week-scoped countable challenges show their standing progress ("31/45") on Home.
+        val suffix = com.migul.treningsprogram.domain.ChallengeProgress.homeSuffix(ch)
+        desc.text = if (suffix != null) "${ch.description}  ·  $suffix" else ch.description
         xp.text = "+${ch.bonusXp} XP"
         return item
     }
