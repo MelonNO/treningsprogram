@@ -48,6 +48,11 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
+    private companion object {
+        /** Launches an automatic weekly generation may fail on before the week is written off. */
+        const val MAX_AUTO_GEN_LAUNCH_TRIES = 3
+    }
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
 
@@ -413,9 +418,22 @@ class MainActivity : AppCompatActivity() {
                 // E2: persist the deload flag the generated week was built for, so Home/Program show
                 // (or clear) the deload indicator coherently with the plan that was just saved.
                 workoutRepository.setActiveDeload(isDeload)
+                prefsManager.lastAutoGenerateWeek = thisWeek
             }
+            result.onFailure {
+                // A transient failure no longer writes the whole week off (the old unconditional
+                // marking meant one bad API call = no plan until next Monday). Retry on a later
+                // launch, but stop after a small cap so a persistent failure doesn't keep burning
+                // API attempts every launch. Mirrors the weekly-summary retry guard.
+                val failures = 1 + if (prefsManager.autoGenFailWeek == thisWeek) prefsManager.autoGenFailCount else 0
+                prefsManager.autoGenFailWeek = thisWeek
+                prefsManager.autoGenFailCount = failures
+                if (failures >= MAX_AUTO_GEN_LAUNCH_TRIES) prefsManager.lastAutoGenerateWeek = thisWeek
+            }
+        } else {
+            // Plan already present (e.g. generated manually) — the week is genuinely done.
+            prefsManager.lastAutoGenerateWeek = thisWeek
         }
-        prefsManager.lastAutoGenerateWeek = thisWeek
     }
 
     /**

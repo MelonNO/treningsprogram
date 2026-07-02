@@ -78,7 +78,10 @@ class ExportRepository @Inject constructor(
         hasCompletedOnboarding = prefs.hasCompletedOnboarding,
         restTimerSeconds = prefs.restTimerSeconds,
         dailyChallengesJson = prefs.dailyChallengesJson,
-        selectedGymPresetId = prefs.selectedGymPresetId
+        selectedGymPresetId = prefs.selectedGymPresetId,
+        restDaysCsv = prefs.restDaysCsv,
+        autoRebalanceEnabled = prefs.autoRebalanceEnabled,
+        dayBoundaryHour = prefs.dayBoundaryHour
     )
 
     // ---- Import (MERGE) -------------------------------------------------------------------------
@@ -173,6 +176,9 @@ class ExportRepository @Inject constructor(
         prefs.restTimerSeconds = p.restTimerSeconds
         prefs.dailyChallengesJson = p.dailyChallengesJson
         prefs.selectedGymPresetId = p.selectedGymPresetId
+        prefs.restDaysCsv = p.restDaysCsv
+        prefs.autoRebalanceEnabled = p.autoRebalanceEnabled
+        prefs.dayBoundaryHour = p.dayBoundaryHour  // setter also refreshes DayBoundary.cutoffHour
         // NOTE: apiKey is never written from a backup.
     }
 }

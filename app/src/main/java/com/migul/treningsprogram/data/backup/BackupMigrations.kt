@@ -62,10 +62,27 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v3 -> v4.
+     *
+     * v4 only widens the preferences object (restDaysCsv / autoRebalanceEnabled / dayBoundaryHour).
+     * A v3 backup simply lacks those keys, and Gson fills them with the [BackupPreferences] field
+     * defaults on deserialize — which is exactly the pre-v4 restore behaviour — so the step only
+     * stamps the new version.
+     */
+    private val V3_TO_V4 = object : MigrationStep {
+        override val fromVersion = 3
+        override fun migrate(root: JsonObject): JsonObject {
+            root.addProperty("schema_version", 4)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
-        V2_TO_V3
+        V2_TO_V3,
+        V3_TO_V4
     ).associateBy { it.fromVersion }
 
     /**

@@ -171,6 +171,17 @@ class PreferencesManager(context: Context) {
             DayBoundary.cutoffHour = coerced
         }
 
+    // Auto-gen retry guard: week key + count of FAILED automatic weekly generations, so a transient
+    // failure retries on a later launch instead of writing the week off, but a persistent one stops
+    // burning API attempts after a small cap (see MainActivity.checkAndAutoGenerateWeeklyPlan).
+    var autoGenFailWeek: String
+        get() = prefs.getString(KEY_AUTO_GEN_FAIL_WEEK, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_AUTO_GEN_FAIL_WEEK, value).apply() }
+
+    var autoGenFailCount: Int
+        get() = prefs.getInt(KEY_AUTO_GEN_FAIL_COUNT, 0)
+        set(value) { prefs.edit().putInt(KEY_AUTO_GEN_FAIL_COUNT, value).apply() }
+
     // F6: the versionCode whose what's-new sheet the user has already seen (0 = never recorded;
     // a fresh install records the current version silently instead of showing old notes).
     var lastSeenWhatsNewVersion: Int
@@ -227,6 +238,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_WORKOUT_DRAFT = "workout_inprogress_draft"
         private const val KEY_REST_DAY_FIRST_RUN = "rest_day_feature_first_run_ms"
         private const val KEY_DAY_BOUNDARY_HOUR = "day_boundary_cutoff_hour"
+        private const val KEY_AUTO_GEN_FAIL_WEEK = "auto_gen_fail_week"
+        private const val KEY_AUTO_GEN_FAIL_COUNT = "auto_gen_fail_count"
         private const val KEY_LAST_SEEN_WHATS_NEW = "last_seen_whats_new_version"
         private const val KEY_REMINDERS_ENABLED = "workout_reminders_enabled"
         private const val KEY_REMINDER_HOUR = "workout_reminder_hour"

@@ -48,6 +48,10 @@ object PreferencesMerger {
             // restored user is never forced back through the wizard.
             hasCompletedOnboarding = current.hasCompletedOnboarding || backup.hasCompletedOnboarding,
             restTimerSeconds = pick(current.restTimerSeconds, backup.restTimerSeconds, d.restTimerSeconds),
+            // v4 additions — standard phone-wins-if-set:
+            restDaysCsv = pick(current.restDaysCsv, backup.restDaysCsv, d.restDaysCsv),
+            autoRebalanceEnabled = pick(current.autoRebalanceEnabled, backup.autoRebalanceEnabled, d.autoRebalanceEnabled),
+            dayBoundaryHour = pick(current.dayBoundaryHour, backup.dayBoundaryHour, d.dayBoundaryHour),
             // Ambiguous / backup-wins bucket:
             dailyChallengesJson = backup.dailyChallengesJson,
             selectedGymPresetId = backup.selectedGymPresetId

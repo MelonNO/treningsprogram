@@ -32,7 +32,7 @@
                 android:id="@+id/btn_pause_workout"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="36dp" android:layout_height="36dp"
-                android:text="✕"
+                android:text="⏸"
                 android:textSize="16sp"
                 android:minWidth="0dp"
                 android:paddingStart="0dp" android:paddingEnd="0dp" />

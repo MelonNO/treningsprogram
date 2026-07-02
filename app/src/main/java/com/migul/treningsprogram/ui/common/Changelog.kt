@@ -21,6 +21,8 @@ object Changelog {
                 "Optional workout-day reminders (Profile → Settings → App Settings)",
                 "Home-screen widget with today's workout",
                 "Haptic confirmation when logging sets",
+                "Backups now keep your rest days, day boundary and auto-rebalance choice",
+                "Failed automatic weekly generation now retries on the next launch",
             ),
         ),
         Entry(

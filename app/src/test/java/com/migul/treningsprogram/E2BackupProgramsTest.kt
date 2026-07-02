@@ -23,8 +23,10 @@ class E2BackupProgramsTest {
 
     private val gson: Gson = GsonBuilder().create()
 
-    @Test fun version_isThree() {
-        assertEquals(3, CURRENT_BACKUP_VERSION)
+    // v4 (2026-07-02) widened preferences (restDaysCsv / autoRebalanceEnabled / dayBoundaryHour);
+    // everything this file verifies about programs is unchanged. See BackupV4PrefsTest.
+    @Test fun version_isFour() {
+        assertEquals(4, CURRENT_BACKUP_VERSION)
     }
 
     @Test fun v3RoundTrip_preservesProgramsAndProgramId() {
