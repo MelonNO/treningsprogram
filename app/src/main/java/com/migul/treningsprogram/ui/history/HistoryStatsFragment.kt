@@ -18,6 +18,7 @@ import androidx.core.view.isVisible
 import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.databinding.FragmentHistoryStatsBinding
 import com.migul.treningsprogram.domain.DayBoundary
+import com.migul.treningsprogram.domain.WeekDelta
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -96,6 +97,20 @@ class HistoryStatsFragment : Fragment() {
             if (_binding == null) return@launch
             binding.cardVolumeHeatmap.isVisible = heatmap.maxSets > 0
             if (heatmap.maxSets > 0) binding.viewVolumeHeatmap.setGrid(heatmap)
+
+            // This-week pulse: current sets/sessions with a vs-last-week delta.
+            val delta = viewModel.getWeekDelta()
+            if (_binding == null) return@launch
+            val hasPulse = delta.sets > 0 || delta.setsPrev > 0
+            binding.cardWeekPulse.isVisible = hasPulse
+            if (hasPulse) {
+                binding.tvPulseSets.text = delta.sets.toString()
+                binding.tvPulseSetsDelta.text =
+                    "sets  ·  ${WeekDelta.deltaLabel(delta.sets, delta.setsPrev)} vs last week"
+                binding.tvPulseSessions.text = delta.sessions.toString()
+                binding.tvPulseSessionsDelta.text =
+                    "sessions  ·  ${WeekDelta.deltaLabel(delta.sessions, delta.sessionsPrev)}"
+            }
         }
     }
 
@@ -135,22 +150,23 @@ class HistoryStatsFragment : Fragment() {
                 val w = (80 * resources.displayMetrics.density).toInt()
                 layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
             }
-            val barColor = MuscleClassifier.colorFor(muscle, "#7E908E") // fallback = auros_fog_dim, not Material blue-gray
+            val barColor = Color.parseColor(MuscleClassifier.colorFor(muscle, "#7E908E")) // fallback = auros_fog_dim
+            // Luminous gradient bar: the muscle color sweeps into a lighter tip, like a light trail.
+            val tip = androidx.core.graphics.ColorUtils.blendARGB(barColor, 0xFFFFFFFF.toInt(), 0.35f)
             val bar = View(requireContext()).apply {
                 val maxW = (200 * resources.displayMetrics.density).toInt()
-                val w = (maxW * sets / max.toFloat()).toInt().coerceAtLeast(4)
+                val w = (maxW * sets / max.toFloat()).toInt().coerceAtLeast(6)
                 layoutParams = LinearLayout.LayoutParams(w, (14 * resources.displayMetrics.density).toInt()).apply {
                     marginEnd = (8 * resources.displayMetrics.density).toInt()
                 }
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor(barColor))
-                    cornerRadius = 6 * resources.displayMetrics.density
-                }
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(barColor, tip)
+                ).apply { cornerRadius = 7 * resources.displayMetrics.density }
             }
             val tvCount = TextView(requireContext()).apply {
                 text = sets.toString()
                 textSize = 12f
-                setTextColor(Color.parseColor(barColor))
+                setTextColor(barColor)
             }
             row.addView(tvLabel)
             row.addView(bar)
@@ -200,6 +216,8 @@ class HistoryStatsFragment : Fragment() {
                     background = GradientDrawable().apply {
                         cornerRadius = 3 * dp
                         setColor(if (isTraining) Color.parseColor("#7FE9E1") else Color.parseColor("#0C2E2C"))
+                        // "You are here": outline today's cell in bright cyan.
+                        if (epoch == todayEpoch) setStroke((1.5f * dp).toInt().coerceAtLeast(2), Color.parseColor("#CBFFFC"))
                     }
                 }
                 binding.gridCalendar.addView(cell)
@@ -207,44 +225,73 @@ class HistoryStatsFragment : Fragment() {
         }
     }
 
+    /**
+     * One stacked, proportionally-segmented bar (heavy → moderate → light) with a legend under
+     * it — replaces the old three separate bars (whose pink/green also sat off-palette).
+     */
     private fun renderRepRanges(data: List<Pair<String, Int>>) {
         binding.layoutRepRanges.removeAllViews()
-        if (data.isEmpty()) return
-        val max = data.maxOf { it.second }
-        val colors = listOf("#E91E63", "#7FE9E1", "#4CAF50")
-        data.forEachIndexed { idx, (label, count) ->
+        val total = data.sumOf { it.second }
+        if (total <= 0) return
+        val dp = resources.displayMetrics.density
+        val order = listOf("Heavy (1-5)", "Moderate (6-12)", "Light (13+)")
+        val colors = mapOf(
+            order[0] to Color.parseColor("#7FE9E1"),   // cyan — heavy
+            order[1] to Color.parseColor("#9B8CFF"),   // violet — moderate
+            order[2] to Color.parseColor("#37D67A"),   // green — light
+        )
+        val counts = order.map { label -> label to (data.firstOrNull { it.first == label }?.second ?: 0) }
+
+        // The segmented bar, clipped to a capsule by a zero-padding card.
+        val segments = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (18 * dp).toInt()
+            )
+        }
+        counts.filter { it.second > 0 }.forEach { (label, count) ->
+            segments.addView(View(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, count.toFloat())
+                setBackgroundColor(colors.getValue(label))
+            })
+        }
+        val capsule = com.google.android.material.card.MaterialCardView(requireContext()).apply {
+            radius = 9 * dp
+            cardElevation = 0f
+            setCardBackgroundColor(Color.parseColor("#0C2E2C"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = (10 * dp).toInt() }
+            addView(segments)
+        }
+        binding.layoutRepRanges.addView(capsule)
+
+        // Legend: dot · label · count (share%)
+        counts.forEach { (label, count) ->
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
-                val p = (4 * resources.displayMetrics.density).toInt()
-                setPadding(0, p, 0, p)
+                setPadding(0, (3 * dp).toInt(), 0, (3 * dp).toInt())
             }
-            val tvLabel = TextView(requireContext()).apply {
-                text = label
-                textSize = 12f
-                val w = (120 * resources.displayMetrics.density).toInt()
-                layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
-            }
-            val barColor = colors.getOrElse(idx) { "#607D8B" }
-            val bar = View(requireContext()).apply {
-                val maxW = (160 * resources.displayMetrics.density).toInt()
-                val w = (maxW * count / max.toFloat()).toInt().coerceAtLeast(4)
-                layoutParams = LinearLayout.LayoutParams(w, (14 * resources.displayMetrics.density).toInt()).apply {
-                    marginEnd = (8 * resources.displayMetrics.density).toInt()
+            row.addView(View(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams((8 * dp).toInt(), (8 * dp).toInt()).apply {
+                    marginEnd = (8 * dp).toInt()
                 }
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor(barColor))
-                    cornerRadius = 6 * resources.displayMetrics.density
+                    shape = GradientDrawable.OVAL
+                    setColor(colors.getValue(label))
                 }
-            }
-            val tvCount = TextView(requireContext()).apply {
-                text = count.toString()
+            })
+            row.addView(TextView(requireContext()).apply {
+                text = label
                 textSize = 12f
-                setTextColor(Color.parseColor(barColor))
-            }
-            row.addView(tvLabel)
-            row.addView(bar)
-            row.addView(tvCount)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(TextView(requireContext()).apply {
+                text = "$count  ·  ${(count * 100f / total).roundToInt()}%"
+                textSize = 12f
+                setTextColor(colors.getValue(label))
+            })
             binding.layoutRepRanges.addView(row)
         }
     }

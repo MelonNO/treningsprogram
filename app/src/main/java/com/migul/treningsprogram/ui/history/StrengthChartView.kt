@@ -129,7 +129,13 @@ class StrengthChartView @JvmOverloads constructor(
             canvas.drawLine(pl, gy, pl + cw, gy, gridPaint)
         }
 
-        // fill under line
+        // fill under line — luminous vertical fade (cyan at the line → nothing at the baseline)
+        // instead of the old flat translucent block; reads like the line casts a glow downward.
+        fillPaint.shader = android.graphics.LinearGradient(
+            0f, pt, 0f, pt + ch,
+            0x4D7FE9E1, 0x007FE9E1.toInt(),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
         val fillPath = Path().apply {
             moveTo(x(entries.first().dateMs), pt + ch)
             lineTo(x(entries.first().dateMs), y(entries.first().value))

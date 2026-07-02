@@ -791,6 +791,13 @@ class WorkoutRepository @Inject constructor(
 fun thisMonday(): Long = mondayEpochMillisOf(com.migul.treningsprogram.domain.DayBoundary.today())
 
 /**
+ * [thisMonday] shifted by whole weeks (negative = past). Computed via LocalDate so DST
+ * transitions can't drift the Monday-00:00 instant the plan rows are keyed on.
+ */
+fun mondayForOffset(weeks: Int): Long =
+    mondayEpochMillisOf(com.migul.treningsprogram.domain.DayBoundary.today().plusWeeks(weeks.toLong()))
+
+/**
  * Locale-independent key identifying the current training week, used to mark when the
  * weekly plan was last auto-generated. Derived from [thisMonday] (the same Monday the
  * plan itself is keyed on) rather than `SimpleDateFormat("yyyy-'W'ww")`, whose week

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-height pill behind the selected History tab (used with tabIndicatorGravity="stretch";
+     TabLayout tints it via tabIndicatorColor). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="8dp" android:bottom="8dp" android:left="6dp" android:right="6dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/auros_reef" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+</layer-list>

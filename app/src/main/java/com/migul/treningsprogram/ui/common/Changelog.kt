@@ -13,6 +13,15 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 60, versionName = "1.21.0",
+            highlights = listOf(
+                "Swipe right on the Program week card to look back at past (logged) weeks",
+                "Richer Stats: this-week pulse with vs-last-week deltas, segmented rep-range bar, gradient muscle bars, glowing charts, pill tabs",
+                "Plate calculator knows your gym: bar weight, plate set and loadable dumbbells per gym preset (50 mm home bar by default)",
+                "All weekly graphs now agree on Monday-based weeks",
+            ),
+        ),
+        Entry(
             versionCode = 59, versionName = "1.20.0",
             highlights = listOf(
                 "Deeper Auros look: signature particle art, aurora ghost buttons, on-brand dialogs and menus",

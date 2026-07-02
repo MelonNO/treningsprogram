@@ -39,6 +39,8 @@
             android:textColor="@color/auros_snow" />
     </LinearLayout>
 
+    <!-- Pill-style selected tab: a full-height reef capsule glides between tabs instead of the
+         thin underline — reads as a segmented control on the abyss. -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tab_layout"
         android:layout_width="match_parent"
@@ -46,11 +48,13 @@
         android:background="@color/auros_abyss"
         app:tabMode="fixed"
         app:tabGravity="fill"
-        app:tabIndicatorColor="@color/auros_cyan"
-        app:tabIndicatorHeight="3dp"
-        app:tabIndicatorFullWidth="false"
+        app:tabIndicator="@drawable/tab_indicator_pill"
+        app:tabIndicatorGravity="stretch"
+        app:tabIndicatorColor="@color/auros_reef"
+        app:tabIndicatorAnimationMode="elastic"
         app:tabTextColor="@color/auros_fog_dim"
-        app:tabSelectedTextColor="@color/auros_ice" />
+        app:tabSelectedTextColor="@color/auros_ice"
+        app:tabRippleColor="#1AEDFFFE" />
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/view_pager"

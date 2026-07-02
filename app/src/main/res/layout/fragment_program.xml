@@ -257,6 +257,12 @@
             app:strokeColor="?attr/colorOutlineVariant"
             android:visibility="gone">
 
+            <!-- Swipe right on the week window → previous (logged) week; left → forward. -->
+            <com.migul.treningsprogram.ui.widget.HorizontalSwipeLayout
+                android:id="@+id/swipe_week"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -271,6 +277,7 @@
                     android:layout_marginBottom="14dp">
 
                     <TextView
+                        android:id="@+id/tv_week_title"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -286,6 +293,19 @@
                         android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
+
+                <!-- Past-week banner: visible only while viewing an earlier (read-only) week -->
+                <TextView
+                    android:id="@+id/tv_week_banner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="6dp"
+                    android:background="@drawable/bg_spec_chip"
+                    android:textSize="12sp"
+                    android:textColor="@color/auros_cyan"
+                    android:visibility="gone" />
 
                 <LinearLayout
                     android:id="@+id/layout_week_days"
@@ -303,6 +323,7 @@
                     app:trackColor="@color/auros_reef_dim" />
 
             </LinearLayout>
+            </com.migul.treningsprogram.ui.widget.HorizontalSwipeLayout>
         </com.google.android.material.card.MaterialCardView>
 
         <!-- B2: "Why your program changed" rationale card. Shown only when this week's plan
