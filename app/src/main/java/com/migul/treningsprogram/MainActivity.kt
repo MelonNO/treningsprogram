@@ -246,6 +246,9 @@ class MainActivity : AppCompatActivity() {
         // The call is idempotent + mutex-guarded and runs off the main thread, so re-entry is safe.
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { workoutRepository.autoLogRestDays() }
+            // R1: a MISSED day that the backfill just logged must break the DISPLAYED streak now,
+            // not only after the next workout. Idempotent; ordered after the backfill on purpose.
+            runCatching { gamificationRepository.applyStreakFreshness() }
         }
         // F2: keep any placed home-screen widget in sync whenever the app is used.
         com.migul.treningsprogram.ui.widget.TodayWorkoutWidgetProvider.requestRefresh(this)

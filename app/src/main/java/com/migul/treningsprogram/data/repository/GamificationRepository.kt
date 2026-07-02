@@ -3,12 +3,16 @@ package com.migul.treningsprogram.data.repository
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.AchievementDao
 import com.migul.treningsprogram.data.db.dao.UserStatsDao
+import com.migul.treningsprogram.data.db.dao.WorkoutSessionDao
 import com.migul.treningsprogram.data.db.dao.WorkoutSetDao
 import com.migul.treningsprogram.data.db.dao.XpEventDao
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.preferences.DailyChallengeManager
+import com.migul.treningsprogram.domain.DayBoundary
+import com.migul.treningsprogram.domain.StreakPolicy
+import com.migul.treningsprogram.domain.model.PrDetail
 import com.migul.treningsprogram.domain.model.WorkoutResult
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -21,6 +25,7 @@ class GamificationRepository @Inject constructor(
     private val userStatsDao: UserStatsDao,
     private val achievementDao: AchievementDao,
     private val workoutSetDao: WorkoutSetDao,
+    private val workoutSessionDao: WorkoutSessionDao,
     private val xpEventDao: XpEventDao,
     private val dailyChallengeManager: DailyChallengeManager
 ) {
@@ -66,7 +71,8 @@ class GamificationRepository @Inject constructor(
         val setsLogged = workingSets.size
         val totalVolumeKg = workingSets.sumOf { it.reps.toDouble() * it.weightKg }.toFloat()
         val exerciseCount = workingSets.map { it.exerciseName }.toSet().size
-        val prExercises = detectPersonalRecords(sessionId, sets)
+        val prDetails = detectPersonalRecords(sessionId, sets)
+        val prExercises = prDetails.map { it.exerciseName }
 
         // Pass working sets only so the challenge completion criteria match the live in-progress
         // preview (which also uses working sets). Previously all sets were passed, causing a
@@ -87,15 +93,17 @@ class GamificationRepository @Inject constructor(
         val newTotalWorkouts = stats.totalWorkouts + 1
         val newTotalPrs = stats.totalPrs + prExercises.size
 
-        // Item 7: streak days use the LOGICAL day boundary (a 01:00 workout counts toward the
+        // R1 — schedule-aware streak: the streak measures plan adherence, not consecutive calendar
+        // days. Planned rest days (and pre-feature days with no session row, A-R2) are NEUTRAL;
+        // only an auto-logged MISSED day between the last workout and today breaks the chain.
+        // Streak days use the LOGICAL day boundary (Item 7 — a 01:00 workout counts toward the
         // previous day), consistent with History/rest-missed/today's-plan.
-        val today = com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(System.currentTimeMillis())
-        val lastDay = com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(stats.lastWorkoutDateMs)
-        val newStreak = when {
-            lastDay == today         -> stats.currentStreak
-            lastDay == today - 1L    -> stats.currentStreak + 1
-            else                     -> 1
-        }
+        val today = DayBoundary.logicalEpochDay(System.currentTimeMillis())
+        val lastDay = if (stats.lastWorkoutDateMs == 0L) null
+                      else DayBoundary.logicalEpochDay(stats.lastWorkoutDateMs)
+        val missedDays = if (lastDay == null) emptySet()
+                         else missedEpochDaysSince(stats.lastWorkoutDateMs)
+        val newStreak = StreakPolicy.nextStreakOnWorkout(stats.currentStreak, lastDay, today, missedDays)
 
         val updatedStats = stats.copy(
             totalXp = newTotalXp,
@@ -142,21 +150,54 @@ class GamificationRepository @Inject constructor(
             bonusChallengeXp = bonusChallengeXp,
             setsLogged = setsLogged,
             totalVolumeKg = totalVolumeKg,
-            exerciseCount = exerciseCount
+            exerciseCount = exerciseCount,
+            prDetails = prDetails
         )
     }
 
-    private suspend fun detectPersonalRecords(sessionId: Long, sets: List<WorkoutSet>): List<String> =
+    /**
+     * R1 — display freshness: a broken chain must show as broken NOW, not only after the next
+     * workout. Called after the rest/missed backfill runs (MainActivity.onStart), it zeroes
+     * [UserStats.currentStreak] when a MISSED day exists after the last workout. bestStreak,
+     * XP and achievements are untouched — this is a pure display/state correction, idempotent
+     * and safe to run on every foreground.
+     */
+    suspend fun applyStreakFreshness() {
+        val stats = userStatsDao.get() ?: return
+        if (stats.currentStreak <= 0 || stats.lastWorkoutDateMs == 0L) return
+        val lastDay = DayBoundary.logicalEpochDay(stats.lastWorkoutDateMs)
+        val today = DayBoundary.logicalEpochDay(System.currentTimeMillis())
+        val missedDays = missedEpochDaysSince(stats.lastWorkoutDateMs)
+        if (StreakPolicy.isChainBroken(lastDay, today, missedDays)) {
+            userStatsDao.upsert(stats.copy(currentStreak = 0))
+        }
+    }
+
+    /**
+     * Logical epoch-days that have a MISSED placeholder, from a 2-day safety margin below
+     * [sinceMs] (so cutoff-hour/timezone skew can never hide a boundary row). [StreakPolicy]
+     * applies the strict "between last workout and today" filtering, so a superset is safe.
+     */
+    private suspend fun missedEpochDaysSince(sinceMs: Long): Set<Long> =
+        workoutSessionDao.getMissedSince(sinceMs - 2 * 24 * 60 * 60 * 1000L)
+            .map { DayBoundary.logicalEpochDay(it.dateMs) }
+            .toSet()
+
+    /**
+     * PRs with their numbers (R6): per exercise, this session's heaviest working weight vs the
+     * best across all prior sessions. null previous = no prior performance → the baseline, NOT
+     * a PR (never coerce null to 0f: a first-ever lift must never count as a PR).
+     */
+    private suspend fun detectPersonalRecords(sessionId: Long, sets: List<WorkoutSet>): List<PrDetail> =
         sets.filter { !it.isWarmup }
             .groupBy { it.exerciseName }
             .mapValues { (_, s) -> s.maxOf { it.weightKg } }
-            .filter { (name, currentMax) ->
-                // null = no prior performance → this is the baseline, NOT a PR.
-                // Do NOT coerce null to 0f: a first-ever lift must never count as a PR.
+            .mapNotNull { (name, currentMax) ->
                 val prevMax = workoutSetDao.getPreviousMaxWeight(name, sessionId)
-                isWeightPr(currentMax, prevMax)
+                if (isWeightPr(currentMax, prevMax)) {
+                    PrDetail(exerciseName = name, newWeightKg = currentMax, previousWeightKg = prevMax!!)
+                } else null
             }
-            .keys.toList()
 
     private suspend fun checkAchievements(
         stats: UserStats,

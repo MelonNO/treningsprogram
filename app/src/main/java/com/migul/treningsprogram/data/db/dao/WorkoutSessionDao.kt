@@ -59,6 +59,14 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions ORDER BY dateMs ASC")
     suspend fun getAllOnce(): List<WorkoutSession>
 
+    /**
+     * R1: auto-logged MISSED placeholders at/after [sinceMs] — the schedule-aware streak's
+     * chain-break signal. Callers pass a small safety margin below the last workout's timestamp
+     * and let [com.migul.treningsprogram.domain.StreakPolicy] do the strict logical-day filtering.
+     */
+    @Query("SELECT * FROM workout_sessions WHERE kind = 'MISSED' AND dateMs >= :sinceMs")
+    suspend fun getMissedSince(sinceMs: Long): List<WorkoutSession>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(sessions: List<WorkoutSession>)
 }

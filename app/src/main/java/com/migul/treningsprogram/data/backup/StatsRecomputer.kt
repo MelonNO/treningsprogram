@@ -5,6 +5,7 @@ import com.migul.treningsprogram.data.db.entity.UserStats
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.data.db.entity.WorkoutSet
 import com.migul.treningsprogram.data.repository.GamificationRepository
+import com.migul.treningsprogram.domain.StreakPolicy
 
 /**
  * Deterministic, from-scratch recompute of [UserStats] from a MERGED history.
@@ -16,7 +17,11 @@ import com.migul.treningsprogram.data.repository.GamificationRepository
  *   - setXp  = 5 per working (non-warmup) set
  *   - prXp   = 30 per personal record (heaviest-weight PR vs all prior completed sessions)
  *   - level via [GamificationRepository.xpToLevel]
- *   - streak from consecutive training DAYS (epoch-day granularity)
+ *   - streak via the R1 schedule-aware [StreakPolicy] (logical epoch-day granularity): planned
+ *     rest days and day-gaps with no session rows are NEUTRAL (A-R2); only a MISSED placeholder
+ *     between two training days breaks the chain, and a MISSED day after the LAST training day
+ *     zeroes the current streak — the same "display freshness" rule the live app applies on
+ *     foreground, so a merged recompute matches what the live app would show.
  *
  * The one XP source we cannot replay deterministically is the daily-challenge bonus (it depends on
  * which challenges were active on a given calendar day, which is not part of the backup). That is a
@@ -27,7 +32,9 @@ import com.migul.treningsprogram.data.repository.GamificationRepository
 object StatsRecomputer {
 
     /**
-     * @param sessions all merged sessions (any completion state).
+     * @param sessions all merged sessions (any completion state, INCLUDING the REST/MISSED
+     *        placeholders — those drive the schedule-aware streak; they never count as workouts
+     *        because they carry no sets).
      * @param sets all merged sets (linked to sessions by sessionId).
      * @param achievements the MERGED achievement set; [UserStats] is not driven by these but they
      *        are accepted for symmetry / future use and to keep the call site explicit.
@@ -47,12 +54,18 @@ object StatsRecomputer {
             }
             .sortedWith(compareBy({ it.dateMs }, { it.id }))
 
+        // R1: every logical day carrying a MISSED placeholder — the streak's chain-break signal.
+        val missedEpochDays: Set<Long> = sessions
+            .filter { it.kind == WorkoutSession.KIND_MISSED }
+            .map { startOfDayEpoch(it.dateMs) }
+            .toSet()
+
         var totalXp = 0
         var totalWorkouts = 0
         var totalPrs = 0
         var currentStreak = 0
         var bestStreak = 0
-        var lastTrainingDayEpoch = Long.MIN_VALUE
+        var lastTrainingDayEpoch: Long? = null
         var lastWorkoutDateMs = 0L
 
         // Running best heaviest working weight per exercise, used to detect PRs exactly like the
@@ -89,15 +102,22 @@ object StatsRecomputer {
             totalPrs += sessionPrs
 
             val dayEpoch = startOfDayEpoch(session.dateMs)
-            currentStreak = when {
-                lastTrainingDayEpoch == Long.MIN_VALUE -> 1
-                dayEpoch == lastTrainingDayEpoch       -> currentStreak           // same day: unchanged
-                dayEpoch == lastTrainingDayEpoch + 1   -> currentStreak + 1       // consecutive day
-                else                                   -> 1                        // gap: reset
-            }
+            currentStreak = StreakPolicy.nextStreakOnWorkout(
+                currentStreak = currentStreak,
+                lastWorkoutEpochDay = lastTrainingDayEpoch,
+                todayEpochDay = dayEpoch,
+                missedEpochDays = missedEpochDays
+            )
             bestStreak = maxOf(bestStreak, currentStreak)
-            lastTrainingDayEpoch = maxOf(lastTrainingDayEpoch, dayEpoch)
+            lastTrainingDayEpoch = maxOf(lastTrainingDayEpoch ?: Long.MIN_VALUE, dayEpoch)
             lastWorkoutDateMs = maxOf(lastWorkoutDateMs, session.dateMs)
+        }
+
+        // R1 display freshness, replayed: a MISSED day AFTER the last training day means the chain
+        // is broken now — the merged stats must show the same 0 the live app would.
+        val lastDay = lastTrainingDayEpoch
+        if (lastDay != null && missedEpochDays.any { it > lastDay }) {
+            currentStreak = 0
         }
 
         return UserStats(

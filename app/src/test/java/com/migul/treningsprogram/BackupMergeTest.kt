@@ -278,13 +278,57 @@ class BackupMergeTest {
         assertEquals(0, recomputed.currentStreak)
     }
 
-    @Test fun statsRecompute_streakResetsOnGap() {
-        val sessions = listOf(session(1, dayMs(0)), session(2, dayMs(5))) // 5-day gap
+    // R1 (schedule-aware streak): a silent gap — days with NO session rows at all (pre-feature
+    // history, A-R2) — is NEUTRAL and never breaks the chain. Only a MISSED placeholder does.
+    @Test fun statsRecompute_gapWithoutMissedIsNeutral() {
+        val sessions = listOf(session(1, dayMs(0)), session(2, dayMs(5))) // 5-day silent gap
         val sets = listOf(set(1, 1, "Squat", 5, 100f), set(2, 2, "Squat", 5, 100f))
         val recomputed = StatsRecomputer.recompute(sessions, sets)
-        assertEquals(1, recomputed.currentStreak) // last session resets streak to 1
+        assertEquals(2, recomputed.currentStreak) // gap is neutral under R1
+        assertEquals(2, recomputed.bestStreak)
+    }
+
+    @Test fun statsRecompute_missedDayBreaksStreak() {
+        val sessions = listOf(
+            session(1, dayMs(0)),
+            placeholder(9, dayMs(1), WorkoutSession.KIND_MISSED),
+            session(2, dayMs(2))
+        )
+        val sets = listOf(set(1, 1, "Squat", 5, 100f), set(2, 2, "Squat", 5, 100f))
+        val recomputed = StatsRecomputer.recompute(sessions, sets)
+        assertEquals(1, recomputed.currentStreak) // chain broken by the missed planned day
         assertEquals(1, recomputed.bestStreak)
     }
+
+    @Test fun statsRecompute_restDayKeepsStreak() {
+        val sessions = listOf(
+            session(1, dayMs(0)),
+            placeholder(9, dayMs(1), WorkoutSession.KIND_REST),
+            session(2, dayMs(2))
+        )
+        val sets = listOf(set(1, 1, "Squat", 5, 100f), set(2, 2, "Squat", 5, 100f))
+        val recomputed = StatsRecomputer.recompute(sessions, sets)
+        assertEquals(2, recomputed.currentStreak) // planned rest day is neutral: Mon + Wed = 2
+        assertEquals(2, recomputed.bestStreak)
+    }
+
+    @Test fun statsRecompute_missedAfterLastWorkoutZeroesCurrentStreak() {
+        // The live app zeroes the DISPLAYED streak once a later MISSED day is logged
+        // (applyStreakFreshness); the recompute must land on the same number.
+        val sessions = listOf(
+            session(1, dayMs(0)),
+            session(2, dayMs(1)),
+            placeholder(9, dayMs(2), WorkoutSession.KIND_MISSED)
+        )
+        val sets = listOf(set(1, 1, "Squat", 5, 100f), set(2, 2, "Squat", 5, 100f))
+        val recomputed = StatsRecomputer.recompute(sessions, sets)
+        assertEquals(0, recomputed.currentStreak) // broken NOW
+        assertEquals(2, recomputed.bestStreak)    // best is history — untouched
+    }
+
+    /** REST/MISSED placeholder row: completed, no sets, kind set — exactly like the backfill writes. */
+    private fun placeholder(id: Long, dateMs: Long, kind: String) =
+        WorkoutSession(id = id, dateMs = dateMs, isCompleted = true, kind = kind)
 
     /** Day index converted to an ms timestamp at local noon (stable across the start-of-day calc). */
     private fun dayMs(dayOffset: Int): Long {
