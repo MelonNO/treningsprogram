@@ -304,6 +304,14 @@
 
                 </LinearLayout>
 
+                <!-- R5: always-visible "next up" teaser — the 2-3 closest-to-unlock achievements
+                     with live progress (replaces the old anonymous shadow rows). -->
+                <LinearLayout
+                    android:id="@+id/layout_next_up"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
                 <LinearLayout
                     android:id="@+id/layout_achievements"
                     android:layout_width="match_parent"

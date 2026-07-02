@@ -47,6 +47,12 @@
     <color name="game_lime">#8BE04A</color>
     <color name="game_violet">#9B8CFF</color>     <!-- cardio / mixed day accent -->
 
+    <!-- R5: achievement rarity tiers (vivid per the gamification mandate) -->
+    <color name="tier_common">#7E908E</color>     <!-- calm fog — the baseline tier -->
+    <color name="tier_rare">#7FE9E1</color>       <!-- luminous cyan -->
+    <color name="tier_epic">#C77DFF</color>       <!-- vivid violet -->
+    <color name="tier_legendary">#FFD54A</color>  <!-- celebration gold -->
+
     <!-- Feedback / error (muted, cool-leaning red) -->
     <color name="auros_error">#FF6B7A</color>
     <color name="auros_on_error">#2A0007</color>

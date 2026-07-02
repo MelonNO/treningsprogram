@@ -22,12 +22,31 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tv_achievement_name"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_achievement_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="?attr/colorOnSurface" />
+
+            <!-- R5: rarity tier chip (Common/Rare/Epic/Legendary) — text color set per tier. -->
+            <TextView
+                android:id="@+id/tv_achievement_tier"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:letterSpacing="0.08"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_achievement_desc"
@@ -36,6 +55,34 @@
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginTop="2dp" />
+
+        <!-- R5: live progress toward a locked threshold achievement ("43/50"). -->
+        <LinearLayout
+            android:id="@+id/row_achievement_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="6dp"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/progress_achievement"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="4dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tv_achievement_progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
