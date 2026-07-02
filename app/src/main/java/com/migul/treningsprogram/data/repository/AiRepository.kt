@@ -868,7 +868,11 @@ class AiRepository @Inject constructor(
     // Item 4 (rest-UX 2026-07): the manual rest-time mode lives in prefs. Injected here (rather
     // than threaded through every entry point) so BOTH generation paths and their salvage trims
     // read the same live setting the rest timer uses.
-    private val preferencesManager: com.migul.treningsprogram.data.preferences.PreferencesManager
+    private val preferencesManager: com.migul.treningsprogram.data.preferences.PreferencesManager,
+    // R3: body-weight awareness — both generation prompts include the user's current (smoothed)
+    // weight + trend when data exists (context only, no new hard rules; A-B2). Injected directly
+    // so every generation entry point gets it without threading a new parameter everywhere.
+    private val bodyMeasurementDao: com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
 ) {
     companion object {
         const val MAX_GENERATION_ATTEMPTS = 3
@@ -1073,6 +1077,10 @@ $qa
         val manualRest = preferencesManager.manualRestTimes
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
+        // R3: current body weight + smoothed trend as prompt context ("" when no data → the
+        // prompt stays byte-identical to the pre-R3 shape; see WeightTrend.promptLine).
+        val bodyWeightLine = com.migul.treningsprogram.domain.WeightTrend
+            .promptLine(bodyMeasurementDao.getAllOnce())
         val previousPlanCtx = buildPreviousPlanContext()
         val previousPlan = previousPlanCtx.text
         val variationTheme = variationThemes.random()
@@ -1138,7 +1146,7 @@ $qa
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
                 previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
-                restDays, lockedExercises, manualRest
+                restDays, lockedExercises, manualRest, bodyWeightLine
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
             // (it would just time out again, burning a second callTimeout). Real transient blips (5xx/429,
@@ -1559,7 +1567,10 @@ OR
         lockedExercises: List<PlannedExercise> = emptyList(),
         // Item 4 (rest-UX 2026-07): non-null when the user takes their OWN fixed category rest
         // times — the TIME BUDGET then counts those and rest stops being a sizing lever.
-        manualRest: ManualRestTimes? = null
+        manualRest: ManualRestTimes? = null,
+        // R3: "Body weight: 78.4 kg — trending down ~0.6 kg over the last 4 weeks" or "" (no
+        // data). Empty keeps the emitted prompt BYTE-IDENTICAL to the pre-R3 prompt.
+        bodyWeightLine: String = ""
     ): String {
         val goalLower = goal.lowercase()
         // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
@@ -1757,7 +1768,7 @@ Goal: $goal
 Experience: $experience
 Days/week: $daysPerWeek
 Session target: $sessionDurationMinutes min
-Available equipment: $equipmentStr
+Available equipment: $equipmentStr${if (bodyWeightLine.isNotBlank()) "\n$bodyWeightLine" else ""}
 ${if (injuries.isNotBlank()) "Injuries/limitations: $injuries" else ""}
 ${if (priorityMuscles.isNotBlank()) "Priority muscle groups: $priorityMuscles" else ""}
 ${if (dislikedExercises.isNotBlank()) "Exclude these exercises: $dislikedExercises" else ""}
@@ -2046,6 +2057,9 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         // hard-coded targetWeightKg:0, so the model echoed 0 for every exercise → all-bodyweight.)
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
+        // R3: weekly-parity body-weight context ("" with no data → prompt unchanged).
+        val bodyWeightLine = com.migul.treningsprogram.domain.WeightTrend
+            .promptLine(bodyMeasurementDao.getAllOnce())
 
         // P4: variety WITHIN the fixed focus. (Bug fix: the old path excluded the current day and passed
         // no history/variation signal, so a fixed focus re-rolled the same canonical list every time.)
@@ -2089,6 +2103,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             }
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
+            if (bodyWeightLine.isNotBlank()) appendLine(bodyWeightLine.replaceFirst("Body weight:", "BODY WEIGHT:"))
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
             appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per strength exercise: sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; 4 s/rep = realistic controlled tempo); per cardio exercise: its duration + ~60 s. " +
                 (if (manualRest == null)

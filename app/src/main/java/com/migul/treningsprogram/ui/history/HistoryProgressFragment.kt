@@ -97,6 +97,27 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
+        // R3: body-weight chart — independent of the exercise selection; hidden until >= 2
+        // weigh-ins exist. Raw weigh-ins + the smoothed WeightTrend overlay + the trend readout.
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.bodyMeasurements.collect { measurements ->
+                    val sorted = measurements.sortedBy { it.dateMs }
+                    val show = sorted.size >= 2
+                    binding.cardBodyWeight.isVisible = show
+                    if (!show) return@collect
+                    binding.chartBodyWeight.setData(
+                        sorted.map { BodyWeightChartView.Entry(it.dateMs, it.weightKg) },
+                        com.migul.treningsprogram.domain.WeightTrend.smoothedSeries(sorted)
+                            .map { (ms, kg) -> BodyWeightChartView.Entry(ms, kg) }
+                    )
+                    val line = com.migul.treningsprogram.domain.WeightTrend.homeLine(sorted)
+                    binding.tvBwTrend.isVisible = line != null
+                    binding.tvBwTrend.text = line ?: ""
+                }
+            }
+        }
+
         // Observe strength history — drives both the max-weight chart and the C1 PR timeline.
         // The history already excludes warm-up sets (WorkoutSetDao.getStrengthHistory filters
         // isWarmup=0), so OneRmTrend.prTimeline receives working-set summaries only.

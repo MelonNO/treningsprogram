@@ -206,6 +206,10 @@ class HomeFragment : Fragment() {
                 launch {
                     viewModel.bodyMeasurements.collect { measurements ->
                         renderBodyWeightEntries(measurements.take(5))
+                        // R3: smoothed current weight + trend, hidden until >= 2 entries exist.
+                        val trendLine = com.migul.treningsprogram.domain.WeightTrend.homeLine(measurements)
+                        binding.tvHomeBwTrend.visibility = if (trendLine == null) View.GONE else View.VISIBLE
+                        binding.tvHomeBwTrend.text = trendLine ?: ""
                     }
                 }
                 launch {
