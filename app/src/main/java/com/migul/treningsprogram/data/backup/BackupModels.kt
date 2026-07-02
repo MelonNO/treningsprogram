@@ -30,7 +30,7 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 4
+const val CURRENT_BACKUP_VERSION = 5
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.
@@ -58,7 +58,11 @@ data class BackupPreferences(
     // v4: the three training-relevant prefs a restore used to silently lose.
     val restDaysCsv: String = DEFAULT_STRING,
     val autoRebalanceEnabled: Boolean = DEFAULT_AUTO_REBALANCE,
-    val dayBoundaryHour: Int = DEFAULT_DAY_BOUNDARY_HOUR
+    val dayBoundaryHour: Int = DEFAULT_DAY_BOUNDARY_HOUR,
+    // v5 (rest-UX 2026-07, item 4): manual rest-time mode + the two category times.
+    val manualRestEnabled: Boolean = DEFAULT_BOOL,
+    val manualRestHeavySeconds: Int = DEFAULT_MANUAL_REST_HEAVY,
+    val manualRestAccessorySeconds: Int = DEFAULT_MANUAL_REST_ACCESSORY
 ) {
     companion object {
         const val DEFAULT_DAYS_PER_WEEK = 4
@@ -72,6 +76,8 @@ data class BackupPreferences(
         const val DEFAULT_BOOL = false
         const val DEFAULT_REST_TIMER = 90
         const val DEFAULT_GYM_PRESET_ID = -1L
+        const val DEFAULT_MANUAL_REST_HEAVY = 180      // = ManualRestTimes.DEFAULT_HEAVY_SECONDS
+        const val DEFAULT_MANUAL_REST_ACCESSORY = 90   // = ManualRestTimes.DEFAULT_ACCESSORY_SECONDS
     }
 }
 

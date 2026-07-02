@@ -24,9 +24,10 @@ class E2BackupProgramsTest {
     private val gson: Gson = GsonBuilder().create()
 
     // v4 (2026-07-02) widened preferences (restDaysCsv / autoRebalanceEnabled / dayBoundaryHour);
+    // v5 (rest-UX 2026-07) widened them again (manual rest-time prefs — see RestUxBatchTest);
     // everything this file verifies about programs is unchanged. See BackupV4PrefsTest.
-    @Test fun version_isFour() {
-        assertEquals(4, CURRENT_BACKUP_VERSION)
+    @Test fun version_isFive() {
+        assertEquals(5, CURRENT_BACKUP_VERSION)
     }
 
     @Test fun v3RoundTrip_preservesProgramsAndProgramId() {

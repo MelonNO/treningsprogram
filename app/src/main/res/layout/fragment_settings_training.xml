@@ -126,6 +126,56 @@
                             android:inputType="number" />
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Item 4 (rest-UX 2026-07): manual rest-time mode. Unchecked = AI per-exercise
+                         suggestions (default); checked reveals the two category time fields. -->
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switch_manual_rest"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Use my own rest times" />
+
+                    <LinearLayout
+                        android:id="@+id/layout_manual_rest"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="The rest timer uses these instead of the AI\'s suggestions, and generated programs are sized around them."
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:layout_marginBottom="8dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Heavy compounds (m:ss)"
+                            android:layout_marginBottom="8dp"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/et_rest_heavy"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="time"
+                                android:digits="0123456789:" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Accessories (m:ss)"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/et_rest_accessory"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="time"
+                                android:digits="0123456789:" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

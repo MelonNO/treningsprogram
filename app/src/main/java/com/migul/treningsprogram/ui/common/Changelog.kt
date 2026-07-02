@@ -13,6 +13,16 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 61, versionName = "1.22.0",
+            highlights = listOf(
+                "Your own rest times: enable \"Use my own rest times\" in Settings → Training or the setup wizard — one time for heavy compounds, one for accessories — and both the rest timer and generated programs are sized around them",
+                "The rest sheet now says whose time it is: \"AI suggested\" vs \"Your time\"",
+                "+30/−30 on the rest timer now sticks for the remaining sets of that exercise (this session only)",
+                "The exercise timer no longer resets when you minimize the app — it survives even an app restart mid-workout",
+                "Cleaner Home header (decorative globe removed)",
+            ),
+        ),
+        Entry(
             versionCode = 60, versionName = "1.21.0",
             highlights = listOf(
                 "Swipe right on the Program week card to look back at past (logged) weeks",

@@ -161,10 +161,10 @@ class LogWorkoutFragment : Fragment() {
 
             binding.cgRpe.clearCheck()
 
-            val restSecs = viewModel.getRestSecondsForCurrentExercise()
             val exerciseName = if (freestyleMode) binding.etFreestyleExercise.text?.toString()?.trim() ?: ""
                                else viewModel.currentExercise.value?.exerciseName ?: ""
-            showRestTimer(restSecs, exerciseName)
+            val rest = viewModel.getRestStart(if (freestyleMode) exerciseName else null)
+            showRestTimer(rest, exerciseName)
         }
 
         binding.btnTimerRecall.setOnClickListener { openTimerRecall() }
@@ -698,13 +698,13 @@ class LogWorkoutFragment : Fragment() {
     private fun getMuscleGroupName(exerciseName: String): String =
         MuscleClassifier.displayName(exerciseName)
 
-    private fun showRestTimer(seconds: Int, exerciseName: String = "") {
+    private fun showRestTimer(rest: RestStart, exerciseName: String = "") {
         if (!restTimerManager.isRunning.value) {
-            restTimerManager.start(seconds * 1000L)
+            restTimerManager.start(rest.seconds * 1000L)
         }
         val existing = childFragmentManager.findFragmentByTag("rest_timer")
         if (existing == null || !existing.isAdded) {
-            RestTimerBottomSheet.newInstance(seconds, exerciseName).show(childFragmentManager, "rest_timer")
+            RestTimerBottomSheet.newInstance(rest, exerciseName).show(childFragmentManager, "rest_timer")
         }
     }
 
@@ -940,10 +940,10 @@ class LogWorkoutFragment : Fragment() {
     }
 
     private fun openTimerRecall() {
-        val restSecs = viewModel.getRestSecondsForCurrentExercise()
         val exerciseName = if (freestyleMode) binding.etFreestyleExercise.text?.toString()?.trim() ?: ""
                            else viewModel.currentExercise.value?.exerciseName ?: ""
-        showRestTimer(restSecs, exerciseName)
+        val rest = viewModel.getRestStart(if (freestyleMode) exerciseName else null)
+        showRestTimer(rest, exerciseName)
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()

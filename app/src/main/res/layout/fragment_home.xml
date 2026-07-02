@@ -15,22 +15,13 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule,
-                 with the particle sphere floating at the band's edge -->
+            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule -->
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="22dp"
                 android:background="@drawable/bg_hero_wash">
-
-                <ImageView
-                    android:layout_width="98dp"
-                    android:layout_height="98dp"
-                    android:layout_gravity="end|center_vertical"
-                    android:alpha="0.6"
-                    android:src="@drawable/ill_particle_sphere"
-                    android:importantForAccessibility="no" />
 
                 <LinearLayout
                     android:layout_width="match_parent"

@@ -78,11 +78,28 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v4 -> v5.
+     *
+     * v5 (rest-UX 2026-07, item 4) only widens the preferences object again (manualRestEnabled /
+     * manualRestHeavySeconds / manualRestAccessorySeconds). Absent keys deserialize to the
+     * [BackupPreferences] field defaults (mode off, 3:00 / 1:30), so the step only stamps the
+     * new version — the same pattern as v3 -> v4.
+     */
+    private val V4_TO_V5 = object : MigrationStep {
+        override val fromVersion = 4
+        override fun migrate(root: JsonObject): JsonObject {
+            root.addProperty("schema_version", 5)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
         V2_TO_V3,
-        V3_TO_V4
+        V3_TO_V4,
+        V4_TO_V5
     ).associateBy { it.fromVersion }
 
     /**

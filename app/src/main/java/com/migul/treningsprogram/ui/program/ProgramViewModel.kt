@@ -35,6 +35,12 @@ class ProgramViewModel @Inject constructor(
     val fullGenerating: StateFlow<Boolean> = generationState.fullGenerating
     val fullGenerationStatus: StateFlow<String> = generationState.status
 
+    // Item 4 (rest-UX 2026-07): the Program screen's "~Xm" labels use the SAME estimator as the
+    // generation gate, so in manual rest mode they must count the user's category times too —
+    // otherwise the displayed and enforced numbers would disagree. Null = AI mode.
+    val manualRestTimes: com.migul.treningsprogram.domain.ManualRestTimes?
+        get() = prefsManager.manualRestTimes
+
     init {
         viewModelScope.launch { workoutRepository.backfillPlannedExercises() }
         // E2: ensure an active program exists so the switcher + plan flows have a target.

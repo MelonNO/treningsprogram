@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.migul.treningsprogram.domain.DayBoundary
+import com.migul.treningsprogram.domain.ManualRestTimes
 
 class PreferencesManager(context: Context) {
 
@@ -45,6 +46,43 @@ class PreferencesManager(context: Context) {
     var restTimerSeconds: Int
         get() = prefs.getInt(KEY_REST_TIMER, 90)
         set(value) { prefs.edit().putInt(KEY_REST_TIMER, value).apply() }
+
+    // Item 4 (rest-UX batch 2026-07): manual rest-time mode. OFF (default, incl. every existing
+    // install — A1) ⇒ AI mode: the timer uses each exercise's recommendedRestSeconds. ON ⇒ the
+    // timer AND the generation duration math use the user's two category times below.
+    var manualRestEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MANUAL_REST_ENABLED, false)
+        set(value) { prefs.edit().putBoolean(KEY_MANUAL_REST_ENABLED, value).apply() }
+
+    var manualRestHeavySeconds: Int
+        get() = prefs.getInt(KEY_MANUAL_REST_HEAVY, ManualRestTimes.DEFAULT_HEAVY_SECONDS)
+        set(value) {
+            prefs.edit().putInt(
+                KEY_MANUAL_REST_HEAVY,
+                value.coerceIn(ManualRestTimes.MIN_SECONDS, ManualRestTimes.MAX_SECONDS)
+            ).apply()
+        }
+
+    var manualRestAccessorySeconds: Int
+        get() = prefs.getInt(KEY_MANUAL_REST_ACCESSORY, ManualRestTimes.DEFAULT_ACCESSORY_SECONDS)
+        set(value) {
+            prefs.edit().putInt(
+                KEY_MANUAL_REST_ACCESSORY,
+                value.coerceIn(ManualRestTimes.MIN_SECONDS, ManualRestTimes.MAX_SECONDS)
+            ).apply()
+        }
+
+    /** The active manual rest times, or null when AI mode is on — the one switch every consumer keys off. */
+    val manualRestTimes: ManualRestTimes?
+        get() = if (manualRestEnabled)
+            ManualRestTimes(manualRestHeavySeconds, manualRestAccessorySeconds)
+        else null
+
+    // Item 5 (rest-UX batch 2026-07): "sessionId|exerciseIndex|startMs" for the per-exercise
+    // elapsed readout, persisted so the timer survives backgrounding AND process death. "" = none.
+    var exerciseTimerState: String
+        get() = prefs.getString(KEY_EXERCISE_TIMER_STATE, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_EXERCISE_TIMER_STATE, value).apply() }
 
     var dailyChallengesJson: String
         get() = prefs.getString(KEY_DAILY_CHALLENGES, "") ?: ""
@@ -218,6 +256,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_GOAL = "fitness_goal"
         private const val KEY_EXPERIENCE = "experience_level"
         private const val KEY_REST_TIMER = "rest_timer_seconds"
+        private const val KEY_MANUAL_REST_ENABLED = "manual_rest_enabled"
+        private const val KEY_MANUAL_REST_HEAVY = "manual_rest_heavy_seconds"
+        private const val KEY_MANUAL_REST_ACCESSORY = "manual_rest_accessory_seconds"
+        private const val KEY_EXERCISE_TIMER_STATE = "exercise_timer_state"
         private const val KEY_DAILY_CHALLENGES = "daily_challenges_json"
         private const val KEY_SESSION_DURATION = "session_duration_minutes"
         private const val KEY_GYM_PRESET = "selected_gym_preset_id"

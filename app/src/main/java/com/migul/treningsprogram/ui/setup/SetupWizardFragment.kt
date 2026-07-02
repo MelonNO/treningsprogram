@@ -19,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.databinding.FragmentSetupWizardBinding
+import com.migul.treningsprogram.domain.ManualRestTimes
 import com.migul.treningsprogram.domain.TrainingDaySelection
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import dagger.hilt.android.AndroidEntryPoint
@@ -140,6 +141,15 @@ class SetupWizardFragment : Fragment() {
         binding.switchLetAiChooseDays.setOnCheckedChangeListener { _, _ -> updateDayModeUi() }
         binding.chipGroupRestDays.setOnCheckedStateChangeListener { _, _ -> updateTrainingDaysHint() }
         updateDayModeUi()
+
+        // Item 4 (rest-UX 2026-07): manual rest-time mode — same stored preference as
+        // Settings → Training. Checking reveals the two m:ss fields, pre-filled with the saved
+        // times (or the 3:00 / 1:30 defaults on a fresh install).
+        binding.switchManualRest.isChecked = viewModel.prefs.manualRestEnabled
+        binding.etRestHeavy.setText(ManualRestTimes.formatMinSec(viewModel.prefs.manualRestHeavySeconds))
+        binding.etRestAccessory.setText(ManualRestTimes.formatMinSec(viewModel.prefs.manualRestAccessorySeconds))
+        binding.switchManualRest.setOnCheckedChangeListener { _, _ -> updateManualRestUi() }
+        updateManualRestUi()
 
         // Severity selector: reveal only while injuries field is non-blank
         binding.etWizardInjuries.addTextChangedListener(object : TextWatcher {
@@ -272,6 +282,12 @@ class SetupWizardFragment : Fragment() {
         binding.layoutRestMode.visibility = if (restMode) View.VISIBLE else View.GONE
         binding.layoutCountMode.visibility = if (restMode) View.GONE else View.VISIBLE
         if (restMode) updateTrainingDaysHint()
+    }
+
+    /** Item 4: reveal the manual rest-time fields only while the mode switch is checked. */
+    private fun updateManualRestUi() {
+        binding.layoutManualRest.visibility =
+            if (binding.switchManualRest.isChecked) View.VISIBLE else View.GONE
     }
 
     private fun updateTrainingDaysHint() {
@@ -463,6 +479,15 @@ class SetupWizardFragment : Fragment() {
                 } else {
                     viewModel.prefs.restDaysCsv = ""
                 }
+                // Item 4: persist the manual rest-time choice (same preference Settings edits).
+                // Forgiving parse — blank/garbage falls back to the defaults.
+                viewModel.prefs.manualRestEnabled = binding.switchManualRest.isChecked
+                viewModel.prefs.manualRestHeavySeconds =
+                    ManualRestTimes.parseMinSec(binding.etRestHeavy.text?.toString())
+                        ?: ManualRestTimes.DEFAULT_HEAVY_SECONDS
+                viewModel.prefs.manualRestAccessorySeconds =
+                    ManualRestTimes.parseMinSec(binding.etRestAccessory.text?.toString())
+                        ?: ManualRestTimes.DEFAULT_ACCESSORY_SECONDS
                 nextStep()
             }
             2 -> nextStep() // Equipment — just proceed

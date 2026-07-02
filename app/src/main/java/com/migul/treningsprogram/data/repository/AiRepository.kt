@@ -14,6 +14,7 @@ import com.migul.treningsprogram.data.api.model.ClaudeResponse
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.domain.StallDetector
+import com.migul.treningsprogram.domain.ManualRestTimes
 import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import kotlinx.coroutines.CoroutineDispatcher
@@ -485,7 +486,12 @@ internal fun isLikelyTruncated(text: String, stopReason: String?): Boolean {
 internal fun dayDurationFeedback(
     day: Int,
     estimateMinutes: Int,
-    targetMinutes: Int
+    targetMinutes: Int,
+    // Item 4 (rest-UX 2026-07): false when the user takes FIXED manual rest times — then telling
+    // the model to raise/shorten rest is a dead lever (the enforcement math ignores its rest
+    // values), so the wording steers reps/sets/exercise count instead. The reject CONDITION and
+    // the window are unchanged either way.
+    restIsLever: Boolean = true
 ): String? {
     val low = targetMinutes - 10
     val high = targetMinutes + 10
@@ -516,7 +522,7 @@ internal fun dayDurationFeedback(
                 "(e.g. \"45 min\"), targetWeightKg=0, rest=60. Do NOT use rowing, carries, sled, or elliptical " +
                 "as the timed entry — the app cannot time those by duration. Do NOT shorten the day — it is " +
                 "already too short."
-        estimateMinutes < low ->
+        estimateMinutes < low && restIsLever ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it CLEARS the $low-min " +
                 "floor AND YOUR sizing reaches about ${durationAimMinutes(targetMinutes)} min (err HIGH — the app " +
@@ -527,10 +533,22 @@ internal fun dayDurationFeedback(
                 "one more accessory exercise. Size to the SESSION DURATION, not to a fixed set count; keep " +
                 "volume goal- and duration-appropriate; CLEAR the floor — do NOT pad with junk volume. " +
                 "Do NOT shorten it — it is already too short."
+        estimateMinutes < low ->
+            "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
+                "($low–$high min, aim $targetMinutes). REST IS NOT A LEVER here: the user takes their own " +
+                "FIXED rest times, so changing recommendedRestSeconds changes NOTHING. ADD work to this " +
+                "day so it CLEARS the $low-min floor AND YOUR sizing reaches about " +
+                "${durationAimMinutes(targetMinutes)} min (err HIGH — the app recounts each day LOWER " +
+                "than you size it), in THIS order until in-window: (1) raise reps toward the TOP of each " +
+                "exercise's role range; (2) add a set to an accessory/isolation exercise; (3) add one " +
+                "more accessory exercise. Size to the SESSION DURATION, not to a fixed set count; keep " +
+                "volume goal- and duration-appropriate; CLEAR the floor — do NOT pad with junk volume. " +
+                "Do NOT shorten it — it is already too short."
         estimateMinutes > high ->
             "Day $day estimates ~$estimateMinutes min — that is OVER the target window " +
                 "($low–$high min, aim $targetMinutes). TRIM this day so it drops to about " +
-                "$targetMinutes min: remove an accessory exercise, or reduce sets or shorten rest."
+                "$targetMinutes min: remove an accessory exercise, or reduce sets" +
+                (if (restIsLever) " or shorten rest." else " (the user's rest times are FIXED — do NOT try to shorten rest).")
         else -> null
     }
 }
@@ -568,7 +586,12 @@ private const val TRIM_REST_STEP_SECONDS = 15
 internal fun trimOverflowToWindow(
     exercises: List<PlannedExercise>,
     targetMinutes: Int,
-    lockedDays: Set<Int>
+    lockedDays: Set<Int>,
+    // Item 4 (rest-UX 2026-07): when the user takes their OWN category rest times, the estimate
+    // counts THOSE — and lever (1) is skipped entirely, because lowering recommendedRestSeconds
+    // cannot change the time the user actually rests (it would only corrupt the stored AI
+    // suggestion for zero minutes reclaimed). Null = AI mode = pre-existing behaviour.
+    manualRest: ManualRestTimes? = null
 ): List<PlannedExercise>? {
     val low = targetMinutes - 10
     val high = targetMinutes + 10
@@ -584,7 +607,7 @@ internal fun trimOverflowToWindow(
         }
 
         var working = ordered
-        var est = WorkoutTimeEstimator.estimateDayMinutes(working)
+        var est = WorkoutTimeEstimator.estimateDayMinutes(working, manualRest)
         // Only OVER days are trimmed. In-window AND under-window days are returned unchanged (an under
         // day makes the whole plan un-salvageable — caught by the final window check below).
         if (est <= high) {
@@ -598,7 +621,8 @@ internal fun trimOverflowToWindow(
         // until no exercise is above 60 s. Reclaims the most minutes with ZERO loss of sets/exercises/
         // coverage; rest only ever DECREASES (never < 60, never above its original value). A single 15 s
         // step is far smaller than the 20-min window, so this lever never undershoots the floor.
-        while (est > high) {
+        // Item 4: SKIPPED in manual mode — the user's fixed rest times make this lever a no-op.
+        while (manualRest == null && est > high) {
             val restTarget = working
                 .filter { it.recommendedRestSeconds > TRIM_REST_FLOOR_SECONDS }
                 .maxByOrNull { it.recommendedRestSeconds }
@@ -616,7 +640,7 @@ internal fun trimOverflowToWindow(
                 .maxByOrNull { it.orderInDay }
                 ?: break
             working = working.map { if (it === trimTarget) it.copy(sets = it.sets - 1) else it }
-            est = WorkoutTimeEstimator.estimateDayMinutes(working)
+            est = WorkoutTimeEstimator.estimateDayMinutes(working, manualRest)
         }
 
         // (3) Still over → remove a whole TRAILING non-primary exercise, guarded.
@@ -630,12 +654,12 @@ internal fun trimOverflowToWindow(
                     val group = MuscleClassifier.displayName(cand.exerciseName)
                     val stillCovered = remaining.any { MuscleClassifier.displayName(it.exerciseName) == group }
                     val keepsFourPlus = remaining.size >= 4
-                    val staysAtOrAboveLow = WorkoutTimeEstimator.estimateDayMinutes(remaining) >= low
+                    val staysAtOrAboveLow = WorkoutTimeEstimator.estimateDayMinutes(remaining, manualRest) >= low
                     stillCovered && keepsFourPlus && staysAtOrAboveLow
                 }
                 ?: break
             working = working.filter { it !== removable }
-            est = WorkoutTimeEstimator.estimateDayMinutes(working)
+            est = WorkoutTimeEstimator.estimateDayMinutes(working, manualRest)
             removedAny = true
         }
 
@@ -650,7 +674,7 @@ internal fun trimOverflowToWindow(
     // Salvage succeeds only if EVERY non-locked day now estimates within the strict window. Any day still
     // over (un-trimmable within the guards) OR under the floor (never auto-filled) ⇒ un-salvageable (null).
     val allInWindow = resultByDay.all { (day, list) ->
-        day in lockedDays || WorkoutTimeEstimator.estimateDayMinutes(list) in low..high
+        day in lockedDays || WorkoutTimeEstimator.estimateDayMinutes(list, manualRest) in low..high
     }
     if (!allInWindow) return null
 
@@ -840,7 +864,11 @@ class AiRepository @Inject constructor(
     // P3: posts a backgrounded "generation finished" notification at every program-generation
     // terminal outcome. Injected here so ALL entry points (weekly + single-day, and the P1/P2
     // rebalances that route through generateAdaptedProgram) are covered from one seam.
-    private val generationNotifier: com.migul.treningsprogram.notify.GenerationNotifier
+    private val generationNotifier: com.migul.treningsprogram.notify.GenerationNotifier,
+    // Item 4 (rest-UX 2026-07): the manual rest-time mode lives in prefs. Injected here (rather
+    // than threaded through every entry point) so BOTH generation paths and their salvage trims
+    // read the same live setting the rest timer uses.
+    private val preferencesManager: com.migul.treningsprogram.data.preferences.PreferencesManager
 ) {
     companion object {
         const val MAX_GENERATION_ATTEMPTS = 3
@@ -1040,6 +1068,9 @@ $qa
         // DEADLINE_MS for the arithmetic. Body indentation is left as-is to keep this a minimal diff.
         withGenerationDeadline {
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
+        // Item 4: read the rest-time mode ONCE per generation so the prompt, the deterministic
+        // gate, and any salvage trim all use the same setting. Null = AI mode (existing behaviour).
+        val manualRest = preferencesManager.manualRestTimes
         val sessions = workoutRepository.getRecentSessions(12)
         val (history, recentExercises) = buildSessionHistory(sessions)
         val previousPlanCtx = buildPreviousPlanContext()
@@ -1059,7 +1090,7 @@ $qa
         // peer review (the overshoot attempt was never LLM-reviewed because the gate short-circuits it).
         suspend fun finalizeOrSalvage(rejections: List<String>, candidate: SalvageCandidate?): GenerationResult {
             if (candidate != null) {
-                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, lockedDays)
+                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, lockedDays, manualRest)
                 if (trimmed != null) {
                     onProgress("Trimming an over-target day to fit your $sessionDurationMinutes-min target…")
                     val trimmedJson = buildProgramJsonForValidation(trimmed, candidate.rationale)
@@ -1107,7 +1138,7 @@ $qa
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
                 previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
-                restDays, lockedExercises
+                restDays, lockedExercises, manualRest
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
             // (it would just time out again, burning a second callTimeout). Real transient blips (5xx/429,
@@ -1203,12 +1234,13 @@ $qa
                 .toSortedMap()
                 .filterKeys { it !in lockedDays }
                 .mapNotNull { (day, dayExercises) ->
-                    val est = WorkoutTimeEstimator.estimateDayMinutes(dayExercises)
+                    // Item 4: in manual mode the estimate counts the USER's category rest times.
+                    val est = WorkoutTimeEstimator.estimateDayMinutes(dayExercises, manualRest)
                     // G1/P2: direction-aware feedback — under-time days are told to ADD work, over-time
                     // days to TRIM. The reject CONDITION (the ±10 window) is unchanged; only the wording
                     // fed back to the next attempt differs, so the strict gate is untouched. The wording
                     // is now goal-general + duration-derived (no fixed set count / minute / rest ceiling).
-                    dayDurationFeedback(day, est, sessionDurationMinutes)
+                    dayDurationFeedback(day, est, sessionDurationMinutes, restIsLever = manualRest == null)
                 }
                 .joinToString(" ")
 
@@ -1224,7 +1256,7 @@ $qa
                 val nonLockedDayMinutes = exercises
                     .groupBy { it.dayOfWeek }
                     .filterKeys { it !in lockedDays }
-                    .mapValues { (_, dayEx) -> WorkoutTimeEstimator.estimateDayMinutes(dayEx) }
+                    .mapValues { (_, dayEx) -> WorkoutTimeEstimator.estimateDayMinutes(dayEx, manualRest) }
                 val anyUnderWindow = nonLockedDayMinutes.values.any { it < low }
                 val isOverOnlyDurationMiss = emptyPlanReason.isEmpty() && restDayReason.isEmpty() &&
                     durationReason.isNotEmpty() && !anyUnderWindow
@@ -1524,7 +1556,10 @@ OR
         splitSuggestion: String = "",
         mesocycle: MesocycleContext = MesocycleContext.NONE,
         restDays: Set<Int> = emptySet(),
-        lockedExercises: List<PlannedExercise> = emptyList()
+        lockedExercises: List<PlannedExercise> = emptyList(),
+        // Item 4 (rest-UX 2026-07): non-null when the user takes their OWN fixed category rest
+        // times — the TIME BUDGET then counts those and rest stops being a sizing lever.
+        manualRest: ManualRestTimes? = null
     ): String {
         val goalLower = goal.lowercase()
         // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
@@ -1801,14 +1836,22 @@ The session target is $sessionDurationMinutes min. EACH training day MUST estima
 - Per strength exercise ≈ sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N. (4 s/rep reflects a realistic controlled tempo.)
 - Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
 - A day's estimate = the sum of its exercises.
+${if (manualRest != null) """
+THE USER TAKES FIXED REST TIMES — CRITICAL FOR THE FORMULA ABOVE: this user overrides rest with their own timer settings, so in the formula "rest seconds" is ALWAYS ${manualRest.heavyCompoundSeconds} s for a HEAVY COMPOUND strength exercise (any squat / deadlift / RDL / bench / press / row / lunge / hip-thrust / clean / snatch / good-morning / pull-up / chin-up / dip type lift — NOT pallof press, calf work, pressdowns, wrist work, or the rowing/erg machine) and ${manualRest.accessorySeconds} s for EVERY OTHER strength exercise. Your recommendedRestSeconds values are still recorded as suggestions but DO NOT affect the enforced duration math — REST IS NOT A TIME LEVER for you; size every day with reps, sets, and exercise count instead.
+""".trimIndent() else ""}
 CALIBRATION — ${durationAimPhrase(sessionDurationMinutes)}
-REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of THIS GOAL's rest band FIRST — strength has the most headroom here (3–5 min / up to ~300 s), hypertrophy compounds up to ~240 s, endurance/weight-loss stay in their shorter bands. Do not push rest beyond the goal's own band.
+${if (manualRest == null)
+"REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of THIS GOAL's rest band FIRST — strength has the most headroom here (3–5 min / up to ~300 s), hypertrophy compounds up to ~240 s, endurance/weight-loss stay in their shorter bands. Do not push rest beyond the goal's own band."
+else
+"REST IS NOT A TIME LEVER (fixed user rest times — see above). When a day estimates under $sessionDurationMinutes min, add work: raise reps, add sets, or add an accessory."}
 UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until YOUR OWN estimate reaches about ${durationAimMinutes(sessionDurationMinutes)} min (do NOT stop the moment it scrapes the ${sessionDurationMinutes - 10}-min floor — err HIGH per CALIBRATION above, since the app recounts your day LOWER than you size it):
-  1. Raise inter-set rest toward this goal's band MAXIMUM (this alone clears most under-time days).
+${if (manualRest == null) """  1. Raise inter-set rest toward this goal's band MAXIMUM (this alone clears most under-time days).
   2. RAISE reps toward the TOP of each exercise's role range.
   3. ADD 1 set to an accessory/isolation exercise.
-  4. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume).
-OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory, reduce sets, or shorten rest until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, add a USEFUL warm-up / duration-sized conditioning finisher (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the ${sessionDurationMinutes - 10}-min low edge — the app recounts each day LOWER than you size it, so a low-edge day tips back under the floor. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
+  4. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume).""" else """  1. RAISE reps toward the TOP of each exercise's role range.
+  2. ADD 1 set to an accessory/isolation exercise.
+  3. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume)."""}
+OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory${if (manualRest == null) ", reduce sets, or shorten rest" else " or reduce sets (rest is fixed)"} until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, add a USEFUL warm-up / duration-sized conditioning finisher (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the ${sessionDurationMinutes - 10}-min low edge — the app recounts each day LOWER than you size it, so a low-edge day tips back under the floor. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
 $longSessionBlock
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -1860,7 +1903,7 @@ Each exercise's "notes" must be TERSE — a single short clause, NOT sentences. 
 ══════════════════════════════════════════
 BUILD RULES — every day must satisfy ALL of these; apply them as you build, do NOT narrate or restate them in the output
 ══════════════════════════════════════════
-- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. Volume/rest/count are DERIVED from the $sessionDurationMinutes-min target, not from a fixed set count. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order (rest toward the goal's band max FIRST, then reps, then a set, then an accessory — staying inside the goal's own rest band); TRIM any day over ${sessionDurationMinutes + 10} min. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the low edge — the app recounts each day LOWER than you size it, so low-edge days tip back under the floor.
+- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. Volume/rest/count are DERIVED from the $sessionDurationMinutes-min target, not from a fixed set count. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order ${if (manualRest == null) "(rest toward the goal's band max FIRST, then reps, then a set, then an accessory — staying inside the goal's own rest band)" else "(reps FIRST, then a set, then an accessory — the user's rest times are FIXED and not a lever)"}; TRIM any day over ${sessionDurationMinutes + 10} min. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the low edge — the app recounts each day LOWER than you size it, so low-edge days tip back under the floor.
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone), and match the goal.
 - Every exercise's notes carry an RIR/RPE target AND a progression rule; every loaded lift carries a history-anchored targetWeightKg (never a fabricated number).
@@ -1991,6 +2034,8 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         // always reaches a terminal outcome (never a frozen progress line).
         withGenerationDeadline {
         val weekStart = thisMonday()
+        // Item 4: same manual rest-time awareness as the weekly path (prompt + gate + salvage trim).
+        val manualRest = preferencesManager.manualRestTimes
         // Effective severity (only used when injuries non-blank). Legacy/unspecified ⇒ cautious Moderate.
         val sev = injurySeverity.ifBlank { "Moderate" }
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -2045,7 +2090,12 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("GOAL: $goal")
             appendLine("EXPERIENCE: $experience")
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per strength exercise: sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; 4 s/rep = realistic controlled tempo); per cardio exercise: its duration + ~60 s. REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward THIS goal's band max (strength up to ~300 s, hypertrophy compounds up to ~240 s, endurance/weight-loss stay short), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. Keep volume goal- and duration-appropriate. CALIBRATION: the app RE-COUNTS each day with the exact formula LOWER than you size it, so ERR HIGH — size this day so your own estimate is about ${durationAimMinutes(sessionDurationMinutes)} min (a few min ABOVE $sessionDurationMinutes), never the ${sessionDurationMinutes - 10}-min low edge; a day that recounts a little over is auto-trimmed to fit, a day under the floor is rejected.")
+            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per strength exercise: sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; 4 s/rep = realistic controlled tempo); per cardio exercise: its duration + ~60 s. " +
+                (if (manualRest == null)
+                    "REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward THIS goal's band max (strength up to ~300 s, hypertrophy compounds up to ~240 s, endurance/weight-loss stay short), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. "
+                else
+                    "THE USER TAKES FIXED REST TIMES: in the formula above, \"rest seconds\" is ALWAYS ${manualRest.heavyCompoundSeconds} s for a HEAVY COMPOUND strength exercise (squat / deadlift / RDL / bench / press / row / lunge / hip-thrust / clean / snatch / good-morning / pull-up / chin-up / dip type lifts — NOT pallof press, calf work, pressdowns, wrist work, or the rowing/erg machine) and ${manualRest.accessorySeconds} s for every OTHER strength exercise; your recommendedRestSeconds are recorded but do NOT affect the duration math. REST IS NOT A LEVER — if the day is short, raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim an accessory or reduce sets. ") +
+                "Keep volume goal- and duration-appropriate. CALIBRATION: the app RE-COUNTS each day with the exact formula LOWER than you size it, so ERR HIGH — size this day so your own estimate is about ${durationAimMinutes(sessionDurationMinutes)} min (a few min ABOVE $sessionDurationMinutes), never the ${sessionDurationMinutes - 10}-min low edge; a day that recounts a little over is auto-trimmed to fit, a day under the floor is rejected.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")
@@ -2129,7 +2179,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         suspend fun finalizeSingleDay(): List<PlannedExercise> {
             val candidate = salvageCandidate
             if (candidate != null) {
-                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, emptySet())
+                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, emptySet(), manualRest)
                 if (trimmed != null) {
                     onProgress("Trimming $dayName to fit your $sessionDurationMinutes-min target…")
                     val fullWeekJson = buildProgramJsonForValidation(otherDays + trimmed, candidate.rationale)
@@ -2194,8 +2244,10 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             }
 
             // Strict ±10-min per-day duration gate (same formula/window as the weekly path).
-            val est = WorkoutTimeEstimator.estimateDayMinutes(exercises)
-            val durationReason = dayDurationFeedback(dayOfWeek, est, sessionDurationMinutes) ?: ""
+            // Item 4: in manual mode the estimate counts the USER's category rest times.
+            val est = WorkoutTimeEstimator.estimateDayMinutes(exercises, manualRest)
+            val durationReason =
+                dayDurationFeedback(dayOfWeek, est, sessionDurationMinutes, restIsLever = manualRest == null) ?: ""
 
             // Salvage candidate: an OVER-only duration miss (est > high) that is otherwise valid.
             if (durationReason.isNotEmpty() && est > sessionDurationMinutes + 10) {

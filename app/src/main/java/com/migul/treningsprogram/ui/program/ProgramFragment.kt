@@ -462,7 +462,9 @@ class ProgramFragment : Fragment() {
             }
             binding.tvWorkoutType.text = "${exercises.size} exercises  •  $typeLabel"
 
-            val totalMins = WorkoutTimeEstimator.estimateDayMinutes(exercises)
+            // Item 4: in manual rest mode the label counts the user's category rest times — the
+            // same math the generation gate enforces, so displayed and enforced numbers agree.
+            val totalMins = WorkoutTimeEstimator.estimateDayMinutes(exercises, viewModel.manualRestTimes)
             binding.tvTotalTime.text = "~${totalMins}m"
 
             // Item 10: a single "Start Workout" button. On another day it performs that day's plan
@@ -535,7 +537,8 @@ class ProgramFragment : Fragment() {
         if (isCardio) {
             tvExerciseTime.text = exercise.targetReps
         } else {
-            val mins = (WorkoutTimeEstimator.estimateExerciseSeconds(exercise) + 30) / 60
+            // Item 4: count the user's category rest time when manual rest mode is active.
+            val mins = (WorkoutTimeEstimator.estimateExerciseSeconds(exercise, viewModel.manualRestTimes) + 30) / 60
             tvExerciseTime.text = "~${mins}m"
         }
 

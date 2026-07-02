@@ -19,6 +19,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentSettingsTrainingBinding
+import com.migul.treningsprogram.domain.ManualRestTimes
 import com.migul.treningsprogram.domain.TrainingDaySelection
 import com.migul.treningsprogram.ui.onboarding.OnboardingBottomSheet
 import dagger.hilt.android.AndroidEntryPoint
@@ -47,6 +48,9 @@ class SettingsTrainingFragment : Fragment() {
     private var initialPresetId = -1L
     private var initialLetAiChoose = false
     private var initialRestCsv = ""
+    private var initialManualRest = false
+    private var initialRestHeavy = ""
+    private var initialRestAccessory = ""
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSettingsTrainingBinding.inflate(inflater, container, false)
@@ -102,6 +106,13 @@ class SettingsTrainingFragment : Fragment() {
         binding.chipRest7.isChecked = 7 in savedRest
         updateDayModeUi()
 
+        // Item 4 (rest-UX 2026-07): manual rest-time mode — populate from prefs; checking the
+        // switch reveals the two m:ss category fields (pre-filled with saved times or defaults).
+        binding.switchManualRest.isChecked = prefs.manualRestEnabled
+        binding.etRestHeavy.setText(ManualRestTimes.formatMinSec(prefs.manualRestHeavySeconds))
+        binding.etRestAccessory.setText(ManualRestTimes.formatMinSec(prefs.manualRestAccessorySeconds))
+        updateManualRestUi()
+
         val savedMuscles = prefs.priorityMuscles.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
         binding.chipSettingsMuscleChest.isChecked     = "Chest" in savedMuscles
         binding.chipSettingsMuscleBack.isChecked      = "Back" in savedMuscles
@@ -124,6 +135,11 @@ class SettingsTrainingFragment : Fragment() {
         binding.etSessionDuration.addTextChangedListener(textWatcher)
         binding.etInjuries.addTextChangedListener(textWatcher)
         binding.etDislikedExercises.addTextChangedListener(textWatcher)
+        binding.etRestHeavy.addTextChangedListener(textWatcher)
+        binding.etRestAccessory.addTextChangedListener(textWatcher)
+        binding.switchManualRest.setOnCheckedChangeListener { _, _ ->
+            updateManualRestUi(); updateSaveButton()
+        }
 
         // Reveal the severity selector only while the injuries field is non-blank
         binding.etInjuries.addTextChangedListener(object : TextWatcher {
@@ -199,6 +215,16 @@ class SettingsTrainingFragment : Fragment() {
         initialPresetId  = gymPresetsViewModel.selectedPresetId
         initialLetAiChoose = binding.switchLetAiChooseDays.isChecked
         initialRestCsv   = currentRestCsv()
+        initialManualRest = binding.switchManualRest.isChecked
+        initialRestHeavy = binding.etRestHeavy.text.toString()
+        initialRestAccessory = binding.etRestAccessory.text.toString()
+    }
+
+    // ── Item 4: manual rest-time mode ────────────────────────────────────────────────────────────
+
+    private fun updateManualRestUi() {
+        binding.layoutManualRest.visibility =
+            if (binding.switchManualRest.isChecked) View.VISIBLE else View.GONE
     }
 
     // ── B08: day-selection mode ──────────────────────────────────────────────────────────────────
@@ -272,6 +298,9 @@ class SettingsTrainingFragment : Fragment() {
             || gymPresetsViewModel.selectedPresetId != initialPresetId
             || binding.switchLetAiChooseDays.isChecked != initialLetAiChoose
             || currentRestCsv() != initialRestCsv
+            || binding.switchManualRest.isChecked != initialManualRest
+            || binding.etRestHeavy.text.toString() != initialRestHeavy
+            || binding.etRestAccessory.text.toString() != initialRestAccessory
     }
 
     private fun updateSaveButton() {
@@ -296,6 +325,17 @@ class SettingsTrainingFragment : Fragment() {
             days = binding.etDaysPerWeek.text.toString().toIntOrNull()?.coerceIn(1, 7) ?: 4
         }
         val duration = binding.etSessionDuration.text.toString().toIntOrNull()?.coerceIn(15, 180) ?: 60
+        // Item 4: manual rest-time mode. Forgiving parse — blank/garbage falls back to the saved
+        // value's default; the fields are re-rendered normalized (m:ss) after save via prefs.
+        prefs.manualRestEnabled = binding.switchManualRest.isChecked
+        prefs.manualRestHeavySeconds =
+            ManualRestTimes.parseMinSec(binding.etRestHeavy.text?.toString())
+                ?: ManualRestTimes.DEFAULT_HEAVY_SECONDS
+        prefs.manualRestAccessorySeconds =
+            ManualRestTimes.parseMinSec(binding.etRestAccessory.text?.toString())
+                ?: ManualRestTimes.DEFAULT_ACCESSORY_SECONDS
+        binding.etRestHeavy.setText(ManualRestTimes.formatMinSec(prefs.manualRestHeavySeconds))
+        binding.etRestAccessory.setText(ManualRestTimes.formatMinSec(prefs.manualRestAccessorySeconds))
         val goal = goals[binding.spinnerGoal.selectedItemPosition]
         val experience = experiences[binding.spinnerExperience.selectedItemPosition]
         val separateCardio = binding.switchSeparateCardio.isChecked

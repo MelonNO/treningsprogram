@@ -24,19 +24,27 @@ object WorkoutTimeEstimator {
      */
     const val WORK_SECONDS_PER_REP = 4
 
-    /** Estimated seconds for a single planned exercise (work + inter-set rest + setup). */
-    fun estimateExerciseSeconds(ex: PlannedExercise): Int {
+    /**
+     * Estimated seconds for a single planned exercise (work + inter-set rest + setup).
+     *
+     * Item 4 (rest-UX batch 2026-07): when [manualRest] is non-null the user takes THEIR OWN
+     * per-category rest times instead of the AI's per-exercise suggestion, so the estimate counts
+     * the category time for every strength exercise (cardio entries carry no inter-set rest and
+     * are unaffected). `null` = AI mode = the pre-existing formula byte-for-byte.
+     */
+    fun estimateExerciseSeconds(ex: PlannedExercise, manualRest: ManualRestTimes? = null): Int {
         return if (isCardio(ex.exerciseName)) {
             parseCardioSeconds(ex.targetReps) + ADMIN_TIME_PER_EXERCISE_SECONDS
         } else {
             val maxReps = Regex("\\d+").findAll(ex.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
-            ex.sets * (maxReps * WORK_SECONDS_PER_REP) + (ex.sets - 1) * ex.recommendedRestSeconds + ADMIN_TIME_PER_EXERCISE_SECONDS
+            val rest = manualRest?.restSecondsFor(ex.exerciseName) ?: ex.recommendedRestSeconds
+            ex.sets * (maxReps * WORK_SECONDS_PER_REP) + (ex.sets - 1) * rest + ADMIN_TIME_PER_EXERCISE_SECONDS
         }
     }
 
     /** Estimated whole-minute duration for a day, rounded to nearest minute. */
-    fun estimateDayMinutes(exercises: List<PlannedExercise>): Int =
-        (exercises.sumOf { estimateExerciseSeconds(it) } + 30) / 60
+    fun estimateDayMinutes(exercises: List<PlannedExercise>, manualRest: ManualRestTimes? = null): Int =
+        (exercises.sumOf { estimateExerciseSeconds(it, manualRest) } + 30) / 60
 
     private fun isCardio(name: String): Boolean =
         MuscleClassifier.displayName(name) == "Cardio"

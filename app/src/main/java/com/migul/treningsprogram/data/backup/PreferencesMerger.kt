@@ -52,6 +52,10 @@ object PreferencesMerger {
             restDaysCsv = pick(current.restDaysCsv, backup.restDaysCsv, d.restDaysCsv),
             autoRebalanceEnabled = pick(current.autoRebalanceEnabled, backup.autoRebalanceEnabled, d.autoRebalanceEnabled),
             dayBoundaryHour = pick(current.dayBoundaryHour, backup.dayBoundaryHour, d.dayBoundaryHour),
+            // v5 additions (manual rest mode) — standard phone-wins-if-set:
+            manualRestEnabled = pick(current.manualRestEnabled, backup.manualRestEnabled, d.manualRestEnabled),
+            manualRestHeavySeconds = pick(current.manualRestHeavySeconds, backup.manualRestHeavySeconds, d.manualRestHeavySeconds),
+            manualRestAccessorySeconds = pick(current.manualRestAccessorySeconds, backup.manualRestAccessorySeconds, d.manualRestAccessorySeconds),
             // Ambiguous / backup-wins bucket:
             dailyChallengesJson = backup.dailyChallengesJson,
             selectedGymPresetId = backup.selectedGymPresetId

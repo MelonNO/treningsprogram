@@ -97,12 +97,19 @@ class LogWorkoutViewModel @Inject constructor(
             else allSets.filter { it.exerciseName == exercise.exerciseName }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Per-exercise timer: resets automatically whenever currentIndex changes
+    // Item 5 (rest-UX batch 2026-07): per-exercise timer, wall-clock based. The elapsed value is
+    // derived from a persisted "start of the current exercise" timestamp, NOT from a flow-local
+    // start — the old flow re-captured "now" whenever it restarted (WhileSubscribed(5000) cancels
+    // ~5 s after backgrounding), so minimizing reset the readout to 0:00. The start moment is also
+    // persisted (prefs, keyed by sessionId|index) so process death mid-workout resumes with the
+    // TRUE elapsed time. Switching exercise still resets: a new index writes a fresh start.
+    private val _exerciseStartMs = MutableStateFlow(0L)
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val currentExerciseElapsedMs: StateFlow<Long> = _currentIndex
-        .flatMapLatest {
-            flow {
-                val start = System.currentTimeMillis()
+    val currentExerciseElapsedMs: StateFlow<Long> = _exerciseStartMs
+        .flatMapLatest { start ->
+            if (start == 0L) flowOf(0L)
+            else flow {
                 while (true) {
                     emit(System.currentTimeMillis() - start)
                     delay(1000)
@@ -110,6 +117,26 @@ class LogWorkoutViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    init {
+        // Resolve the current exercise's start moment whenever (session, index) changes — but only
+        // once the plan is loaded, so the transient index-0 emission during resume can't clobber
+        // the persisted start of the real resumed exercise.
+        viewModelScope.launch {
+            combine(_sessionId, _currentIndex, _planLoaded) { sid, idx, loaded ->
+                if (sid != null && loaded) sid to idx else null
+            }
+                .filterNotNull()
+                .distinctUntilChanged()
+                .collect { (sid, idx) ->
+                    val now = System.currentTimeMillis()
+                    val (startMs, newState) =
+                        resolveExerciseTimerStart(prefs.exerciseTimerState, sid, idx, now)
+                    if (newState != prefs.exerciseTimerState) prefs.exerciseTimerState = newState
+                    _exerciseStartMs.value = startMs
+                }
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val elapsedTimeMs: StateFlow<Long> = _sessionStartMs
@@ -301,6 +328,57 @@ class LogWorkoutViewModel @Inject constructor(
     }
 
     companion object {
+        /** Floor for a rest timer's STARTING duration after session adjustments (item 2). */
+        const val MIN_REST_START_SECONDS = 15
+
+        /**
+         * Item 5: resolves the wall-clock start of the CURRENT exercise from the persisted
+         * "sessionId|index|startMs" state. If the persisted state matches this (session, index)
+         * and carries a sane timestamp, it is REUSED (survives backgrounding + process death);
+         * otherwise a fresh start at [nowMs] is returned together with the new state to persist.
+         * Pure so it is unit-testable off-device.
+         */
+        fun resolveExerciseTimerStart(
+            persisted: String,
+            sessionId: Long,
+            index: Int,
+            nowMs: Long
+        ): Pair<Long, String> {
+            val parts = persisted.split("|")
+            if (parts.size == 3) {
+                val sid = parts[0].toLongOrNull()
+                val idx = parts[1].toIntOrNull()
+                val start = parts[2].toLongOrNull()
+                if (sid == sessionId && idx == index && start != null && start in 1..nowMs) {
+                    return start to persisted
+                }
+            }
+            return nowMs to "$sessionId|$index|$nowMs"
+        }
+
+        /**
+         * Items 4 + 2: resolves the rest timer's STARTING duration for one set, layering the
+         * session-only ±30 s adjustment on top of whichever base source is active.
+         *
+         * Base: [manual] non-null (manual mode) → the exercise's CATEGORY time; else the AI's
+         * per-exercise suggestion [plannedRestSeconds], falling back to [fallbackSeconds] (90 s)
+         * when there is no planned exercise (freestyle). [netAdjustmentSeconds] is the net of all
+         * +30/−30 presses for THIS exercise THIS session; the result never drops below
+         * [MIN_REST_START_SECONDS]. Pure so it is unit-testable off-device.
+         */
+        fun resolveRestStart(
+            exerciseName: String,
+            plannedRestSeconds: Int?,
+            manual: com.migul.treningsprogram.domain.ManualRestTimes?,
+            netAdjustmentSeconds: Int,
+            fallbackSeconds: Int = 90
+        ): RestStart {
+            val base = manual?.restSecondsFor(exerciseName)
+                ?: (plannedRestSeconds ?: fallbackSeconds)
+            val seconds = (base + netAdjustmentSeconds).coerceAtLeast(MIN_REST_START_SECONDS)
+            return RestStart(seconds = seconds, baseSeconds = base, isManualSource = manual != null)
+        }
+
         /**
          * Decides which exercise to land on when resuming a session. Resume to the
          * exercise of the most recently logged set so already-logged work (including
@@ -501,6 +579,7 @@ class LogWorkoutViewModel @Inject constructor(
             if (sets.value.none { !it.isWarmup }) {
                 workoutRepository.deleteSession(sid)
                 clearDraft(sid)
+                prefs.exerciseTimerState = ""   // Item 5
                 moveFromDay = 0   // P2: abandoned (no working sets) → week left unchanged
                 _sessionAbandoned.value = true
                 return@launch
@@ -511,6 +590,7 @@ class LogWorkoutViewModel @Inject constructor(
             workoutRepository.completeSession(sid, totalDurationMin)
             isReopenedAppend = false
             clearDraft(sid)
+            prefs.exerciseTimerState = ""   // Item 5: the finished session's timer state is dead
             // Mark planned exercises done so week progress bar is accurate
             val loggedNames = sets.value.filter { !it.isWarmup }.map { it.exerciseName }.toSet()
             // Item 10: a workout can only be performed TODAY (Item 7 day boundary). Determine the
@@ -556,6 +636,7 @@ class LogWorkoutViewModel @Inject constructor(
                 workoutRepository.deleteSession(sid)
             }
             clearDraft(sid)
+            prefs.exerciseTimerState = ""   // Item 5: the abandoned session's timer state is dead
             moveFromDay = 0   // P2: abandoning leaves the week unchanged
             _sessionAbandoned.value = true
         }
@@ -564,8 +645,32 @@ class LogWorkoutViewModel @Inject constructor(
     suspend fun getLastSets(exerciseName: String): List<WorkoutSet> =
         workoutRepository.getLastSetsForExercise(exerciseName, _sessionId.value ?: -1)
 
-    fun getRestSecondsForCurrentExercise(): Int =
-        currentExercise.value?.recommendedRestSeconds ?: restTimerFallbackSeconds
+    // ── Items 4 + 2: rest-timer starting duration ─────────────────────────────────────────────
+    // Item 2: net ±30 s adjustment per exercise NAME, for THIS session only. Deliberately
+    // in-memory (dies with the ViewModel / on process death) — the user chose "never persisted".
+    private val sessionRestAdjustments = mutableMapOf<String, Int>()
+
+    /** Item 2: called by the rest sheet on every +30/−30 press so the NEXT set starts adjusted. */
+    fun recordRestAdjustment(exerciseName: String, deltaSeconds: Int) {
+        val key = exerciseName.trim()
+        sessionRestAdjustments[key] = (sessionRestAdjustments[key] ?: 0) + deltaSeconds
+    }
+
+    /**
+     * The rest timer's starting duration + honest source label data for the next set.
+     * [freestyleName] is the typed exercise name when logging freestyle (no planned exercise).
+     */
+    fun getRestStart(freestyleName: String? = null): RestStart {
+        val planned = currentExercise.value
+        val name = freestyleName?.trim()?.takeIf { it.isNotBlank() } ?: planned?.exerciseName ?: ""
+        return resolveRestStart(
+            exerciseName = name,
+            plannedRestSeconds = planned?.recommendedRestSeconds,
+            manual = prefs.manualRestTimes,
+            netAdjustmentSeconds = sessionRestAdjustments[name] ?: 0,
+            fallbackSeconds = restTimerFallbackSeconds
+        )
+    }
 
     /**
      * Replaces the exercise at the current position with [newName] for this session only.
@@ -622,3 +727,15 @@ class LogWorkoutViewModel @Inject constructor(
 
     fun getExerciseNames(): List<String> = AppDatabase.DEFAULT_EXERCISES.map { it.name }
 }
+
+/**
+ * Items 4 + 2: what the rest timer should start at for one set, plus the data the sheet needs
+ * for an honest source label. [baseSeconds] is the un-adjusted base (AI suggestion or the user's
+ * category time); [seconds] is the actual start (base ± the session's net +30/−30 adjustments);
+ * [isManualSource] tells the sheet to say "Your time" instead of "AI suggested".
+ */
+data class RestStart(
+    val seconds: Int,
+    val baseSeconds: Int,
+    val isManualSource: Boolean
+)
