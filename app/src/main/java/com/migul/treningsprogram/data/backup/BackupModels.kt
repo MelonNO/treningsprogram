@@ -4,7 +4,9 @@ import com.google.gson.annotations.SerializedName
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.Exercise
+import com.migul.treningsprogram.data.db.entity.ExerciseNote
 import com.migul.treningsprogram.data.db.entity.GymPreset
+import com.migul.treningsprogram.data.db.entity.LiftGoal
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.db.entity.UserStats
@@ -25,12 +27,17 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  *      dayBoundaryHour) so a restore keeps the pinned rest days and day boundary. Absent keys in
  *      older backups fall back to the field defaults on deserialize; the step only bumps the
  *      version. See v3 -> v4.
+ * v5 — widens the preferences object again (manualRestEnabled / manualRestHeavySeconds /
+ *      manualRestAccessorySeconds). See v4 -> v5.
+ * v6 — feature batch 2026-07-03: adds the N5 `goals` (lift_goals) and N7 `exercise_notes`
+ *      tables as two new top-level lists. Older backups simply have neither; the migration
+ *      step adds empty arrays. See v5 -> v6.
  *
  * To add a future version, bump [CURRENT_BACKUP_VERSION] and register a step in
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 5
+const val CURRENT_BACKUP_VERSION = 6
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.
@@ -97,5 +104,9 @@ data class BackupEnvelope(
     @SerializedName("gym_presets") val gymPresets: List<GymPreset> = emptyList(),
     // E2 (v3): named saved programs. Empty for v1/v2 backups (the migration adds an empty list).
     val programs: List<Program> = emptyList(),
+    // v6 (N5): lift goals. Empty for pre-v6 backups (the migration adds an empty list).
+    val goals: List<LiftGoal> = emptyList(),
+    // v6 (N7): per-exercise setup notes. Empty for pre-v6 backups.
+    @SerializedName("exercise_notes") val exerciseNotes: List<ExerciseNote> = emptyList(),
     val preferences: BackupPreferences = BackupPreferences()
 )

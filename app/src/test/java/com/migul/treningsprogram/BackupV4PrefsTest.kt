@@ -20,9 +20,10 @@ class BackupV4PrefsTest {
 
     private val gson = Gson()
 
-    @Test fun `current version is 5`() {
-        // Bumped 4 → 5 by the rest-UX 2026-07 batch (manual rest-time prefs ride in backups).
-        assertEquals(5, CURRENT_BACKUP_VERSION)
+    @Test fun `current version is 6`() {
+        // Bumped 4 → 5 by the rest-UX 2026-07 batch (manual rest-time prefs ride in backups);
+        // 5 → 6 by the feature batch 2026-07-03 (N5 lift goals + N7 exercise notes tables).
+        assertEquals(6, CURRENT_BACKUP_VERSION)
     }
 
     @Test fun `v3 backup migrates to v4 with default new prefs`() {

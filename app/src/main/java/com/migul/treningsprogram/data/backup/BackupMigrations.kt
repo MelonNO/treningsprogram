@@ -94,12 +94,30 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v5 -> v6.
+     *
+     * v6 (feature batch 2026-07-03) adds two new top-level lists: `goals` (N5 lift goals) and
+     * `exercise_notes` (N7 per-exercise setup notes). A v5 backup simply has neither table, so
+     * introduce them as empty arrays — the same pattern as v2 -> v3's `programs`.
+     */
+    private val V5_TO_V6 = object : MigrationStep {
+        override val fromVersion = 5
+        override fun migrate(root: JsonObject): JsonObject {
+            if (!root.has("goals")) root.add("goals", com.google.gson.JsonArray())
+            if (!root.has("exercise_notes")) root.add("exercise_notes", com.google.gson.JsonArray())
+            root.addProperty("schema_version", 6)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
         V2_TO_V3,
         V3_TO_V4,
-        V4_TO_V5
+        V4_TO_V5,
+        V5_TO_V6
     ).associateBy { it.fromVersion }
 
     /**

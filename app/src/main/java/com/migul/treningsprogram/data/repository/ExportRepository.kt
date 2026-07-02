@@ -34,6 +34,8 @@ class ExportRepository @Inject constructor(
     private val exerciseDao: ExerciseDao,
     private val gymPresetDao: GymPresetDao,
     private val programDao: ProgramDao,
+    private val liftGoalDao: LiftGoalDao,
+    private val exerciseNoteDao: ExerciseNoteDao,
     private val gamificationRepository: GamificationRepository,
     private val prefs: PreferencesManager,
     private val gson: Gson
@@ -57,6 +59,8 @@ class ExportRepository @Inject constructor(
             exercises = exerciseDao.getAllExercisesOnce(),
             gymPresets = gymPresetDao.getAllOnce(),
             programs = programDao.getAllOnce(),
+            goals = liftGoalDao.getAllOnce(),
+            exerciseNotes = exerciseNoteDao.getAllOnce(),
             preferences = snapshotPreferences()
         )
         return gson.toJson(envelope)
@@ -101,6 +105,8 @@ class ExportRepository @Inject constructor(
         val existingExercises = exerciseDao.getAllExercisesOnce()
         val existingPresets = gymPresetDao.getAllOnce()
         val existingPrograms = programDao.getAllOnce()
+        val existingGoals = liftGoalDao.getAllOnce()
+        val existingNotes = exerciseNoteDao.getAllOnce()
 
         // 2) Sessions + sets: id-collision-safe UNION (preserve session->sets linkage).
         val backupSetsBySession = backup.sets.groupBy { it.sessionId }
@@ -123,6 +129,10 @@ class ExportRepository @Inject constructor(
             if (pid != null) row.copy(programId = mergedPrograms.backupIdRemap[pid] ?: pid) else row
         }
         val mergedPlanned = BackupMerger.mergePlannedExercises(existingPlanned, remappedBackupPlanned)
+
+        // v6: goals (achieved-state wins) + notes (latest edit wins).
+        val mergedGoals = BackupMerger.mergeGoals(existingGoals, backup.goals)
+        val mergedNotes = BackupMerger.mergeExerciseNotes(existingNotes, backup.exerciseNotes)
 
         // 4) Persist merged workout history (replace whole table with the merged superset).
         //    Sets are deleted via session CASCADE; rebuild both from the merged result.
@@ -147,6 +157,13 @@ class ExportRepository @Inject constructor(
 
         gymPresetDao.deleteAll()
         mergedPresets.presets.forEach { gymPresetDao.insertWithId(it) }
+
+        // v6: goals + notes (no children/remaps; whole-table replace with the merged superset).
+        liftGoalDao.deleteAll()
+        liftGoalDao.insertAll(mergedGoals)
+
+        exerciseNoteDao.deleteAll()
+        exerciseNoteDao.insertAll(mergedNotes)
 
         // 5) Stats / streak / level / XP: RECOMPUTE from merged history (never copy from a side).
         //    The merged plan rows ride along so the R4 Perfect Week XP is replayed deterministically.

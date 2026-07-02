@@ -20,9 +20,11 @@ import com.migul.treningsprogram.data.db.entity.*
         BodyMeasurement::class,
         WeeklySummary::class,
         Program::class,
-        XpEvent::class
+        XpEvent::class,
+        LiftGoal::class,
+        ExerciseNote::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,6 +39,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun weeklySummaryDao(): WeeklySummaryDao
     abstract fun programDao(): ProgramDao
     abstract fun xpEventDao(): XpEventDao
+    abstract fun liftGoalDao(): LiftGoalDao
+    abstract fun exerciseNoteDao(): ExerciseNoteDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -275,6 +279,37 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE gym_presets ADD COLUMN dumbbellBarWeightKg REAL")
                 db.execSQL("ALTER TABLE gym_presets ADD COLUMN platesCsv TEXT")
                 db.execSQL("ALTER TABLE gym_presets ADD COLUMN loadableDumbbells INTEGER")
+            }
+        }
+
+        // Feature batch 2026-07-03 (N5 goal targets + N7 exercise setup notes) — the batch's ONE
+        // coordinated schema change: two additive NEW tables, no existing table touched. Column
+        // names/types/nullability and the primary keys are written to EXACTLY match what Room
+        // generates for [LiftGoal] and [ExerciseNote], so Room's open-time schema validation
+        // passes (mismatch ⇒ crash on launch). Non-null Kotlin fields ⇒ NOT NULL columns; Kotlin
+        // default values do NOT emit SQL DEFAULT clauses.
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `lift_goals` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `exerciseName` TEXT NOT NULL,
+                        `targetWeightKg` REAL NOT NULL,
+                        `isE1rm` INTEGER NOT NULL,
+                        `targetDateMs` INTEGER NOT NULL,
+                        `createdAtMs` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `achievedAtMs` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_notes` (
+                        `exerciseName` TEXT NOT NULL,
+                        `note` TEXT NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`exerciseName`)
+                    )
+                """.trimIndent())
             }
         }
 

@@ -25,9 +25,10 @@ class E2BackupProgramsTest {
 
     // v4 (2026-07-02) widened preferences (restDaysCsv / autoRebalanceEnabled / dayBoundaryHour);
     // v5 (rest-UX 2026-07) widened them again (manual rest-time prefs — see RestUxBatchTest);
+    // v6 (feature batch 2026-07-03) added the goals + exercise_notes tables;
     // everything this file verifies about programs is unchanged. See BackupV4PrefsTest.
-    @Test fun version_isFive() {
-        assertEquals(5, CURRENT_BACKUP_VERSION)
+    @Test fun version_isSix() {
+        assertEquals(6, CURRENT_BACKUP_VERSION)
     }
 
     @Test fun v3RoundTrip_preservesProgramsAndProgramId() {

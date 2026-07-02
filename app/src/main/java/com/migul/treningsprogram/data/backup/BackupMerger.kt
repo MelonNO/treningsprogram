@@ -3,7 +3,9 @@ package com.migul.treningsprogram.data.backup
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.Exercise
+import com.migul.treningsprogram.data.db.entity.ExerciseNote
 import com.migul.treningsprogram.data.db.entity.GymPreset
+import com.migul.treningsprogram.data.db.entity.LiftGoal
 import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.Program
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
@@ -286,6 +288,70 @@ object BackupMerger {
     }
 
     private fun presetContentKey(p: GymPreset): String = "${p.name}|${p.equipmentJson}|${p.notes}"
+
+    // ---------------------------------------------------------------------------------------------
+    // LiftGoal (v6/N5): UNION by goal identity, achieved-state wins, id-collision-safe.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Goals are identified by (exerciseName lowercase, targetWeightKg, isE1rm, createdAtMs) —
+     * the same declared target created at the same moment is the same goal, whatever its id.
+     * When both sides carry the same goal but disagree on state, the more-final state wins
+     * (ACHIEVED > ABANDONED > ACTIVE; a reach on either device is never lost, earliest
+     * achievedAtMs kept). Backup-only goals are added with collision-safe ids.
+     */
+    fun mergeGoals(existing: List<LiftGoal>, backup: List<LiftGoal>): List<LiftGoal> {
+        fun key(g: LiftGoal) =
+            "${g.exerciseName.trim().lowercase()}|${g.targetWeightKg}|${g.isE1rm}|${g.createdAtMs}"
+        fun rank(status: String) = when (status) {
+            LiftGoal.STATUS_ACHIEVED -> 2
+            LiftGoal.STATUS_ABANDONED -> 1
+            else -> 0
+        }
+
+        val result = existing.toMutableList()
+        val indexByKey = HashMap<String, Int>()
+        existing.forEachIndexed { i, g -> indexByKey.putIfAbsent(key(g), i) }
+        val usedIds = existing.map { it.id }.toMutableSet()
+        var nextId = ((existing.maxOfOrNull { it.id } ?: 0L) + 1L)
+
+        for (b in backup) {
+            val idx = indexByKey[key(b)]
+            if (idx != null) {
+                val cur = result[idx]
+                if (rank(b.status) > rank(cur.status)) {
+                    result[idx] = cur.copy(
+                        status = b.status,
+                        achievedAtMs = earliestUnlock(cur.achievedAtMs, b.achievedAtMs)
+                    )
+                } else if (cur.status == LiftGoal.STATUS_ACHIEVED && b.status == LiftGoal.STATUS_ACHIEVED) {
+                    result[idx] = cur.copy(achievedAtMs = earliestUnlock(cur.achievedAtMs, b.achievedAtMs))
+                }
+                continue
+            }
+            val finalRow = if (b.id != 0L && usedIds.add(b.id)) b else b.copy(id = nextId++)
+            usedIds.add(finalRow.id)
+            indexByKey[key(finalRow)] = result.size
+            result.add(finalRow)
+        }
+        return result
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // ExerciseNote (v6/N7): UNION by exercise name (case-insensitive), latest edit wins.
+    // ---------------------------------------------------------------------------------------------
+
+    fun mergeExerciseNotes(existing: List<ExerciseNote>, backup: List<ExerciseNote>): List<ExerciseNote> {
+        val merged = LinkedHashMap<String, ExerciseNote>()
+        for (n in existing) merged.putIfAbsent(n.exerciseName.trim().lowercase(), n)
+        for (b in backup) {
+            val k = b.exerciseName.trim().lowercase()
+            val cur = merged[k]
+            // Most recently edited note wins; ties keep the existing (on-device) one.
+            if (cur == null || b.updatedAtMs > cur.updatedAtMs) merged[k] = b
+        }
+        return merged.values.toList()
+    }
 
     // ---------------------------------------------------------------------------------------------
     // Program (E2): UNION by name (case-insensitive), existing wins on clash. Returns the merged
