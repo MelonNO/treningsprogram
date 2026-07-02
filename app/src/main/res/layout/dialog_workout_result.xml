@@ -12,13 +12,29 @@
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp">
+            <View android:layout_width="6dp" android:layout_height="6dp"
+                android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SESSION COMPLETE"
+                android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/tv_streak"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="15sp"
-            android:textColor="?attr/colorOnSurface"
-            android:layout_marginTop="8dp"
+            android:textSize="18sp"
+            android:letterSpacing="-0.01"
+            android:textColor="@color/auros_snow"
             android:layout_marginBottom="6dp" />
 
         <TextView

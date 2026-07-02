@@ -45,7 +45,7 @@ class HistoryRecapFragment : Fragment() {
     private var sessions: List<WorkoutSession> = emptyList()
 
     private val accent = Color.parseColor("#7FE9E1")
-    private val up = Color.parseColor("#5CCB7E")     // green — improvement
+    private val up = Color.parseColor("#37D67A")     // green — improvement
     private val neutral = Color.parseColor("#7E908E") // muted — never red, even for a down day
     // B06: translucent accent fill for a highlighted "culprit" exercise row (recovery-muscle tap).
     private val highlightFill = Color.parseColor("#3300827C")
@@ -201,7 +201,7 @@ class HistoryRecapFragment : Fragment() {
      * the count text reuses that colour so the legend is implicit.
      */
     private fun muscleBarRow(muscle: String, sets: Int, maxSets: Int): View {
-        val barColor = Color.parseColor(MuscleClassifier.colorFor(muscle, "#607D8B"))
+        val barColor = Color.parseColor(MuscleClassifier.colorFor(muscle, "#7E908E"))
         val rowLayout = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -651,7 +651,10 @@ class HistoryRecapFragment : Fragment() {
     }
 
     private fun relativeTime(ms: Long): String {
-        val days = ((System.currentTimeMillis() - ms) / 86_400_000L).toInt()
+        // Item 7 day boundary: LOGICAL local days, so "yesterday" flips at the configured cutoff
+        // (default 04:00) like everywhere else — not at a UTC midnight offset by the timezone.
+        val days = (com.migul.treningsprogram.domain.DayBoundary.todayEpochDay() -
+            com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(ms)).toInt()
         return when {
             days <= 0 -> "today"
             days == 1 -> "yesterday"

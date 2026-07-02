@@ -66,8 +66,18 @@
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/colorOnSurfaceVariant" />
+                    <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                 </LinearLayout>
 
@@ -104,8 +114,18 @@
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/colorOnSurfaceVariant" />
+                    <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                 </LinearLayout>
 
@@ -142,8 +162,18 @@
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/colorOnSurfaceVariant" />
+                    <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                 </LinearLayout>
 
@@ -180,8 +210,18 @@
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/colorOnSurfaceVariant" />
+                    <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                 </LinearLayout>
 
@@ -219,8 +259,18 @@
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/colorOnSurfaceVariant" />
+                    <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                 </LinearLayout>
 
@@ -257,8 +307,18 @@
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/colorOnSurfaceVariant" />
+                    <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                 </LinearLayout>
 

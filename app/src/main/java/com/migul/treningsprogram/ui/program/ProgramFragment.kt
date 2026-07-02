@@ -406,7 +406,7 @@ class ProgramFragment : Fragment() {
                 else -> "$logged/$total"
             }
             progress.setTextColor(
-                if (logged >= 1 && total > 0) Color.parseColor("#4CAF50")
+                if (logged >= 1 && total > 0) Color.parseColor("#37D67A")
                 else Color.parseColor("#7E908E")
             )
         }
@@ -548,7 +548,7 @@ class ProgramFragment : Fragment() {
         MuscleClassifier.displayName(name)
 
     private fun getMuscleStyle(group: String): Pair<String, String> =
-        group to MuscleClassifier.colorFor(group, fallbackColor = "#607D8B")
+        group to MuscleClassifier.colorFor(group, fallbackColor = "#7E908E")
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()

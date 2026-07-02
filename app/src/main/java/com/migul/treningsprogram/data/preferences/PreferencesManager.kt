@@ -171,6 +171,25 @@ class PreferencesManager(context: Context) {
             DayBoundary.cutoffHour = coerced
         }
 
+    // F6: the versionCode whose what's-new sheet the user has already seen (0 = never recorded;
+    // a fresh install records the current version silently instead of showing old notes).
+    var lastSeenWhatsNewVersion: Int
+        get() = prefs.getInt(KEY_LAST_SEEN_WHATS_NEW, 0)
+        set(value) { prefs.edit().putInt(KEY_LAST_SEEN_WHATS_NEW, value).apply() }
+
+    // F3: workout-reminder notification on scheduled training days (opt-in, default off).
+    var workoutRemindersEnabled: Boolean
+        get() = prefs.getBoolean(KEY_REMINDERS_ENABLED, false)
+        set(value) { prefs.edit().putBoolean(KEY_REMINDERS_ENABLED, value).apply() }
+
+    var reminderHour: Int
+        get() = prefs.getInt(KEY_REMINDER_HOUR, 17)
+        set(value) { prefs.edit().putInt(KEY_REMINDER_HOUR, value.coerceIn(0, 23)).apply() }
+
+    var reminderMinute: Int
+        get() = prefs.getInt(KEY_REMINDER_MINUTE, 0)
+        set(value) { prefs.edit().putInt(KEY_REMINDER_MINUTE, value.coerceIn(0, 59)).apply() }
+
     init {
         // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
         // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
@@ -208,5 +227,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_WORKOUT_DRAFT = "workout_inprogress_draft"
         private const val KEY_REST_DAY_FIRST_RUN = "rest_day_feature_first_run_ms"
         private const val KEY_DAY_BOUNDARY_HOUR = "day_boundary_cutoff_hour"
+        private const val KEY_LAST_SEEN_WHATS_NEW = "last_seen_whats_new_version"
+        private const val KEY_REMINDERS_ENABLED = "workout_reminders_enabled"
+        private const val KEY_REMINDER_HOUR = "workout_reminder_hour"
+        private const val KEY_REMINDER_MINUTE = "workout_reminder_minute"
     }
 }

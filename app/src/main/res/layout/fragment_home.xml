@@ -15,51 +15,65 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule -->
-            <LinearLayout
+            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule,
+                 with the particle sphere floating at the band's edge -->
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="22dp"
-                android:paddingTop="6dp"
-                android:paddingBottom="12dp"
                 android:background="@drawable/bg_hero_wash">
 
+                <ImageView
+                    android:layout_width="98dp"
+                    android:layout_height="98dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:alpha="0.6"
+                    android:src="@drawable/ill_particle_sphere"
+                    android:importantForAccessibility="no" />
+
                 <LinearLayout
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="10dp">
+                    android:orientation="vertical"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="12dp">
 
-                    <View
-                        android:layout_width="6dp"
-                        android:layout_height="6dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="@drawable/bg_eyebrow_dot" />
-
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="OVERVIEW"
-                        android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="10dp">
+
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/bg_eyebrow_dot" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OVERVIEW"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_home_hero_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Today"
+                        android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                        android:textColor="@color/auros_snow" />
+
+                    <View
+                        android:layout_width="52dp"
+                        android:layout_height="3dp"
+                        android:layout_marginTop="14dp"
+                        android:background="@drawable/bg_gradient_accent" />
                 </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tv_home_hero_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Today"
-                    android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                    android:textColor="@color/auros_snow" />
-
-                <View
-                    android:layout_width="52dp"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="14dp"
-                    android:background="@drawable/bg_gradient_accent" />
-            </LinearLayout>
+            </FrameLayout>
 
             <!-- First-launch welcome card (hidden once onboarding done) -->
             <com.google.android.material.card.MaterialCardView
@@ -184,6 +198,21 @@
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:layout_marginStart="14dp" />
+
+                        <!-- Floating arrow link: the card navigates to the XP log -->
+                        <FrameLayout
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_arrow_link">
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_arrow_up_right"
+                                app:tint="@color/auros_fog"
+                                android:importantForAccessibility="no" />
+                        </FrameLayout>
 
                     </LinearLayout>
 

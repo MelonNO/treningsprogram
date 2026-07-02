@@ -79,12 +79,18 @@
                     android:textAppearance="?attr/textAppearanceTitleSmall"
                     android:textColor="?attr/colorOnSurface" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="›"
-                    android:textSize="20sp"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -178,8 +184,8 @@
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical" android:gravity="center">
                         <TextView android:id="@+id/tv_stat_workouts" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="28sp" android:textStyle="bold"
-                            android:textColor="?attr/colorPrimary" android:text="0" />
+                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
+                            android:textColor="@color/auros_cyan" android:text="0" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="Workouts" android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="?attr/colorOnSurfaceVariant" />
@@ -188,8 +194,8 @@
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical" android:gravity="center">
                         <TextView android:id="@+id/tv_stat_sets" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="28sp" android:textStyle="bold"
-                            android:textColor="?attr/colorPrimary" android:text="0" />
+                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
+                            android:textColor="@color/auros_cyan" android:text="0" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="Sets" android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="?attr/colorOnSurfaceVariant" />
@@ -198,8 +204,8 @@
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical" android:gravity="center">
                         <TextView android:id="@+id/tv_stat_volume" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="28sp" android:textStyle="bold"
-                            android:textColor="?attr/colorPrimary" android:text="0kg" />
+                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
+                            android:textColor="@color/auros_cyan" android:text="0kg" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="Volume" android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="?attr/colorOnSurfaceVariant" />
@@ -208,8 +214,8 @@
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical" android:gravity="center">
                         <TextView android:id="@+id/tv_stat_streak" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textSize="28sp" android:textStyle="bold"
-                            android:textColor="?attr/colorPrimary" android:text="0" />
+                            android:layout_height="wrap_content" android:textSize="30sp" android:letterSpacing="-0.03"
+                            android:textColor="@color/auros_cyan" android:text="0" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="Streak" android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="?attr/colorOnSurfaceVariant" />

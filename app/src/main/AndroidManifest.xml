@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
@@ -33,6 +34,31 @@
             android:name=".ui.log.RestTimerService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!-- F2: today's-workout home-screen widget -->
+        <receiver
+            android:name=".ui.widget.TodayWorkoutWidgetProvider"
+            android:label="Today's workout"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+
+        <!-- F3: workout-reminder alarm receivers -->
+        <receiver
+            android:name=".notify.WorkoutReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notify.ReminderBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

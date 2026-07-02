@@ -170,6 +170,18 @@ class HistoryViewModel @Inject constructor(
 
     // ── Stats tab ──────────────────────────────────────────────────────────
     suspend fun getMuscleVolume(): List<MuscleVolume> = workoutRepository.getMuscleGroupVolume()
+
+    /** F5: muscle × week set-count grid for the volume heatmap (last [weeks] weeks).
+     *  Timestamps are shifted to LOGICAL millis first (Item 7 day boundary) so an 01:00
+     *  session lands in the same week the rest of the app files it under. */
+    suspend fun getVolumeHeatmap(weeks: Int = 8): com.migul.treningsprogram.domain.VolumeHeatmap.Grid =
+        com.migul.treningsprogram.domain.VolumeHeatmap.build(
+            workoutRepository.getMuscleSetDays(weeks).map {
+                it.muscleGroup to com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(it.dateMs)
+            },
+            weeks = weeks,
+            nowMs = com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(System.currentTimeMillis()),
+        )
     suspend fun getRepRanges(): List<RepRange> = workoutRepository.getRepRangeDistribution()
     suspend fun getTrainingDays(): List<Long> = workoutRepository.getTrainingDayEpochs()
     suspend fun getTotalSets(): Int = workoutRepository.getTotalSets()

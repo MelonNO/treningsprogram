@@ -21,8 +21,8 @@ android {
         applicationId = "com.migul.treningsprogram"
         minSdk = 26
         targetSdk = 34
-        versionCode = 58
-        versionName = "1.19.2"
+        versionCode = 59
+        versionName = "1.20.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -51,6 +51,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true   // F6: BuildConfig.VERSION_CODE gates the what's-new sheet
     }
     packaging {
         resources {

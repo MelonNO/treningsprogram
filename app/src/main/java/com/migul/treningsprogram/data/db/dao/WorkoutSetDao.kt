@@ -22,6 +22,9 @@ data class MuscleVolume(val muscleGroup: String, val totalSets: Int)
 /** Most recent completed working-set timestamp for one muscle group (recovery view, C4). */
 data class MuscleLastTrained(val muscleGroup: String, val lastTrainedMs: Long)
 
+/** F5: one completed working set's muscle group + its session's wall-clock day. */
+data class MuscleSetDay(val muscleGroup: String, val dateMs: Long)
+
 /**
  * One exercise-session stimulus row for the weighted recovery model (U1).
  * Contains the exercise name, the session it was logged in, and the session timestamp.
@@ -161,6 +164,19 @@ interface WorkoutSetDao {
         WHERE muscleGroup != '' AND isWarmup = 0 GROUP BY muscleGroup ORDER BY totalSets DESC
     """)
     suspend fun getMuscleGroupVolume(): List<MuscleVolume>
+
+    /**
+     * F5: raw (muscleGroup, sessionDateMs) pairs of completed working sets since [sinceMs] —
+     * one row per set. Week bucketing happens in Kotlin (VolumeHeatmap) so the grid uses
+     * Monday-based local weeks instead of SQL's epoch-week floor.
+     */
+    @Query("""
+        SELECT ws.muscleGroup AS muscleGroup, s.dateMs AS dateMs
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE ws.isWarmup = 0 AND s.isCompleted = 1 AND s.kind IS NULL
+              AND ws.muscleGroup != '' AND s.dateMs >= :sinceMs
+    """)
+    suspend fun getMuscleSetDaysSince(sinceMs: Long): List<MuscleSetDay>
 
     /**
      * Most recent completed working-set timestamp per muscle group — drives the Home

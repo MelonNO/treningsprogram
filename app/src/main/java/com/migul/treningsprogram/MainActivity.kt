@@ -190,6 +190,8 @@ class MainActivity : AppCompatActivity() {
             ApkCleanup.cleanup(currentVersion)
         }
 
+        maybeShowWhatsNew()
+
         lifecycleScope.launch {
             val release = UpdateChecker.fetchLatest()
             val currentVersion = try {
@@ -204,6 +206,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * F6: show the "What's new" sheet on the first launch after a version change.
+     * A fresh install (no onboarding yet) records the current version silently —
+     * the welcome flow owns that moment; old release notes would only be noise.
+     */
+    private fun maybeShowWhatsNew() {
+        val current = BuildConfig.VERSION_CODE
+        val seen = prefsManager.lastSeenWhatsNewVersion
+        when {
+            seen == current -> return
+            seen == 0 && !prefsManager.hasCompletedOnboarding ->
+                prefsManager.lastSeenWhatsNewVersion = current
+            else -> {
+                // Existing user from before this feature (seen == 0): show only the current version.
+                val since = if (seen == 0) current - 1 else seen
+                if (com.migul.treningsprogram.ui.common.Changelog.entriesSince(since).isNotEmpty() &&
+                    supportFragmentManager.findFragmentByTag(
+                        com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.TAG
+                    ) == null
+                ) {
+                    com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.newInstance(since)
+                        .show(supportFragmentManager, com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.TAG)
+                }
+                prefsManager.lastSeenWhatsNewVersion = current
+            }
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         // Auto-log a REST/MISSED placeholder for every empty past day. onStart fires on cold launch
@@ -212,6 +242,10 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { workoutRepository.autoLogRestDays() }
         }
+        // F2: keep any placed home-screen widget in sync whenever the app is used.
+        com.migul.treningsprogram.ui.widget.TodayWorkoutWidgetProvider.requestRefresh(this)
+        // F3: re-assert the reminder alarm (inexact alarms don't survive every OEM's app kill).
+        com.migul.treningsprogram.notify.ReminderScheduler.sync(this, prefsManager)
     }
 
     private fun showUpdateDialog(release: UpdateChecker.ReleaseInfo, currentVersion: String) {

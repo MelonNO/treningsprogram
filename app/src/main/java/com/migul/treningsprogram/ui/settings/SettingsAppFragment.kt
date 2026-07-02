@@ -1,16 +1,19 @@
 package com.migul.treningsprogram.ui.settings
 
+import android.app.TimePickerDialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.databinding.FragmentSettingsAppBinding
 import com.migul.treningsprogram.domain.DayBoundary
+import com.migul.treningsprogram.notify.ReminderScheduler
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -38,6 +41,7 @@ class SettingsAppFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupDayBoundarySpinner()
         setupAutoRebalanceSwitch()
+        setupWorkoutReminder()
     }
 
     // Item 1: 24-hour labels (no AM/PM anywhere). Range is 00:00..06:00; annotate midnight + default.
@@ -79,6 +83,42 @@ class SettingsAppFragment : Fragment() {
                 binding.root,
                 if (isChecked) "Auto-rebalance is ON" else "Auto-rebalance is OFF",
                 Snackbar.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    // F3: opt-in workout-day reminder — toggle + 24h time picker; the alarm is (re)scheduled or
+    // cancelled immediately on every change. Initial state set before the listener (same pattern
+    // as auto-rebalance) so showing the screen never writes prefs.
+    private fun setupWorkoutReminder() {
+        val prefs = viewModel.prefs
+        binding.switchWorkoutReminder.isChecked = prefs.workoutRemindersEnabled
+        binding.tvReminderTime.text = "%02d:%02d".format(prefs.reminderHour, prefs.reminderMinute)
+        binding.rowReminderTime.isVisible = prefs.workoutRemindersEnabled
+
+        binding.switchWorkoutReminder.setOnCheckedChangeListener { _, isChecked ->
+            prefs.workoutRemindersEnabled = isChecked
+            binding.rowReminderTime.isVisible = isChecked
+            ReminderScheduler.sync(requireContext(), prefs)
+            Snackbar.make(
+                binding.root,
+                if (isChecked) "Reminders ON — %02d:%02d on training days"
+                    .format(prefs.reminderHour, prefs.reminderMinute)
+                else "Reminders OFF",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+
+        binding.rowReminderTime.setOnClickListener {
+            TimePickerDialog(
+                requireContext(),
+                { _, hour, minute ->
+                    prefs.reminderHour = hour
+                    prefs.reminderMinute = minute
+                    binding.tvReminderTime.text = "%02d:%02d".format(hour, minute)
+                    ReminderScheduler.sync(requireContext(), prefs)
+                },
+                prefs.reminderHour, prefs.reminderMinute, true, // 24h — house style, no AM/PM
             ).show()
         }
     }

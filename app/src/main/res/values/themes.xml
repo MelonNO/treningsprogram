@@ -67,6 +67,13 @@
         <item name="textAppearanceHeadlineMedium">@style/TextAppearance.Auros.HeadlineMedium</item>
         <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Auros.HeadlineSmall</item>
         <item name="textAppearanceTitleLarge">@style/TextAppearance.Auros.TitleLarge</item>
+
+        <!-- System components on-brand: dialogs, menus, snackbars -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Auros.Dialog</item>
+        <item name="popupMenuBackground">@drawable/bg_popup_menu</item>
+        <item name="snackbarStyle">@style/Widget.Auros.Snackbar</item>
+        <item name="snackbarTextViewStyle">@style/Widget.Auros.Snackbar.Text</item>
+        <item name="snackbarButtonStyle">@style/Widget.Auros.Snackbar.Action</item>
     </style>
 
     <!-- ==================== SHAPES ==================== -->
@@ -218,6 +225,63 @@
     </style>
     <style name="Widget.Auros.BottomNav.Indicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">@color/auros_reef</item>
+    </style>
+
+    <!-- ==================== DIALOGS ==================== -->
+    <!-- Trench surface, 16dp card radius, cyan text actions — no default M3 purple/teal-primary leaks. -->
+    <style name="ThemeOverlay.Auros.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="alertDialogStyle">@style/MaterialAlertDialog.Auros</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/MaterialAlertDialog.Auros.Title</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/MaterialAlertDialog.Auros.Body</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Auros.Button.Text</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Auros.Button.Text.Muted</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.Auros.Button.Text.Muted</item>
+    </style>
+    <style name="MaterialAlertDialog.Auros" parent="MaterialAlertDialog.Material3">
+        <item name="backgroundTint">@color/auros_trench</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Auros.Large</item>
+    </style>
+    <style name="MaterialAlertDialog.Auros.Title" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textColor">@color/auros_snow</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+    <style name="MaterialAlertDialog.Auros.Body" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textColor">@color/auros_fog</item>
+    </style>
+    <style name="Widget.Auros.Button.Text.Muted" parent="Widget.Auros.Button.Text">
+        <item name="android:textColor">@color/auros_fog</item>
+    </style>
+
+    <!-- ==================== SNACKBAR ==================== -->
+    <style name="Widget.Auros.Snackbar" parent="Widget.Material3.Snackbar">
+        <item name="backgroundTint">@color/auros_reef</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Auros.Medium</item>
+        <item name="android:layout_margin">12dp</item>
+    </style>
+    <style name="Widget.Auros.Snackbar.Text" parent="Widget.Material3.Snackbar.TextView">
+        <item name="android:textColor">@color/auros_ice</item>
+        <item name="android:fontFamily">@font/inter</item>
+    </style>
+    <style name="Widget.Auros.Snackbar.Action" parent="Widget.Material3.Button.TextButton.Snackbar">
+        <item name="android:textColor">@color/auros_cyan</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <!-- ==================== DISPLAY STATS ==================== -->
+    <!-- Hero numerals: big, tight, snow-white — the spec's crouched display type. -->
+    <style name="TextAppearance.Auros.DisplayStat" parent="TextAppearance.Material3.DisplayMedium">
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:textSize">40sp</item>
+        <item name="android:letterSpacing">-0.035</item>
+        <item name="android:textColor">@color/auros_snow</item>
+    </style>
+    <style name="TextAppearance.Auros.DisplayStat.Large">
+        <item name="android:textSize">52sp</item>
+        <item name="android:letterSpacing">-0.04</item>
     </style>
 
 </resources>

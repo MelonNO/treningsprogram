@@ -107,7 +107,7 @@ class QuickAccessBottomSheet : BottomSheetDialogFragment() {
         }
 
         val (badge, badgeColor, nameColor) = when (row.status) {
-            Status.FINISHED -> Triple("✓", "#4CAF50", "#7E908E")
+            Status.FINISHED -> Triple("✓", "#37D67A", "#7E908E")
             Status.CURRENT  -> Triple("▶", "#7FE9E1", "#FFFFFF")
             Status.UPCOMING -> Triple("○", "#6A6A80", "#C8C8D8")
         }
@@ -134,7 +134,7 @@ class QuickAccessBottomSheet : BottomSheetDialogFragment() {
             container.addView(TextView(requireContext()).apply {
                 text = "done"
                 textSize = 12f
-                setTextColor(Color.parseColor("#4CAF50"))
+                setTextColor(Color.parseColor("#37D67A"))
             })
         } else if (row.status == Status.CURRENT) {
             container.addView(TextView(requireContext()).apply {

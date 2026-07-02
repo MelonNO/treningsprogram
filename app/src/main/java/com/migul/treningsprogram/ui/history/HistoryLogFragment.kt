@@ -303,7 +303,7 @@ class HistoryLogFragment : Fragment() {
             textSize = 16f
             val p = (8 * resources.displayMetrics.density).toInt()
             setPadding(p, 0, p, 0)
-            setTextColor(Color.parseColor("#FF5252"))
+            setTextColor(Color.parseColor("#FF6B7A"))
             isClickable = true
             isFocusable = true
             setOnClickListener { viewModel.deleteSet(set) }

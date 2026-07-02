@@ -362,8 +362,7 @@
                     android:orientation="vertical" android:padding="16dp">
                     <TextView android:id="@+id/tv_sets_header"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceLabelMedium"
-                        android:textColor="?attr/colorOnSurfaceVariant"
+                        style="@style/Widget.Auros.Eyebrow"
                         android:layout_marginBottom="8dp" />
                     <LinearLayout android:id="@+id/layout_logged_sets"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -396,10 +395,11 @@
             android:minWidth="0dp"
             android:paddingStart="14dp" android:paddingEnd="14dp"
             android:layout_marginEnd="8dp" />
-        <com.google.android.material.button.MaterialButton
+        <com.migul.treningsprogram.ui.widget.AuroraGhostButton
             android:id="@+id/btn_next_exercise"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Auros.Button.Ghost"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:minHeight="44dp"
             android:text="Next"
             android:textSize="13sp" />
     </LinearLayout>
@@ -424,6 +424,14 @@
             android:minHeight="20dp"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- F4: live plate-loading readout for barbell lifts (hidden otherwise) -->
+        <TextView android:id="@+id/tv_kp_plates"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="end" android:paddingEnd="8dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="@color/auros_cyan"
+            android:visibility="gone" />
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal">

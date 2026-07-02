@@ -45,7 +45,10 @@
             android:text="No sessions yet. Complete a workout to see your recap."
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant"
+            android:gravity="center"
             android:paddingVertical="24dp"
+            android:drawableTop="@drawable/ill_node_network"
+            android:drawablePadding="16dp"
             android:visibility="gone" />
 
         <!-- Programmatically-built recap sections -->

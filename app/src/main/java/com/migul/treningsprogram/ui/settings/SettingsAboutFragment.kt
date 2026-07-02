@@ -47,6 +47,13 @@ class SettingsAboutFragment : Fragment() {
         binding.btnDownloadInstall.setOnClickListener {
             pendingRelease?.let { startDownload(it) }
         }
+
+        // F6: re-open the release-notes sheet on demand, showing the newest entries.
+        binding.rowWhatsNew.setOnClickListener {
+            val newest = com.migul.treningsprogram.ui.common.Changelog.ENTRIES.maxOf { it.versionCode }
+            com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.newInstance(newest - 2)
+                .show(parentFragmentManager, com.migul.treningsprogram.ui.onboarding.WhatsNewBottomSheet.TAG)
+        }
     }
 
     private fun checkForUpdates() {

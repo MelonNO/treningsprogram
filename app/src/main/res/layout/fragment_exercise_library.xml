@@ -5,6 +5,14 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="EXERCISE LIBRARY"
+        style="@style/Widget.Auros.Eyebrow"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="14dp" />
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/til_search"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -103,7 +111,9 @@
             android:visibility="gone"
             android:text="No exercises match your filters"
             android:textAppearance="?attr/textAppearanceBodyLarge"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:drawableTop="@drawable/ill_node_network"
+            android:drawablePadding="16dp" />
 
     </FrameLayout>
 

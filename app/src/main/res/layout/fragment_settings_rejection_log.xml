@@ -17,9 +17,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Rejection Log"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="REJECTION LOG"
+            style="@style/Widget.Auros.Eyebrow" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_clear_rejection_log"

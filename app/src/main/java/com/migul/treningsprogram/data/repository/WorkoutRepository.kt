@@ -81,6 +81,12 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getMuscleGroupVolume(): List<MuscleVolume> = setDao.getMuscleGroupVolume()
 
+    /** F5: working-set (muscle, day) pairs covering the last [weeks] whole weeks. */
+    suspend fun getMuscleSetDays(weeks: Int): List<MuscleSetDay> =
+        setDao.getMuscleSetDaysSince(
+            System.currentTimeMillis() - weeks.toLong() * 7L * 24L * 60L * 60L * 1000L
+        )
+
     /** Last-trained timestamp per muscle group, live — drives the Home recovery view (C4). */
     fun observeLastTrainedPerMuscleGroup(): Flow<List<MuscleLastTrained>> =
         setDao.observeLastTrainedPerMuscleGroup()

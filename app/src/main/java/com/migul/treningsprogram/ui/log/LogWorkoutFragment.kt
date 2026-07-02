@@ -150,7 +150,11 @@ class LogWorkoutFragment : Fragment() {
                 viewModel.logSet(weight, reps, isWarmup, rpe)
             }
 
-            // Confirm animation
+            // Confirm animation + haptic (F1)
+            binding.btnLogSet.performHapticFeedback(
+                if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM
+                else android.view.HapticFeedbackConstants.VIRTUAL_KEY
+            )
             binding.btnLogSet.animate().scaleX(1.08f).scaleY(1.08f).setDuration(80)
                 .withEndAction { binding.btnLogSet.animate().scaleX(1f).scaleY(1f).setDuration(80).start() }
                 .start()
@@ -197,7 +201,14 @@ class LogWorkoutFragment : Fragment() {
                 MaterialAlertDialogBuilder(requireContext())
                     .setTitle("Finish workout?")
                     .setMessage("End the session now?")
-                    .setPositiveButton("Complete") { _, _ -> viewModel.completeWorkout() }
+                    .setPositiveButton("Complete") { _, _ ->
+                        // F1: a firmer confirm for the session-level milestone
+                        _binding?.root?.performHapticFeedback(
+                            if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM
+                            else android.view.HapticFeedbackConstants.LONG_PRESS
+                        )
+                        viewModel.completeWorkout()
+                    }
                     .setNegativeButton("Keep going", null)
                     .show()
             } else {
@@ -355,6 +366,17 @@ class LogWorkoutFragment : Fragment() {
         binding.etWeight.setText(text)
         binding.etWeight.setSelection(text.length)
         binding.tvKpExpr.text = WeightCalculator.expr(calcState)
+        updatePlateHint()
+    }
+
+    /** F4: live "plates per side" readout for barbell lifts while the pad is open. */
+    private fun updatePlateHint() {
+        if (_binding == null) return
+        val name = if (freestyleMode) binding.etFreestyleExercise.text?.toString().orEmpty()
+                   else viewModel.currentExercise.value?.exerciseName.orEmpty()
+        val hint = PlateMath.display(WeightCalculator.value(calcState), name)
+        binding.tvKpPlates.visibility = if (hint == null) View.GONE else View.VISIBLE
+        binding.tvKpPlates.text = hint.orEmpty()
     }
 
     private fun showWeightKeypad() {
@@ -364,6 +386,7 @@ class LogWorkoutFragment : Fragment() {
         imm.hideSoftInputFromWindow(binding.etWeight.windowToken, 0)
         calcState = WeightCalculator.fromField(binding.etWeight.text?.toString())
         binding.tvKpExpr.text = WeightCalculator.expr(calcState)
+        updatePlateHint()
         binding.layoutWeightKeypad.visibility = View.VISIBLE
     }
 

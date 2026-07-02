@@ -17,6 +17,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.view.isVisible
 import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.databinding.FragmentHistoryStatsBinding
+import com.migul.treningsprogram.domain.DayBoundary
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -89,12 +90,20 @@ class HistoryStatsFragment : Fragment() {
             renderMuscleBars(muscleVolume.map { it.muscleGroup to it.totalSets })
             renderCalendar(trainingDays.toSet())
             renderRepRanges(repRanges.map { it.label to it.setCount })
+
+            // F5: weekly per-muscle volume heatmap — hidden until there is at least one cell.
+            val heatmap = viewModel.getVolumeHeatmap()
+            if (_binding == null) return@launch
+            binding.cardVolumeHeatmap.isVisible = heatmap.maxSets > 0
+            if (heatmap.maxSets > 0) binding.viewVolumeHeatmap.setGrid(heatmap)
         }
     }
 
     private fun computeBestStreak(dateMsValues: List<Long>): Int {
         if (dateMsValues.isEmpty()) return 0
-        val days = dateMsValues.map { it / 86_400_000L }.toSortedSet()
+        // Item 7 day boundary: LOGICAL local days, matching the gamification streak — the old raw
+        // UTC-day division could split or join streaks differently from the streak shown on Home.
+        val days = dateMsValues.map { DayBoundary.logicalEpochDay(it) }.toSortedSet()
         var best = 1
         var current = 1
         val sorted = days.toList()
@@ -126,7 +135,7 @@ class HistoryStatsFragment : Fragment() {
                 val w = (80 * resources.displayMetrics.density).toInt()
                 layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
             }
-            val barColor = MuscleClassifier.colorFor(muscle, "#607D8B")
+            val barColor = MuscleClassifier.colorFor(muscle, "#7E908E") // fallback = auros_fog_dim, not Material blue-gray
             val bar = View(requireContext()).apply {
                 val maxW = (200 * resources.displayMetrics.density).toInt()
                 val w = (maxW * sets / max.toFloat()).toInt().coerceAtLeast(4)
@@ -154,7 +163,10 @@ class HistoryStatsFragment : Fragment() {
         binding.gridCalendar.removeAllViews()
         binding.gridCalendar.columnCount = 13
 
-        val todayEpoch = System.currentTimeMillis() / 86_400_000L
+        // Item 7 day boundary: the cells' data (getTrainingDayEpochs) is LOGICAL epoch-days, so the
+        // "today" anchor must be too — the old UTC division shifted the whole calendar by one cell
+        // for part of the day in non-UTC timezones.
+        val todayEpoch = DayBoundary.todayEpochDay()
         val startEpoch = todayEpoch - 90
 
         val dp = resources.displayMetrics.density
