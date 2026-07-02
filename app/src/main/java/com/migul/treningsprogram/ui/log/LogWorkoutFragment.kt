@@ -708,33 +708,109 @@ class LogWorkoutFragment : Fragment() {
         }
     }
 
+    /**
+     * R6 — the celebration surface: XP count-up over an Auros burst, itemized breakdown (same
+     * numbers as the XP log), PRs with new-vs-previous weights, tier-styled achievement unlock
+     * cards (R5 tier model), challenge + Perfect Week rows. Both exits unchanged (Program/Home
+     * animation chain and Recap). Scales down gracefully: a no-frills session is just the
+     * count-up + summary. Process-death safe exactly as before — the result lives in the shared
+     * VM until a button clears it.
+     */
     private fun showResultDialog(result: WorkoutResult) {
         if (!isAdded || _binding == null) return
-        val dialogBinding = DialogWorkoutResultBinding.inflate(layoutInflater)
+        val d = DialogWorkoutResultBinding.inflate(layoutInflater)
+
         val streakEmoji = when {
             result.currentStreak >= 7 -> "🔥🔥"
             result.currentStreak >= 3 -> "🔥"
             else                      -> "📅"
         }
-        dialogBinding.tvStreak.text = "$streakEmoji ${result.currentStreak}-day streak"
+        d.tvStreak.text = "$streakEmoji ${result.currentStreak}-day streak"
         val volumeStr = if (result.totalVolumeKg > 0f) "  •  ${result.totalVolumeKg.toInt()} kg volume" else ""
-        dialogBinding.tvSessionSummary.text =
+        d.tvSessionSummary.text =
             "${result.exerciseCount} exercises  •  ${result.setsLogged} sets$volumeStr"
+
+        // Itemized breakdown — the SAME component amounts the XP log records (observation only).
+        val setXp = result.setsLogged * 5
+        val prXp = result.personalRecords.size * 30
+        d.tvXpBreakdown.text = buildList {
+            add("Workout +50")
+            if (setXp > 0) add("${result.setsLogged} sets +$setXp")
+            if (prXp > 0) add("${result.personalRecords.size} PR +$prXp")
+            if (result.bonusChallengeXp > 0) add("Challenges +${result.bonusChallengeXp}")
+            if (result.perfectWeekXp > 0) add("Perfect Week +${result.perfectWeekXp}")
+        }.joinToString("  ·  ")
+
+        // PRs with their numbers: "Bench Press — 62.5 kg, up from 60 kg" (prDetails carries the
+        // detection-time old→new weights; names-only fallback covers any legacy result).
         if (result.personalRecords.isNotEmpty()) {
-            dialogBinding.cardPrs.visibility = View.VISIBLE
-            dialogBinding.tvPrs.text = result.personalRecords.joinToString("\n") { "• $it" }
+            d.cardPrs.visibility = View.VISIBLE
+            val rows = result.prDetails.ifEmpty { null }
+            d.layoutPrRows.removeAllViews()
+            if (rows != null) {
+                rows.forEach { pr ->
+                    d.layoutPrRows.addView(TextView(requireContext()).apply {
+                        text = "${pr.exerciseName} — ${formatWeight(pr.newWeightKg)} kg, up from ${formatWeight(pr.previousWeightKg)} kg"
+                        setTextColor(requireContext().getColor(R.color.auros_snow))
+                        textSize = 14f
+                        setPadding(0, 4, 0, 4)
+                    })
+                }
+            } else {
+                result.personalRecords.forEach { name ->
+                    d.layoutPrRows.addView(TextView(requireContext()).apply {
+                        text = "• $name"
+                        setTextColor(requireContext().getColor(R.color.auros_snow))
+                        textSize = 14f
+                    })
+                }
+            }
         }
-        val bonusLines = buildList {
-            result.newAchievements.forEach { add("${it.emoji} ${it.name} — ${it.description}") }
-            result.completedChallenges.forEach { add("🎯 ${it.name} challenge!") }
+
+        // Achievement unlocks as tier-styled cards (reuses the R5 gallery item + tier palette).
+        if (result.newAchievements.isNotEmpty()) {
+            d.cardAchievements.visibility = View.VISIBLE
+            d.layoutAchievementCards.removeAllViews()
+            result.newAchievements.forEach { a ->
+                val item = layoutInflater.inflate(R.layout.item_achievement, d.layoutAchievementCards, false)
+                item.findViewById<TextView>(R.id.tv_achievement_emoji).text = a.emoji
+                item.findViewById<TextView>(R.id.tv_achievement_name).text = a.name
+                item.findViewById<TextView>(R.id.tv_achievement_desc).text = a.description
+                val meta = com.migul.treningsprogram.domain.AchievementCatalog.metaFor(a.id)
+                val tierChip = item.findViewById<TextView>(R.id.tv_achievement_tier)
+                if (meta != null) {
+                    tierChip.visibility = View.VISIBLE
+                    tierChip.text = meta.tier.label.uppercase()
+                    tierChip.setTextColor(tierColorFor(meta.tier))
+                    // A Legendary unlock must feel visibly bigger than a Common one.
+                    item.findViewById<TextView>(R.id.tv_achievement_name)
+                        .setTextColor(tierColorFor(meta.tier))
+                }
+                d.layoutAchievementCards.addView(item)
+            }
         }
-        if (bonusLines.isNotEmpty()) {
-            dialogBinding.cardAchievements.visibility = View.VISIBLE
-            dialogBinding.tvAchievements.text = bonusLines.joinToString("\n")
+
+        // Challenges + Perfect Week rows.
+        if (result.completedChallenges.isNotEmpty() || result.perfectWeekXp > 0) {
+            d.cardChallenges.visibility = View.VISIBLE
+            d.layoutChallengeRows.removeAllViews()
+            result.completedChallenges.forEach { ch ->
+                d.layoutChallengeRows.addView(TextView(requireContext()).apply {
+                    text = "✅ ${ch.name}  +${ch.bonusXp} XP"
+                    setTextColor(requireContext().getColor(R.color.auros_snow))
+                    textSize = 14f
+                    setPadding(0, 4, 0, 4)
+                })
+            }
+            if (result.perfectWeekXp > 0) {
+                d.tvPerfectWeek.visibility = View.VISIBLE
+                d.tvPerfectWeek.text = "🏆 PERFECT WEEK — every planned day done!  +${result.perfectWeekXp} XP"
+            }
         }
+
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Workout Complete!")
-            .setView(dialogBinding.root)
+            .setView(d.root)
             .setPositiveButton("Awesome!") { _, _ ->
                 viewModel.clearResult()
                 if (isAdded) startCompletionFlow(result)
@@ -745,7 +821,32 @@ class LogWorkoutFragment : Fragment() {
             }
             .setCancelable(false)
             .show()
+
+        // Play the moment: count the XP up (same total the bar animates later) and fire the
+        // burst — scaled up for level-ups, PRs and Perfect Weeks; brief and never input-blocking.
+        val intensity = when {
+            result.perfectWeekXp > 0 || result.didLevelUp -> 1.5f
+            result.personalRecords.isNotEmpty()           -> 1.25f
+            else                                          -> 1f
+        }
+        d.burst.play(intensity)
+        android.animation.ValueAnimator.ofInt(0, result.xpEarned).apply {
+            duration = 800
+            interpolator = android.view.animation.DecelerateInterpolator()
+            addUpdateListener { d.tvXpCountup.text = "+${it.animatedValue} XP" }
+            start()
+        }
     }
+
+    private fun tierColorFor(tier: com.migul.treningsprogram.domain.AchievementCatalog.Tier): Int =
+        requireContext().getColor(
+            when (tier) {
+                com.migul.treningsprogram.domain.AchievementCatalog.Tier.COMMON -> R.color.tier_common
+                com.migul.treningsprogram.domain.AchievementCatalog.Tier.RARE -> R.color.tier_rare
+                com.migul.treningsprogram.domain.AchievementCatalog.Tier.EPIC -> R.color.tier_epic
+                com.migul.treningsprogram.domain.AchievementCatalog.Tier.LEGENDARY -> R.color.tier_legendary
+            }
+        )
 
     /** Leaves the log screen and opens the latest session's Recap under the Stats tab. */
     private fun startAnalysisFlow() {
