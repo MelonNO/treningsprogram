@@ -41,6 +41,7 @@ class SettingsAppFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupDayBoundarySpinner()
         setupAutoRebalanceSwitch()
+        setupRestRecoverySwitch()
         setupWorkoutReminder()
         setupStreakWarning()
         setupWeighInReminder()
@@ -85,6 +86,20 @@ class SettingsAppFragment : Fragment() {
             Snackbar.make(
                 binding.root,
                 if (isChecked) "Auto-rebalance is ON" else "Auto-rebalance is OFF",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    // B5: the permanent off-switch for the rest-day recovery card (A-A3). Default ON; initial
+    // state set before the listener so displaying the screen never writes the preference.
+    private fun setupRestRecoverySwitch() {
+        binding.switchRestRecovery.isChecked = viewModel.prefs.restDayRecoveryEnabled
+        binding.switchRestRecovery.setOnCheckedChangeListener { _, isChecked ->
+            viewModel.prefs.restDayRecoveryEnabled = isChecked
+            Snackbar.make(
+                binding.root,
+                if (isChecked) "Rest-day suggestions ON" else "Rest-day suggestions OFF",
                 Snackbar.LENGTH_SHORT
             ).show()
         }

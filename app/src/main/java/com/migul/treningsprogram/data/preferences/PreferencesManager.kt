@@ -287,6 +287,23 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_PERFECT_WEEK_AWARDED, 0L)
         set(value) { prefs.edit().putLong(KEY_PERFECT_WEEK_AWARDED, value).apply() }
 
+    // B5: rest-day active-recovery card. The permanent off-switch (A-A3, default ON) plus the
+    // per-day dismiss (logical epoch-day; the card returns on the next rest day). DEVICE-LOCAL
+    // presentation state — intentionally NOT in the backup schema.
+    var restDayRecoveryEnabled: Boolean
+        get() = prefs.getBoolean(KEY_REST_RECOVERY_ENABLED, true)
+        set(value) { prefs.edit().putBoolean(KEY_REST_RECOVERY_ENABLED, value).apply() }
+
+    var recoveryCardDismissedEpochDay: Long
+        get() = prefs.getLong(KEY_REST_RECOVERY_DISMISSED_DAY, -1L)
+        set(value) { prefs.edit().putLong(KEY_REST_RECOVERY_DISMISSED_DAY, value).apply() }
+
+    // B7: "YYYY-M" key of the newest monthly Wrapped the user has viewed/dismissed — drives the
+    // once-per-new-month Home ready-card. Presentation state, not backed up.
+    var wrappedSeenMonthKey: String
+        get() = prefs.getString(KEY_WRAPPED_SEEN_MONTH, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_WRAPPED_SEEN_MONTH, value).apply() }
+
     init {
         // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
         // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
@@ -343,5 +360,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_WEIGH_IN_MINUTE = "weigh_in_minute"
         private const val KEY_PROGRAM_READY_ENABLED = "program_ready_enabled"
         private const val KEY_PERFECT_WEEK_AWARDED = "perfect_week_awarded_week_start"
+        private const val KEY_REST_RECOVERY_ENABLED = "rest_day_recovery_enabled"
+        private const val KEY_REST_RECOVERY_DISMISSED_DAY = "rest_recovery_dismissed_epoch_day"
+        private const val KEY_WRAPPED_SEEN_MONTH = "wrapped_seen_month_key"
     }
 }

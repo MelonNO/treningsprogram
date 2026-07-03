@@ -223,6 +223,27 @@ class HomeViewModel @Inject constructor(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /**
+     * B5: today's active-recovery suggestion, recovery-aware — biased away from muscles the
+     * model currently marks RECOVERING (sore legs => upper-body mobility or a walk), rotated by
+     * logical day. Always computed; the FRAGMENT gates visibility (rest day + enabled + not
+     * dismissed today) via RecoverySuggestions.shouldShow.
+     */
+    val restDaySuggestion: StateFlow<com.migul.treningsprogram.domain.RecoverySuggestions.Suggestion> =
+        muscleRecovery
+            .map { items ->
+                com.migul.treningsprogram.domain.RecoverySuggestions.pick(
+                    items.map { it.muscleLabel }.toSet(),
+                    com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+                )
+            }
+            .stateIn(
+                viewModelScope, SharingStarted.WhileSubscribed(5000),
+                com.migul.treningsprogram.domain.RecoverySuggestions.pick(
+                    emptySet(), com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+                )
+            )
+
     init {
         viewModelScope.launch { workoutRepository.ensureExercisesPopulated() }
         viewModelScope.launch { AppDatabase.seedPresets(gymPresetDao) }

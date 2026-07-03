@@ -96,6 +96,9 @@ class HomeFragment : Fragment() {
                         viewModel.todayTargets
                     ) { plan, active, completed, targets -> TodayCard(plan, active, completed, targets) }
                         .collect { (plan, active, completed, targets) ->
+                            // B5: the rest-day recovery card rides the same state — rest day
+                            // (no plan), nothing active/logged, feature on, not dismissed today.
+                            renderRestRecovery(plan.isEmpty(), active != null, completed)
                             when {
                                 active != null -> {
                                     binding.btnStartWorkout.isEnabled = true
@@ -228,6 +231,13 @@ class HomeFragment : Fragment() {
                     viewModel.goalNudge.collect { line ->
                         binding.cardGoalNudge.visibility = if (line == null) View.GONE else View.VISIBLE
                         binding.tvGoalNudge.text = line ?: ""
+                    }
+                }
+                launch {
+                    // B5: refresh the card's CONTENT when the recovery picture changes.
+                    viewModel.restDaySuggestion.collect { s ->
+                        binding.tvRestRecoveryTitle.text = s.title
+                        binding.tvRestRecoveryLine.text = s.line
                     }
                 }
             }
@@ -404,6 +414,31 @@ class HomeFragment : Fragment() {
         if (!isAdded || _binding == null) return
         result.completedChallenges.forEach { ch ->
             Snackbar.make(binding.root, "Challenge complete: ${ch.name}  +${ch.bonusXp} XP", Snackbar.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * B5 — visibility gate + dismiss wiring for the rest-day recovery card. Pure decision in
+     * RecoverySuggestions.shouldShow; dismissing stores today's logical epoch-day so the card
+     * returns on the NEXT rest day. Nothing here touches streaks/XP/challenges/history.
+     */
+    private fun renderRestRecovery(planEmpty: Boolean, hasActive: Boolean, completedToday: Boolean) {
+        if (_binding == null) return
+        val show = com.migul.treningsprogram.domain.RecoverySuggestions.shouldShow(
+            planEmpty = planEmpty,
+            hasActiveSession = hasActive,
+            completedToday = completedToday,
+            enabled = viewModel.prefs.restDayRecoveryEnabled,
+            dismissedEpochDay = viewModel.prefs.recoveryCardDismissedEpochDay,
+            todayEpochDay = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+        )
+        binding.cardRestRecovery.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) {
+            binding.btnRestRecoveryDismiss.setOnClickListener {
+                viewModel.prefs.recoveryCardDismissedEpochDay =
+                    com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+                binding.cardRestRecovery.visibility = View.GONE
+            }
         }
     }
 

@@ -111,6 +111,60 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- B5: rest-day recovery suggestions — the permanent off-switch (A-A3). -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="REST-DAY RECOVERY"
+            style="@style/Widget.Auros.Eyebrow"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="?attr/colorOutlineVariant">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Rest-day recovery suggestions"
+                        android:textAppearance="?attr/textAppearanceBodyLarge"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switch_rest_recovery"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="On rest days, Home offers one small optional active-recovery idea (a walk or a mobility move), biased away from whatever is still recovering. Purely optional — it never affects streaks, XP or history."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- R2: the notification center — every notification type individually toggleable. -->
         <TextView
             android:layout_width="match_parent"

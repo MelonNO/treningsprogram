@@ -368,6 +368,79 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- B5: rest-day active-recovery card — an optional invitation, never counted,
+                 never streak-relevant. Per-day dismiss (x); permanent off-switch in App
+                 Settings. Training days never show it. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_rest_recovery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="REST-DAY RECOVERY"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                        <TextView
+                            android:id="@+id/btn_rest_recovery_dismiss"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="4dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:text="\u2715"
+                            android:textSize="14sp"
+                            android:textColor="@color/auros_fog_dim" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_rest_recovery_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="@color/auros_snow"
+                        android:layout_marginBottom="2dp" />
+
+                    <TextView
+                        android:id="@+id/tv_rest_recovery_line"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Optional — a rest day is complete without it."
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="@color/auros_fog_dim" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- 4. Body weight card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
