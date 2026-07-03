@@ -63,6 +63,8 @@ class WrappedDialogFragment : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding.btnWrappedClose.setOnClickListener { dismiss() }
+        // W1: the persistent top close dismisses exactly like the bottom Close button.
+        binding.btnWrappedCloseTop.setOnClickListener { dismiss() }
 
         val month = MonthlyWrapped.MonthKey(
             arguments?.getInt(ARG_YEAR) ?: 0,
