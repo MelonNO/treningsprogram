@@ -186,7 +186,7 @@
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:lineSpacingExtra="4dp"
-                    android:text="No PRs in the last 7 days — your next one is waiting." />
+                    android:text="@string/no_prs_recent" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

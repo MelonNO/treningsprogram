@@ -10,7 +10,9 @@
     <string name="today_plan">Today\'s Plan</string>
     <string name="recent_workouts">Recent Workouts</string>
     <string name="start_workout">Start Workout</string>
-    <string name="no_sessions_yet">No workouts logged yet.</string>
+    <!-- Empty-state copy: one shared voice — short, second-person, forward-looking. -->
+    <string name="no_sessions_yet">No workouts logged yet — your first session is waiting.</string>
+    <string name="no_prs_recent">No PRs in the last 7 days — your next one is waiting.</string>
 
     <string name="claude_api_key">Claude API Key</string>
     <string name="days_per_week">Training Days / Week</string>

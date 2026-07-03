@@ -77,7 +77,7 @@ class ProfileFragment : Fragment() {
 
                     // Stage-3 item 4: only PRs earned in the last 7 days — a recent-wins surface.
                     binding.tvPrs.text = if (state.recentPrs.isEmpty())
-                        "No PRs in the last 7 days — your next one is waiting."
+                        getString(R.string.no_prs_recent)
                     else state.recentPrs.joinToString("\n") {
                         "🏆 ${it.exerciseName}: ${formatWeight(it.weightKg)}kg · ${daysAgoLabel(it.dateMs)}"
                     }
