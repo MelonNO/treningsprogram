@@ -197,6 +197,67 @@
 
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- N3: relative strength — e1RM ÷ nearest weigh-in, milestone lines chart-only (A-R1).
+             Shown for weighted lifts once weigh-ins exist; graceful partial/empty states. -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_relative"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="?attr/colorOutlineVariant">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
+                    android:text="Relative strength"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Estimated 1RM ÷ body weight (nearest weigh-in)"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginBottom="12dp" />
+
+                <com.migul.treningsprogram.ui.history.StrengthChartView
+                    android:id="@+id/chart_relative"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:layout_marginBottom="8dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tv_relative_current"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="@color/auros_cyan"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tv_relative_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Stage-3 item 2: chart/card-shaped placeholder skeleton for the "no exercise selected
              yet" state — hints at what will appear (the true first-run empty state above keeps
              its copy instead). -->

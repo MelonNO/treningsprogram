@@ -23,11 +23,28 @@ class StrengthChartView @JvmOverloads constructor(
 
     data class Entry(val dateMs: Long, val value: Float)
 
+    /**
+     * A horizontal reference line (N3 milestone ratios, N5 goal target). [extendRange] pulls the
+     * chart's value range out to include the line even when the data hasn't reached it yet (a
+     * goal target must be visible as the line to chase); non-extending guides draw only when
+     * they fall inside the data's own range (milestones never squash the trend). [isGoal]
+     * switches to the gold goal styling.
+     */
+    data class Guide(
+        val value: Float,
+        val label: String,
+        val extendRange: Boolean = false,
+        val isGoal: Boolean = false
+    )
+
     private var entries: List<Entry> = emptyList()
     private var unit = "kg"
     /** True → values are whole counts (e.g. sets/sessions): label as integers without a space. */
     private var integerValues = false
+    /** >= 0 → fixed decimal places on value labels (N3 ratios need 2); -1 = legacy auto. */
+    private var decimalPlaces = -1
     private var highlightDateMs: Long? = null
+    private var guides: List<Guide> = emptyList()
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#7FE9E1")
@@ -68,6 +85,29 @@ class StrengthChartView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = 5f
     }
+    /** Dashed reference lines (milestones) — quiet, behind the data. */
+    private val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#557E908E")
+        style = Paint.Style.STROKE
+        strokeWidth = 2f
+        pathEffect = DashPathEffect(floatArrayOf(10f, 8f), 0f)
+    }
+    private val guideLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#997E908E")
+        textSize = 24f
+    }
+    /** The N5 goal-target line gets the celebration gold so it reads as "the line to chase". */
+    private val goalGuidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#88FFD54A")
+        style = Paint.Style.STROKE
+        strokeWidth = 2.5f
+        pathEffect = DashPathEffect(floatArrayOf(12f, 8f), 0f)
+    }
+    private val goalLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#CCFFD54A")
+        textSize = 24f
+        typeface = Typeface.DEFAULT_BOLD
+    }
 
     /**
      * @param data points to plot
@@ -80,18 +120,25 @@ class StrengthChartView @JvmOverloads constructor(
         data: List<Entry>,
         label: String = "kg",
         highlightDateMs: Long? = null,
-        integerValues: Boolean = false
+        integerValues: Boolean = false,
+        guides: List<Guide> = emptyList(),
+        decimalPlaces: Int = -1
     ) {
         entries = data
         unit = label
         this.highlightDateMs = highlightDateMs
         this.integerValues = integerValues
+        this.guides = guides
+        this.decimalPlaces = decimalPlaces
         invalidate()
     }
 
     private fun fmtValue(v: Float): String {
-        val num = if (integerValues || v == v.toInt().toFloat()) v.toInt().toString()
-                  else "%.1f".format(v)
+        val num = when {
+            decimalPlaces >= 0 -> "%.${decimalPlaces}f".format(v)
+            integerValues || v == v.toInt().toFloat() -> v.toInt().toString()
+            else -> "%.1f".format(v)
+        }
         return when {
             unit.isBlank() -> num
             // "70kg" reads tighter than "70 kg" on a cramped axis; "12 sets" needs the space.
@@ -113,8 +160,10 @@ class StrengthChartView @JvmOverloads constructor(
         val cw = width - pl - pr
         val ch = height - pt - pb
 
-        val minV = entries.minOf { it.value }
-        val maxV = entries.maxOf { it.value }
+        // Range-extending guides (a goal target above every data point must still be on-chart).
+        val extendValues = guides.filter { it.extendRange }.map { it.value }
+        val minV = (entries.minOf { it.value }.let { base -> (extendValues + base).min() })
+        val maxV = (entries.maxOf { it.value }.let { base -> (extendValues + base).max() })
         val minD = entries.minOf { it.dateMs }.toFloat()
         val maxD = entries.maxOf { it.dateMs }.toFloat()
         val rv = if (maxV - minV > 0f) maxV - minV else 1f
@@ -127,6 +176,21 @@ class StrengthChartView @JvmOverloads constructor(
         for (i in 0..3) {
             val gy = pt + i * ch / 3f
             canvas.drawLine(pl, gy, pl + cw, gy, gridPaint)
+        }
+
+        // ── Reference guides (N3 milestones / N5 goal target) — dashed, behind the data ──
+        for (g in guides) {
+            if (!g.extendRange && (g.value < minV || g.value > maxV)) continue
+            val gy = y(g.value)
+            val path = Path().apply { moveTo(pl, gy); lineTo(pl + cw, gy) }
+            canvas.drawPath(path, if (g.isGoal) goalGuidePaint else guidePaint)
+            if (g.label.isNotBlank()) {
+                val lp = if (g.isGoal) goalLabelPaint else guideLabelPaint
+                lp.textAlign = Paint.Align.RIGHT
+                // Label above its line, right-aligned; nudge below when hugging the top edge.
+                val ty = if (gy - 8f < pt + 20f) gy + 26f else gy - 8f
+                canvas.drawText(g.label, pl + cw, ty, lp)
+            }
         }
 
         // fill under line — luminous vertical fade (cyan at the line → nothing at the baseline)

@@ -211,6 +211,81 @@ class HistoryProgressFragment : Fragment() {
                 viewModel.stalledLifts.collect { stalled -> renderStalled(stalled) }
             }
         }
+
+        // N3: relative strength — e1RM ÷ nearest weigh-in for the selected (weighted) lift.
+        // Follows the SAME strengthHistory stream as the charts above, so the date-range filter
+        // applies identically; weigh-ins come from the same store as the BW chart.
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                kotlinx.coroutines.flow.combine(
+                    viewModel.strengthHistory, viewModel.bodyMeasurements
+                ) { history, measurements -> history to measurements }
+                    .collect { (history, measurements) ->
+                        renderRelativeStrength(history, measurements)
+                    }
+            }
+        }
+    }
+
+    /**
+     * N3 card states:
+     *  - hidden: no selection, or the selection has no weighted history (A-R2), or no weigh-ins
+     *    exist at all;
+     *  - partial: weighted history + weigh-ins exist but < 2 matchable points → honest hint,
+     *    no fabricated chart;
+     *  - full: trend chart with chart-only milestone lines (A-R1) + the current-ratio readout.
+     */
+    private fun renderRelativeStrength(
+        history: List<com.migul.treningsprogram.data.db.dao.StrengthPoint>,
+        measurements: List<com.migul.treningsprogram.data.db.entity.BodyMeasurement>
+    ) {
+        if (_binding == null) return
+        val hasSelection = viewModel.selectedExercise.value.isNotBlank()
+        val weighted = history.any { it.maxWeight > 0f }
+        if (!hasSelection || !weighted || measurements.isEmpty()) {
+            binding.cardRelative.isVisible = false
+            return
+        }
+        val points = com.migul.treningsprogram.domain.RelativeStrength.series(
+            history,
+            measurements.map {
+                com.migul.treningsprogram.domain.RelativeStrength.WeighIn(it.dateMs, it.weightKg)
+            }
+        )
+        binding.cardRelative.isVisible = true
+        when {
+            points.size >= 2 -> {
+                binding.chartRelative.isVisible = true
+                binding.tvRelativeHint.isVisible = false
+                binding.chartRelative.setData(
+                    points.map { StrengthChartView.Entry(it.dateMs, it.ratio) },
+                    "×BW",
+                    guides = com.migul.treningsprogram.domain.RelativeStrength
+                        .milestonesInRange(points)
+                        .map { StrengthChartView.Guide(it, "${formatWeight(it)}× BW") },
+                    decimalPlaces = 2
+                )
+                binding.tvRelativeCurrent.isVisible = true
+                binding.tvRelativeCurrent.text =
+                    com.migul.treningsprogram.domain.RelativeStrength.currentLine(points)
+            }
+            points.size == 1 -> {
+                binding.chartRelative.isVisible = false
+                binding.tvRelativeCurrent.isVisible = true
+                binding.tvRelativeCurrent.text =
+                    com.migul.treningsprogram.domain.RelativeStrength.currentLine(points)
+                binding.tvRelativeHint.isVisible = true
+                binding.tvRelativeHint.text =
+                    "More sessions with a weigh-in nearby will draw the trend."
+            }
+            else -> {
+                binding.chartRelative.isVisible = false
+                binding.tvRelativeCurrent.isVisible = false
+                binding.tvRelativeHint.isVisible = true
+                binding.tvRelativeHint.text =
+                    "No weigh-ins near these sessions — log body weight on Home to unlock this view."
+            }
+        }
     }
 
     private fun renderStalled(stalled: List<Pair<String, String>>) {
