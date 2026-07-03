@@ -119,9 +119,11 @@
         <item name="android:letterSpacing">0.2</item>
     </style>
 
-    <!-- Drop-in section eyebrow for a TextView: teal beacon dot + tracked-out
-         uppercase label in one element. Apply with style="@style/Widget.Auros.Eyebrow"
-         and remove any inline textAppearance/textColor so this takes effect.
+    <!-- Drop-in section eyebrow for a TextView: tracked-out uppercase label,
+         no beacon dot. Apply with style="@style/Widget.Auros.Eyebrow" and remove
+         any inline textAppearance/textColor so this takes effect. The teal beacon
+         dot is reserved for hero/title bands only (a separate bg_eyebrow_dot View);
+         in-card section eyebrows are dot-less for one consistent treatment.
          textAllCaps means the source label string can stay title-case. -->
     <style name="Widget.Auros.Eyebrow" parent="">
         <item name="android:textSize">11sp</item>
@@ -129,8 +131,6 @@
         <item name="android:textAllCaps">true</item>
         <item name="android:letterSpacing">0.2</item>
         <item name="android:fontFamily">@font/inter</item>
-        <item name="android:drawableStart">@drawable/bg_eyebrow_dot</item>
-        <item name="android:drawablePadding">10dp</item>
         <item name="android:gravity">center_vertical</item>
     </style>
 
