@@ -141,6 +141,16 @@
                                 android:textAppearance="?attr/textAppearanceBodySmall"
                                 android:textColor="@color/auros_fog_dim" android:visibility="gone" />
 
+                            <!-- N7: quiet persistent setup note ("pin height 7 · belt on top sets").
+                                 Hidden when the exercise has no note; tap to edit in place. -->
+                            <TextView android:id="@+id/tv_setup_note"
+                                android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:maxLines="1" android:ellipsize="end"
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="@color/auros_fog_dim"
+                                android:visibility="gone" />
+
                             <!-- Freestyle exercise name input (hidden in guided mode) -->
                             <com.google.android.material.textfield.TextInputLayout
                                 android:id="@+id/til_freestyle_exercise"
@@ -209,6 +219,53 @@
                         </com.google.android.material.card.MaterialCardView>
 
                     </LinearLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- B1: warm-up ramp suggestion for heavy compounds. An offer, never a nag: dismiss ✕
+                 hides it for this exercise this session; it disappears once any set is logged. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_warmup_ramp"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp" app:cardElevation="0dp"
+                app:cardCornerRadius="16dp" app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant"
+                android:visibility="gone">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="14dp">
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="6dp">
+                        <View android:layout_width="6dp" android:layout_height="6dp"
+                            android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="WARM-UP RAMP"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                        <TextView android:id="@+id/btn_warmup_dismiss"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:paddingStart="12dp" android:paddingEnd="4dp"
+                            android:paddingTop="2dp" android:paddingBottom="2dp"
+                            android:text="✕" android:textSize="14sp"
+                            android:textColor="@color/auros_fog_dim" />
+                    </LinearLayout>
+
+                    <TextView android:id="@+id/tv_warmup_steps"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:lineSpacingExtra="3dp"
+                        android:layout_marginBottom="10dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_log_warmups"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:minHeight="40dp"
+                        android:text="Log warm-up sets"
+                        android:textSize="13sp" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

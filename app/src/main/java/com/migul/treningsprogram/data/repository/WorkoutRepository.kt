@@ -32,6 +32,7 @@ class WorkoutRepository @Inject constructor(
     private val exerciseDao: ExerciseDao,
     private val plannedDao: PlannedExerciseDao,
     private val programDao: ProgramDao,
+    private val exerciseNoteDao: ExerciseNoteDao,
     private val resolver: ExerciseDbResolver,
     private val backupScheduler: BackupScheduler,
     private val preferencesManager: PreferencesManager,
@@ -279,6 +280,29 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun getLastSetsForExercise(exerciseName: String, excludeSessionId: Long = -1): List<WorkoutSet> =
         setDao.getLastSetsForExercise(exerciseName, excludeSessionId)
+
+    // ── N7: per-exercise setup notes ("gear memory") ─────────────────────────────────────────────
+
+    /** The persistent setup note for [name] (case-insensitive name identity), or null. */
+    suspend fun getExerciseNote(name: String): ExerciseNote? =
+        exerciseNoteDao.getForExercise(name.trim())
+
+    /**
+     * Saves/clears the setup note for [name]. Blank text = clear (the row is removed — exercises
+     * without notes have no row). The NOCASE delete first prevents two rows for the same exercise
+     * name in different casing (the entity's primary key is exact-case). Notes are user data →
+     * backed up (they ride in backup v6).
+     */
+    suspend fun saveExerciseNote(name: String, note: String) {
+        val key = name.trim()
+        if (key.isEmpty()) return
+        exerciseNoteDao.deleteForExercise(key)
+        val trimmed = note.trim()
+        if (trimmed.isNotEmpty()) {
+            exerciseNoteDao.upsert(ExerciseNote(key, trimmed, System.currentTimeMillis()))
+        }
+        backupScheduler.requestBackup()
+    }
 
     // ── Auto-log rest / missed days ──────────────────────────────────────────────────────────────
 

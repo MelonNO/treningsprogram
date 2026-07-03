@@ -59,6 +59,11 @@ class LogWorkoutFragment : Fragment() {
     private var freestyleMode = false
     private var swapButton: MaterialButton? = null
 
+    // B1: session-scoped state of the warm-up ramp offer — dismissed exercises and the ladder
+    // currently on offer (what one tap on "Log warm-up sets" will log).
+    private val rampDismissed = mutableSetOf<String>()
+    private var currentRampSteps: List<WarmupRamp.Step> = emptyList()
+
     // Item 9: state of the calculator-style weight keypad (source of truth while the pad is open).
     private var calcState = WeightCalculator.State()
 
@@ -170,6 +175,32 @@ class LogWorkoutFragment : Fragment() {
         binding.btnTimerRecall.setOnClickListener { openTimerRecall() }
         binding.btnPauseWorkout.setOnClickListener { showPauseDialog() }
 
+        // B1: warm-up ramp — accept logs the ladder as warm-up sets; ✕ dismisses for this
+        // exercise this session. The card recomputes as the working weight is adjusted (A-W3)
+        // and disappears once any set is logged for the exercise.
+        binding.btnLogWarmups.setOnClickListener {
+            if (currentRampSteps.isNotEmpty()) viewModel.logWarmupRamp(currentRampSteps)
+            binding.cardWarmupRamp.visibility = View.GONE
+        }
+        binding.btnWarmupDismiss.setOnClickListener {
+            viewModel.currentExercise.value?.exerciseName?.let { rampDismissed.add(it) }
+            binding.cardWarmupRamp.visibility = View.GONE
+        }
+        binding.etWeight.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { refreshWarmupRamp() }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+
+        // N7: tap the quiet note line to edit in place; long-press the exercise name to add
+        // one when none exists yet (the library detail screen is the discoverable add surface).
+        binding.tvSetupNote.setOnClickListener { showSetupNoteDialog() }
+        binding.tvExerciseName.setOnLongClickListener {
+            if (!freestyleMode && viewModel.currentExercise.value != null) {
+                showSetupNoteDialog(); true
+            } else false
+        }
+
         // Item 6 / B01 — tap the "Exercise X / Y" progress region to open the quick-access menu.
         // The listener is on the whole header container (layout_session_progress) so the tap
         // target is the entire counter row + bar area, not just the thin bar or narrow label.
@@ -279,6 +310,20 @@ class LogWorkoutFragment : Fragment() {
                 launch {
                     viewModel.setsForCurrentExercise.collect { sets ->
                         updateLoggedSets(sets)
+                        // B1: the offer collapses the moment any set exists for the exercise.
+                        refreshWarmupRamp()
+                    }
+                }
+
+                // N7: the quiet setup-note line — shown only when the exercise has a note.
+                launch {
+                    viewModel.setupNote.collect { note ->
+                        if (note.isNullOrBlank()) {
+                            binding.tvSetupNote.visibility = View.GONE
+                        } else {
+                            binding.tvSetupNote.visibility = View.VISIBLE
+                            binding.tvSetupNote.text = "📌 $note"
+                        }
                     }
                 }
 
@@ -671,6 +716,67 @@ class LogWorkoutFragment : Fragment() {
         val weight = binding.etWeight.text.toString().toFloatOrNull() ?: return
         val reps = binding.etReps.text.toString().toIntOrNull() ?: return
         viewModel.saveCurrentExerciseValues(exerciseName, weight, reps)
+    }
+
+    // ── B1: warm-up ramp offer ────────────────────────────────────────────────────────────────
+
+    /**
+     * Recomputes the offer from the CURRENT state: guided exercise + heavy compound + a real
+     * working weight in the field + no sets logged yet + not dismissed. Pure math in
+     * [WarmupRamp]; this only renders/hides.
+     */
+    private fun refreshWarmupRamp() {
+        if (_binding == null) return
+        val exercise = viewModel.currentExercise.value
+        if (freestyleMode || exercise == null ||
+            exercise.exerciseName in rampDismissed ||
+            viewModel.setsForCurrentExercise.value.isNotEmpty()
+        ) {
+            binding.cardWarmupRamp.visibility = View.GONE
+            return
+        }
+        val workingWeight = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
+        val steps = WarmupRamp.stepsFor(
+            exercise.exerciseName, workingWeight, viewModel.plateProfile.value
+        )
+        currentRampSteps = steps
+        if (steps.isEmpty()) {
+            binding.cardWarmupRamp.visibility = View.GONE
+        } else {
+            binding.tvWarmupSteps.text = steps.joinToString("\n") {
+                "•  ${formatWeight(it.weightKg)} kg × ${it.reps}"
+            }
+            binding.cardWarmupRamp.visibility = View.VISIBLE
+        }
+    }
+
+    // ── N7: setup-note edit dialog (in place, no navigation away) ────────────────────────────
+
+    private fun showSetupNoteDialog() {
+        val exercise = viewModel.currentExercise.value ?: return
+        val ctx = requireContext()
+        val density = resources.displayMetrics.density
+        val input = com.google.android.material.textfield.TextInputEditText(ctx).apply {
+            setText(viewModel.setupNote.value ?: "")
+            hint = "e.g. pin height 7, seat 4, belt on top sets"
+            setSelection(text?.length ?: 0)
+        }
+        val container = FrameLayout(ctx).apply {
+            val p = (20 * density).toInt()
+            setPadding(p, (8 * density).toInt(), p, 0)
+            addView(input)
+        }
+        val builder = MaterialAlertDialogBuilder(ctx)
+            .setTitle("Setup note — ${exercise.exerciseName}")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                viewModel.saveSetupNote(input.text?.toString() ?: "")
+            }
+            .setNegativeButton("Cancel", null)
+        if (!viewModel.setupNote.value.isNullOrBlank()) {
+            builder.setNeutralButton("Clear") { _, _ -> viewModel.saveSetupNote("") }
+        }
+        builder.show()
     }
 
     private fun updateLoggedSets(sets: List<WorkoutSet>) {

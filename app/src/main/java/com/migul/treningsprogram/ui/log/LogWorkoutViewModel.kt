@@ -581,6 +581,61 @@ class LogWorkoutViewModel @Inject constructor(
         }
     }
 
+    /**
+     * B1: one tap logs the whole suggested warm-up ladder as ordinary warm-up sets for the
+     * CURRENT exercise. Inserted sequentially in ONE coroutine so set numbers are computed
+     * locally (three parallel logSet() calls could read the same stale sets snapshot and
+     * collide on setNumber). No PR preview — warm-ups never flash (BeatTarget rule).
+     */
+    fun logWarmupRamp(steps: List<WarmupRamp.Step>) {
+        val sid = _sessionId.value ?: return
+        val exercise = currentExercise.value ?: return
+        if (steps.isEmpty()) return
+        viewModelScope.launch {
+            val existing = sets.value.count { it.exerciseName == exercise.exerciseName }
+            steps.forEachIndexed { i, step ->
+                workoutRepository.addSet(
+                    WorkoutSet(
+                        sessionId = sid,
+                        exerciseName = exercise.exerciseName,
+                        muscleGroup = resolveMuscleGroup(exercise.exerciseName),
+                        setNumber = existing + i + 1,
+                        reps = step.reps,
+                        weightKg = step.weightKg,
+                        isWarmup = true,
+                        rpeLabel = "",
+                        loggedAtMs = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    // ── N7: per-exercise setup note (quiet line + in-place edit) ──────────────────────────────
+
+    /** The CURRENT exercise's persistent setup note (null = none → the line is hidden). */
+    private val _setupNote = MutableStateFlow<String?>(null)
+    val setupNote: StateFlow<String?> = _setupNote.asStateFlow()
+
+    init {
+        // Re-resolve on every current-exercise change (next/prev/jump/SWAP) so a swapped-in
+        // exercise shows ITS OWN note, never the replaced exercise's.
+        viewModelScope.launch {
+            currentExercise.map { it?.exerciseName }.distinctUntilChanged().collect { name ->
+                _setupNote.value = name?.let { workoutRepository.getExerciseNote(it)?.note }
+            }
+        }
+    }
+
+    /** Saves (blank = clears) the CURRENT exercise's note and refreshes the quiet line. */
+    fun saveSetupNote(text: String) {
+        val name = currentExercise.value?.exerciseName ?: return
+        viewModelScope.launch {
+            workoutRepository.saveExerciseNote(name, text)
+            _setupNote.value = text.trim().ifBlank { null }
+        }
+    }
+
     fun logFreestyleSet(exerciseName: String, weight: Float, reps: Int, isWarmup: Boolean, rpeLabel: String) {
         val sid = _sessionId.value ?: return
         viewModelScope.launch {
