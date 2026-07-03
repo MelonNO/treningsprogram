@@ -87,6 +87,9 @@ class HistoryViewModel @Inject constructor(
         viewModelScope.launch { workoutRepository.deleteSet(set) }
     }
 
+    /** B7: one-shot full session history (real workouts only get filtered downstream). */
+    suspend fun allSessionsOnce(): List<WorkoutSession> = workoutRepository.getAllSessionsOnce()
+
     // ── Recap tab ────────────────────────────────────────────────────────────
     suspend fun getRecentSessions(count: Int = 30): List<WorkoutSession> =
         workoutRepository.getRecentSessions(count)

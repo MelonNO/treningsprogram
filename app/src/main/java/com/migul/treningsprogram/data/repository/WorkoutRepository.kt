@@ -278,6 +278,9 @@ class WorkoutRepository @Inject constructor(
     suspend fun getRecentSessions(count: Int = 20): List<WorkoutSession> =
         sessionDao.getRecentCompleted(count)
 
+    /** B7: the FULL session history in one shot (Wrapped month availability + build inputs). */
+    suspend fun getAllSessionsOnce(): List<WorkoutSession> = sessionDao.getAllOnce()
+
     suspend fun getLastSetsForExercise(exerciseName: String, excludeSessionId: Long = -1): List<WorkoutSet> =
         setDao.getLastSetsForExercise(exerciseName, excludeSessionId)
 

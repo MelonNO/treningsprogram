@@ -244,6 +244,23 @@ class HomeViewModel @Inject constructor(
                 )
             )
 
+    /**
+     * B7: the just-ended month whose Wrapped is ready and not yet seen — null hides the card.
+     * "Ready" = the previous logical month AND it actually has training data.
+     */
+    suspend fun wrappedReadyMonth(): com.migul.treningsprogram.domain.MonthlyWrapped.MonthKey? {
+        val ready = com.migul.treningsprogram.domain.MonthlyWrapped.readyMonthKey()
+        if (prefs.wrappedSeenMonthKey == ready.key) return null
+        val months = com.migul.treningsprogram.domain.MonthlyWrapped
+            .availableMonths(workoutRepository.getAllSessionsOnce())
+        return if (months.contains(ready)) ready else null
+    }
+
+    /** B7: viewing or dismissing the ready card retires it for that month. */
+    fun markWrappedSeen(month: com.migul.treningsprogram.domain.MonthlyWrapped.MonthKey) {
+        prefs.wrappedSeenMonthKey = month.key
+    }
+
     init {
         viewModelScope.launch { workoutRepository.ensureExercisesPopulated() }
         viewModelScope.launch { AppDatabase.seedPresets(gymPresetDao) }

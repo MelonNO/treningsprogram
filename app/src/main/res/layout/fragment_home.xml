@@ -368,6 +368,51 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- B7: "your monthly Wrapped is ready" — once per new month; disappears after
+                 viewing or dismissal. Discoverable, not pushy. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_wrapped_ready"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/auros_cyan">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:id="@+id/tv_wrapped_ready"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:textColor="@color/auros_cyan" />
+
+                    <TextView
+                        android:id="@+id/btn_wrapped_ready_dismiss"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="4dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:text="\u2715"
+                        android:textSize="14sp"
+                        android:textColor="@color/auros_fog_dim" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- B5: rest-day active-recovery card — an optional invitation, never counted,
                  never streak-relevant. Per-day dismiss (x); permanent off-switch in App
                  Settings. Training days never show it. -->

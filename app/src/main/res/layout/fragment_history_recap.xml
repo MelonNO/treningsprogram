@@ -14,6 +14,16 @@
         <!-- Stage-3 item 3: the aggregate overview graphs are gone — Recap is purely the
              per-session view; the Stats tab keeps all aggregates. -->
 
+        <!-- B7: browse monthly Wrapped stories (hidden until an ended month has data) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_monthly_wrapped"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="Monthly Wrapped"
+            android:visibility="gone" />
+
         <!-- Session selector -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_session"

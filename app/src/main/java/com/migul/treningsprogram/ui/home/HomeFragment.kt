@@ -74,6 +74,27 @@ class HomeFragment : Fragment() {
             return  // skip wiring up the rest of the home screen until setup is complete
         }
 
+        // B7: the once-per-new-month "Wrapped is ready" card — tap opens the story, x dismisses;
+        // both retire the card for that month.
+        viewLifecycleOwner.lifecycleScope.launch {
+            val month = viewModel.wrappedReadyMonth() ?: return@launch
+            if (_binding == null) return@launch
+            binding.tvWrappedReady.text = "\uD83C\uDF81 Your ${month.label} Wrapped is ready — tap to open"
+            binding.cardWrappedReady.visibility = View.VISIBLE
+            binding.cardWrappedReady.setOnClickListener {
+                if (!isAdded) return@setOnClickListener
+                viewModel.markWrappedSeen(month)
+                binding.cardWrappedReady.visibility = View.GONE
+                com.migul.treningsprogram.ui.history.WrappedDialogFragment
+                    .newInstance(month)
+                    .show(parentFragmentManager, "wrapped")
+            }
+            binding.btnWrappedReadyDismiss.setOnClickListener {
+                viewModel.markWrappedSeen(month)
+                binding.cardWrappedReady.visibility = View.GONE
+            }
+        }
+
         // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
         binding.cardHomeXp.setOnClickListener {
             if (findNavController().currentDestination?.id == R.id.homeFragment)

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- B7: the monthly Wrapped — a scrollable story of one ended month. Pure presentation. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Hero -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="10dp">
+            <View android:layout_width="6dp" android:layout_height="6dp"
+                android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MONTHLY WRAPPED"
+                android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_wrapped_month"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:textColor="@color/auros_snow" />
+
+        <View
+            android:layout_width="52dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_gradient_accent" />
+
+        <TextView
+            android:id="@+id/tv_wrapped_headline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textColor="@color/auros_snow"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Stat capsules -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginEnd="6dp"
+                app:cardElevation="0dp" app:cardCornerRadius="14dp"
+                app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="12dp" android:gravity="center">
+                    <TextView android:id="@+id/tv_wrapped_volume"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/auros_cyan" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="volume" android:textSize="11sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginStart="6dp"
+                app:cardElevation="0dp" app:cardCornerRadius="14dp"
+                app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="12dp" android:gravity="center">
+                    <TextView android:id="@+id/tv_wrapped_sets"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/auros_cyan" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="working sets" android:textSize="11sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginEnd="6dp"
+                app:cardElevation="0dp" app:cardCornerRadius="14dp"
+                app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="12dp" android:gravity="center">
+                    <TextView android:id="@+id/tv_wrapped_days"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/auros_cyan" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="training days" android:textSize="11sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginStart="6dp"
+                app:cardElevation="0dp" app:cardCornerRadius="14dp"
+                app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="12dp" android:gravity="center">
+                    <TextView android:id="@+id/tv_wrapped_minutes"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/auros_cyan" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="minutes trained" android:textSize="11sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+        <!-- Biggest PR (gold) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wrapped_pr"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" android:visibility="gone"
+            app:cardElevation="0dp" app:cardCornerRadius="14dp"
+            app:strokeWidth="1dp" app:strokeColor="@color/game_gold">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="💥 BIGGEST PR"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow"
+                    android:textColor="@color/game_gold"
+                    android:layout_marginBottom="4dp" />
+                <TextView android:id="@+id/tv_wrapped_pr"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/auros_snow" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Most improved -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wrapped_improved"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" android:visibility="gone"
+            app:cardElevation="0dp" app:cardCornerRadius="14dp"
+            app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="📈 MOST IMPROVED"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow"
+                    android:layout_marginBottom="4dp" />
+                <TextView android:id="@+id/tv_wrapped_improved"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/auros_snow" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Favorite exercise -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wrapped_favorite"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" android:visibility="gone"
+            app:cardElevation="0dp" app:cardCornerRadius="14dp"
+            app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="⭐ FAVORITE EXERCISE"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow"
+                    android:layout_marginBottom="4dp" />
+                <TextView android:id="@+id/tv_wrapped_favorite"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/auros_snow" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Achievements unlocked -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wrapped_achievements"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" android:visibility="gone"
+            app:cardElevation="0dp" app:cardCornerRadius="14dp"
+            app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="14dp">
+                <TextView android:id="@+id/tv_wrapped_achievements_header"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="🏆 ACHIEVEMENTS"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow"
+                    android:layout_marginBottom="4dp" />
+                <LinearLayout android:id="@+id/layout_wrapped_achievements"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Body weight -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wrapped_bw"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" android:visibility="gone"
+            app:cardElevation="0dp" app:cardCornerRadius="14dp"
+            app:strokeWidth="1dp" app:strokeColor="?attr/colorOutlineVariant">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="⚖️ BODY WEIGHT"
+                    android:textAppearance="@style/TextAppearance.Auros.Eyebrow"
+                    android:layout_marginBottom="4dp" />
+                <TextView android:id="@+id/tv_wrapped_bw"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/auros_snow" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Honest, gentle adherence line -->
+        <TextView
+            android:id="@+id/tv_wrapped_adherence"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_wrapped_close"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Close" />
+
+    </LinearLayout>
+
+</ScrollView>

@@ -71,6 +71,32 @@ class HistoryRecapFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         loadSessions()
+        setupWrappedEntry()
+    }
+
+    /**
+     * B7 — "Monthly Wrapped": lists the ended months that have training data (newest first);
+     * picking one opens the full-screen Wrapped story. Hidden while no ended month has data.
+     */
+    private fun setupWrappedEntry() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            // getRecentSessions caps at recency; month availability needs ALL history.
+            val months = com.migul.treningsprogram.domain.MonthlyWrapped
+                .availableMonths(viewModel.allSessionsOnce())
+            if (_binding == null) return@launch
+            binding.btnMonthlyWrapped.isVisible = months.isNotEmpty()
+            if (months.isEmpty()) return@launch
+            binding.btnMonthlyWrapped.setOnClickListener {
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Monthly Wrapped")
+                    .setItems(months.map { it.label }.toTypedArray()) { _, which ->
+                        WrappedDialogFragment.newInstance(months[which])
+                            .show(parentFragmentManager, "wrapped")
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
     }
 
     override fun onResume() {
