@@ -13,6 +13,21 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 65, versionName = "1.25.0",
+            highlights = listOf(
+                "Lift goals: set a target weight (or est. 1RM) with an optional \"by October\" date — gold target line on the chart, live progress %, a Home nudge when you're one step away, and a real celebration when you take it",
+                "Home now shows the number to beat next to each of today's exercises",
+                "Warm-up ramps: heavy compounds offer a ~40/60/80% ladder rounded to what's actually loadable on your gym's plates — one tap logs it as warm-up sets",
+                "Setup notes per exercise: pin height, seat position, band color — write it once, see it every session (edit from the log screen or the library)",
+                "Monthly Wrapped: your month as a story — biggest PR, most-improved lift, volume, achievements — ready on Home when a month ends, past months in Recap",
+                "Relative strength: a new Progress chart of est. 1RM ÷ body weight, with 0.5×–2× BW milestone lines",
+                "Rest days offer one optional recovery idea, biased away from whatever is still sore (off-switch in App Settings)",
+                "The AI now sees how hard your sets felt — lifts logged as grinding get moderated, lifts logged easy get pushed",
+                "The home-screen widget shows your streak and weekly-challenge progress",
+                "Level titles continue past 20: Juggernaut, Titan, Colossus… all the way to Apex",
+            ),
+        ),
+        Entry(
             versionCode = 64, versionName = "1.24.1",
             highlights = listOf(
                 "Fixed: the History sessions list could stay stuck on loading placeholders and never show your workouts",
