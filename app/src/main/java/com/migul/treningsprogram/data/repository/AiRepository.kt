@@ -1455,6 +1455,9 @@ OR
         data class ExerciseEntry(val dateMs: Long, val maxWeight: Float, val totalReps: Int)
         val exerciseTrends = mutableMapOf<String, MutableList<ExerciseEntry>>()
         val recentExercises = mutableSetOf<String>()
+        // N4: per-lift labelled WORKING sets over the SAME session window as the trends block
+        // (A-E2 — no new lookback). Warm-ups are already filtered out above this collection point.
+        val effortSets = mutableMapOf<String, MutableList<com.migul.treningsprogram.domain.EffortTrend.LabelledSet>>()
 
         val sessionDetails = buildString {
             sessions.forEach { session ->
@@ -1466,6 +1469,11 @@ OR
                     exerciseTrends.getOrPut(exercise) { mutableListOf() }.add(
                         ExerciseEntry(session.dateMs, exerciseSets.maxOf { it.weightKg }, exerciseSets.sumOf { it.reps })
                     )
+                    exerciseSets.filter { it.rpeLabel.isNotBlank() }.forEach { s ->
+                        effortSets.getOrPut(exercise) { mutableListOf() }.add(
+                            com.migul.treningsprogram.domain.EffortTrend.LabelledSet(session.dateMs, s.rpeLabel)
+                        )
+                    }
                     if (session.dateMs >= twoWeeksAgo) recentExercises.add(exercise)
                 }
             }
@@ -1511,7 +1519,12 @@ OR
             stalledLifts.forEach { appendLine("  $it") }
         }.trimEnd()
 
-        return Pair("$sessionDetails\n$trends$stallBlock", recentExercises)
+        // N4: compact per-lift effort signal (soft context, A-E1). "" when no set in the window
+        // carries an effort label — the assembled history is then byte-identical in structure to
+        // the pre-N4 prompt, so users with old (label-free) data see zero change.
+        val effortBlock = com.migul.treningsprogram.domain.EffortTrend.promptBlock(effortSets)
+
+        return Pair("$sessionDetails\n$trends$effortBlock$stallBlock", recentExercises)
     }
 
     // H2: returns BOTH the rendered reference text AND the clean set of whole exercise names from the
