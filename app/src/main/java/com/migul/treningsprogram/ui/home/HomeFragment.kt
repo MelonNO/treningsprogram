@@ -83,12 +83,19 @@ class HomeFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
+                    data class TodayCard(
+                        val plan: List<com.migul.treningsprogram.data.db.entity.PlannedExercise>,
+                        val active: com.migul.treningsprogram.data.db.entity.WorkoutSession?,
+                        val completed: Boolean,
+                        val targets: Map<String, Float>
+                    )
                     combine(
                         viewModel.todayPlan,
                         viewModel.activeSession,
-                        viewModel.todayCompleted
-                    ) { plan, active, completed -> Triple(plan, active, completed) }
-                        .collect { (plan, active, completed) ->
+                        viewModel.todayCompleted,
+                        viewModel.todayTargets
+                    ) { plan, active, completed, targets -> TodayCard(plan, active, completed, targets) }
+                        .collect { (plan, active, completed, targets) ->
                             when {
                                 active != null -> {
                                     binding.btnStartWorkout.isEnabled = true
@@ -135,10 +142,7 @@ class HomeFragment : Fragment() {
                                 else -> {
                                     binding.btnStartWorkout.isEnabled = true
                                     binding.btnStartWorkout.text = getString(R.string.start_workout)
-                                    binding.tvTodayPlan.text = plan.joinToString("\n") { ex ->
-                                        "• ${ex.exerciseName}  ${ex.sets}x${ex.targetReps}" +
-                                            if (ex.targetWeightKg > 0f) " @ ${formatWeight(ex.targetWeightKg)}kg" else ""
-                                    }
+                                    binding.tvTodayPlan.text = renderTodayPlan(plan, targets)
                                     binding.btnStartWorkout.setOnClickListener {
                                         viewModel.startWorkout { sessionId ->
                                             if (!isAdded) return@startWorkout
@@ -254,6 +258,39 @@ class HomeFragment : Fragment() {
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    /**
+     * N1 — today's plan lines with a quiet per-exercise target suffix (A-N1a): a muted,
+     * slightly smaller "Beat 60 kg" inline on the exercise's own line, so the card gains no
+     * height. Exercises without history get no suffix; the number is exactly the in-workout
+     * Beat chip's initial target (HomeTargets contract).
+     */
+    private fun renderTodayPlan(
+        plan: List<com.migul.treningsprogram.data.db.entity.PlannedExercise>,
+        targets: Map<String, Float>
+    ): CharSequence {
+        val out = android.text.SpannableStringBuilder()
+        val muted = android.graphics.Color.parseColor("#7E908E")
+        plan.forEachIndexed { i, ex ->
+            if (i > 0) out.append("\n")
+            out.append("• ${ex.exerciseName}  ${ex.sets}x${ex.targetReps}")
+            if (ex.targetWeightKg > 0f) out.append(" @ ${formatWeight(ex.targetWeightKg)}kg")
+            val target = targets[ex.exerciseName]
+            if (target != null) {
+                val start = out.length
+                out.append("   Beat ${formatWeight(target)} kg")
+                out.setSpan(
+                    android.text.style.ForegroundColorSpan(muted),
+                    start, out.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                out.setSpan(
+                    android.text.style.RelativeSizeSpan(0.85f),
+                    start, out.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+        }
+        return out
+    }
 
     override fun onResume() {
         super.onResume()

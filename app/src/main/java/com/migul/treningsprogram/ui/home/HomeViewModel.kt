@@ -58,6 +58,13 @@ class HomeViewModel @Inject constructor(
     private val _todayPlan = MutableStateFlow<List<PlannedExercise>>(emptyList())
     val todayPlan: StateFlow<List<PlannedExercise>> = _todayPlan.asStateFlow()
 
+    // N1: per-exercise "number to beat" for today's plan — the SAME value the in-workout Beat
+    // chip starts at (HomeTargets.targetFor == BeatTarget.chipTarget with no session best).
+    // Exercises with no history are simply absent (baselines, never targets). Resolved async
+    // alongside the plan so Home stays jank-free.
+    private val _todayTargets = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val todayTargets: StateFlow<Map<String, Float>> = _todayTargets.asStateFlow()
+
     data class SessionSummary(
         val session: WorkoutSession,
         val setCount: Int,
@@ -198,7 +205,20 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { workoutRepository.ensureActiveProgramId() }
         viewModelScope.launch {
             workoutRepository.getPlannedForDay(thisMonday(), currentDayOfWeek())
-                .collect { _todayPlan.value = it }
+                .collect { plan ->
+                    _todayPlan.value = plan
+                    // N1: resolve each planned exercise's historical best (working sets only —
+                    // the DAO query filters warm-ups). No plan ⇒ empty map ⇒ no target lines.
+                    _todayTargets.value = plan
+                        .map { it.exerciseName }
+                        .distinct()
+                        .mapNotNull { name ->
+                            com.migul.treningsprogram.domain.HomeTargets
+                                .targetFor(workoutRepository.getPreviousMaxWeight(name, -1L))
+                                ?.let { name to it }
+                        }
+                        .toMap()
+                }
         }
         viewModelScope.launch {
             workoutRepository.getAllCompletedSessions().collect { sessions ->
