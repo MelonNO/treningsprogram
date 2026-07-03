@@ -31,7 +31,9 @@ class LogWorkoutViewModel @Inject constructor(
     private val dailyChallengeManager: DailyChallengeManager,
     private val prefs: PreferencesManager,
     private val gson: Gson,
-    private val gymPresetDao: com.migul.treningsprogram.data.db.dao.GymPresetDao
+    private val gymPresetDao: com.migul.treningsprogram.data.db.dao.GymPresetDao,
+    // N5: reach detection on completion (no XP — celebration only).
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
 ) : ViewModel() {
 
     private val restTimerFallbackSeconds = 90
@@ -721,7 +723,10 @@ class LogWorkoutViewModel @Inject constructor(
                     .forEach { workoutRepository.updatePlannedExercise(it.copy(isLogged = true)) }
             }
             val result = gamificationRepository.processWorkoutCompletion(sid)
-            _workoutResult.value = result
+            // N5: goal-reach check AFTER the official completion processing — detectReached
+            // promotes ACTIVE→ACHIEVED (once) and the result dialog celebrates it. No XP (A-G1).
+            val reachedGoals = goalRepository.detectReached(sid)
+            _workoutResult.value = result.copy(reachedGoals = reachedGoals)
         }
     }
 

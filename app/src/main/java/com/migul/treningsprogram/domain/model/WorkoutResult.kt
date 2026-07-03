@@ -1,6 +1,7 @@
 package com.migul.treningsprogram.domain.model
 
 import com.migul.treningsprogram.data.db.entity.Achievement
+import com.migul.treningsprogram.data.db.entity.LiftGoal
 
 /**
  * R6: a personal record with its numbers, captured at detection time so the celebration surface
@@ -40,5 +41,11 @@ data class WorkoutResult(
      * R4 contract: the Perfect Week bonus XP granted by THIS completion (0 = none). When > 0,
      * [xpEarned] already includes it and an itemized "Perfect Week" XP-log event exists.
      */
-    val perfectWeekXp: Int = 0
+    val perfectWeekXp: Int = 0,
+    /**
+     * N5 contract: lift goals this session newly ACHIEVED (already persisted as achieved by
+     * GoalRepository.detectReached — the one-way flip that makes the celebration fire exactly
+     * once). NO XP rides on these (A-G1); they only drive the celebration surface.
+     */
+    val reachedGoals: List<LiftGoal> = emptyList()
 )

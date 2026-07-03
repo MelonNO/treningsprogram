@@ -35,6 +35,8 @@ class RecapTrendsFragment : Fragment() {
     private var sessionDateMs: Long = 0L
     private var allHistory: List<StrengthPoint> = emptyList()
     private var windowMonths: Int = 0  // 0 = all
+    // N5: the exercise's active goal — gold target line on the matching chart.
+    private var activeGoal: com.migul.treningsprogram.data.db.entity.LiftGoal? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -63,6 +65,7 @@ class RecapTrendsFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             allHistory = viewModel.getStrengthHistory(exerciseName)
+            activeGoal = viewModel.activeGoalFor(exerciseName)
             if (_binding == null) return@launch
             render()
         }
@@ -97,11 +100,23 @@ class RecapTrendsFragment : Fragment() {
 
         // B07: hide the max-weight chart card when it can't draw (StrengthChartView needs >= 2
         // points) rather than show its internal "Not enough data yet" message.
+        // N5: goal target line on whichever chart matches the goal's unit — weight goals on
+        // the max-weight chart, e1RM goals on the e1RM chart below (same scale as the target).
+        val goal = activeGoal
+        fun goalGuide(forE1rm: Boolean): List<StrengthChartView.Guide> =
+            if (goal != null && goal.isE1rm == forE1rm) listOf(
+                StrengthChartView.Guide(
+                    goal.targetWeightKg, "Goal ${fmt(goal.targetWeightKg)} kg",
+                    extendRange = true, isGoal = true
+                )
+            ) else emptyList()
+
         binding.cardTrendMaxWeight.isVisible = windowed.size >= 2
         binding.chartTrend.setData(
             windowed.map { StrengthChartView.Entry(it.dateMs, it.maxWeight) },
             "kg",
-            sessionDateMs
+            sessionDateMs,
+            guides = goalGuide(forE1rm = false)
         )
 
         // Estimated-1RM trend (Epley, per session) — its own chart on the windowed history.
@@ -111,7 +126,8 @@ class RecapTrendsFragment : Fragment() {
         binding.chartTrendE1rm.setData(
             e1rmTrend.map { StrengthChartView.Entry(it.dateMs, it.e1rm.toFloat()) },
             "kg",
-            sessionDateMs
+            sessionDateMs,
+            guides = goalGuide(forE1rm = true)
         )
 
         // e1RM estimate (Epley) from the best set in the window.

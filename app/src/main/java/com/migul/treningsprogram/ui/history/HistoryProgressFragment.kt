@@ -149,19 +149,57 @@ class HistoryProgressFragment : Fragment() {
         // isWarmup=0), so OneRmTrend.prTimeline receives working-set summaries only.
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.strengthHistory.collect { history ->
+                kotlinx.coroutines.flow.combine(
+                    viewModel.strengthHistory, viewModel.goals
+                ) { history, goals -> history to goals }.collect { (history, goals) ->
                     // B07: no per-field "select an exercise" copy. The strength card is hidden until
                     // the selected exercise actually has data; the chart inside needs >= 2 points to
                     // draw, so hide the chart view (not the whole card) at a single point — the e1RM
                     // line and "view trends" entry still make sense with one logged session.
-                    val hasSelection = viewModel.selectedExercise.value.isNotBlank()
+                    val selected = viewModel.selectedExercise.value
+                    val hasSelection = selected.isNotBlank()
                     val hasHistory = hasSelection && history.isNotEmpty()
                     binding.cardStrength.isVisible = hasHistory
                     binding.btnViewTrends.isVisible = hasHistory
                     binding.chartStrength.isVisible = history.size >= 2
+
+                    // N5: this exercise's ACTIVE goal → gold target line on the weight chart
+                    // (weight goals; e1RM goals draw on the Trends e1RM chart instead, where the
+                    // scale matches) + progress readout + the manage entry point (A-G4).
+                    val activeGoal = goals.firstOrNull {
+                        it.status == com.migul.treningsprogram.data.db.entity.LiftGoal.STATUS_ACTIVE &&
+                            it.exerciseName.equals(selected.trim(), ignoreCase = true)
+                    }
+                    val goalGuides = if (activeGoal != null && !activeGoal.isE1rm) listOf(
+                        StrengthChartView.Guide(
+                            activeGoal.targetWeightKg,
+                            "Goal ${formatWeight(activeGoal.targetWeightKg)} kg",
+                            extendRange = true, isGoal = true
+                        )
+                    ) else emptyList()
+
                     binding.chartStrength.setData(history.map {
                         StrengthChartView.Entry(it.dateMs, it.maxWeight)
-                    }, "kg")
+                    }, "kg", guides = goalGuides)
+
+                    binding.btnSetGoal.isVisible = hasHistory
+                    binding.btnSetGoal.text = if (activeGoal == null) "Set goal" else "Edit goal"
+                    binding.btnSetGoal.setOnClickListener {
+                        if (hasSelection) showGoalDialog(selected.trim(), activeGoal)
+                    }
+                    if (activeGoal != null) {
+                        val best = viewModel.goalCurrentBest(activeGoal)
+                        val progress = com.migul.treningsprogram.domain.GoalProgress
+                            .progressLine(best, activeGoal.targetWeightKg)
+                        val flavor = com.migul.treningsprogram.domain.GoalProgress
+                            .dateFlavor(activeGoal.targetDateMs)
+                        val kind = if (activeGoal.isE1rm) " (est. 1RM)" else ""
+                        binding.tvGoalProgress.isVisible = hasHistory
+                        binding.tvGoalProgress.text =
+                            "🎯 $progress$kind" + (flavor?.let { "  ·  $it" } ?: "")
+                    } else {
+                        binding.tvGoalProgress.isVisible = false
+                    }
                     // Compute e1RM from the set with the highest estimated 1RM (reps in 1..19).
                     // maxByOrNull on Epley correctly handles double-progression: a lighter weight
                     // done for more reps can yield a higher e1RM than a heavier single-rep attempt.
@@ -286,6 +324,73 @@ class HistoryProgressFragment : Fragment() {
                     "No weigh-ins near these sessions — log body weight on Home to unlock this view."
             }
         }
+    }
+
+    // ── N5: goal create / edit dialog (A-G4 — managed from the exercise's Progress context) ──
+
+    private fun showGoalDialog(
+        exerciseName: String,
+        existing: com.migul.treningsprogram.data.db.entity.LiftGoal?
+    ) {
+        val ctx = requireContext()
+        val density = resources.displayMetrics.density
+        val pad = (20 * density).toInt()
+
+        val weightInput = com.google.android.material.textfield.TextInputEditText(ctx).apply {
+            hint = "Target weight (kg)"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            if (existing != null) setText(
+                if (existing.targetWeightKg == existing.targetWeightKg.toInt().toFloat())
+                    existing.targetWeightKg.toInt().toString()
+                else existing.targetWeightKg.toString()
+            )
+        }
+        val e1rmCheck = android.widget.CheckBox(ctx).apply {
+            text = "Target is estimated 1RM (not a single working set)"
+            isChecked = existing?.isE1rm ?: false
+        }
+        var targetDateMs = existing?.targetDateMs ?: 0L
+        val dateButton = com.google.android.material.button.MaterialButton(
+            ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+        ).apply {
+            text = com.migul.treningsprogram.domain.GoalProgress.dateFlavor(targetDateMs)
+                ?: "Add a target date (optional)"
+            setOnClickListener {
+                val picker = MaterialDatePicker.Builder.datePicker()
+                    .setTitleText("Target date — flavor, never a deadline")
+                    .build()
+                picker.addOnPositiveButtonClickListener { sel ->
+                    targetDateMs = sel ?: 0L
+                    text = com.migul.treningsprogram.domain.GoalProgress.dateFlavor(targetDateMs)
+                        ?: "Add a target date (optional)"
+                }
+                picker.show(parentFragmentManager, "goal_date_picker")
+            }
+        }
+        val column = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, (8 * density).toInt(), pad, 0)
+            addView(weightInput)
+            addView(e1rmCheck)
+            addView(dateButton)
+        }
+
+        val builder = com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
+            .setTitle(if (existing == null) "Set goal — $exerciseName" else "Edit goal — $exerciseName")
+            .setView(column)
+            .setPositiveButton("Save") { _, _ ->
+                val target = weightInput.text?.toString()?.toFloatOrNull() ?: 0f
+                if (target > 0f) {
+                    viewModel.saveGoal(exerciseName, target, e1rmCheck.isChecked, targetDateMs)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+        if (existing != null) {
+            // Abandoning is unceremonious — one tap, the goal just leaves the lists.
+            builder.setNeutralButton("Abandon goal") { _, _ -> viewModel.abandonGoal(existing) }
+        }
+        builder.show()
     }
 
     private fun renderStalled(stalled: List<Pair<String, String>>) {

@@ -91,6 +91,9 @@ class ProfileFragment : Fragment() {
                     galleryStats = stats ?: UserStats()
                     renderNextUp()
                     renderGallery()
+
+                    // N5: goals overview — hidden entirely when no goals exist.
+                    renderGoals(state.goals)
                 }
             }
         }
@@ -98,6 +101,59 @@ class ProfileFragment : Fragment() {
 
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    /** N5: active goals with a progress bar; achieved goals as quiet history rows. */
+    private fun renderGoals(rows: List<GoalRow>) {
+        if (_binding == null) return
+        binding.cardGoals.visibility = if (rows.isEmpty()) View.GONE else View.VISIBLE
+        binding.layoutGoals.removeAllViews()
+        if (rows.isEmpty()) return
+        val density = resources.displayMetrics.density
+        val gold = requireContext().getColor(R.color.game_gold)
+        rows.forEach { row ->
+            val goal = row.goal
+            val active = goal.status == com.migul.treningsprogram.data.db.entity.LiftGoal.STATUS_ACTIVE
+            val column = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                val p = (6 * density).toInt()
+                setPadding(0, p, 0, p)
+            }
+            val kind = if (goal.isE1rm) " est. 1RM" else ""
+            val flavor = com.migul.treningsprogram.domain.GoalProgress
+                .dateFlavor(goal.targetDateMs)?.let { "  ·  $it" } ?: ""
+            val title = TextView(requireContext()).apply {
+                textSize = 14f
+                if (active) {
+                    text = "\uD83C\uDFAF ${goal.exerciseName} — ${formatWeight(goal.targetWeightKg)} kg$kind$flavor  ·  ${row.progressPercent}%"
+                    setTextColor(requireContext().getColor(R.color.auros_snow))
+                } else {
+                    text = "\u2713 ${goal.exerciseName} — ${formatWeight(goal.targetWeightKg)} kg$kind reached ${achievedLabel(goal.achievedAtMs)}"
+                    setTextColor(gold)
+                }
+            }
+            column.addView(title)
+            if (active) {
+                column.addView(ProgressBar(
+                    requireContext(), null, android.R.attr.progressBarStyleHorizontal
+                ).apply {
+                    max = 100
+                    progress = row.progressPercent
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, (4 * density).toInt()
+                    )
+                    lp.topMargin = (4 * density).toInt()
+                    layoutParams = lp
+                    progressDrawable?.setColorFilter(gold, android.graphics.PorterDuff.Mode.SRC_IN)
+                })
+            }
+            binding.layoutGoals.addView(column)
+        }
+    }
+
+    private fun achievedLabel(achievedAtMs: Long): String =
+        if (achievedAtMs <= 0L) "" else java.text.SimpleDateFormat(
+            "dd MMM yyyy", java.util.Locale.getDefault()
+        ).format(java.util.Date(DayBoundary.toLogicalMillis(achievedAtMs)))
 
     /** How recent a PR is, in logical days ("today" / "yesterday" / "N days ago"). */
     private fun daysAgoLabel(dateMs: Long): String =

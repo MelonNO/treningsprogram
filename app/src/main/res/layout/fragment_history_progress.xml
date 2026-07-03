@@ -181,17 +181,44 @@
                     android:layout_marginTop="4dp"
                     android:visibility="gone" />
 
-                <!-- IA (UX1): one consistent entry point to the full per-exercise Trends screen,
-                     the same destination the Recap deltas open. Shown only once an exercise is
-                     selected. -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_view_trends"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
+                <!-- N5: goal progress readout ("87% of the way to 100 kg · by October") -->
+                <TextView
+                    android:id="@+id/tv_goal_progress"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="View full trends"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="6dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="@color/game_gold"
                     android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <!-- IA (UX1): one consistent entry point to the full per-exercise Trends
+                         screen, the same destination the Recap deltas open. Shown only once an
+                         exercise is selected. -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_view_trends"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="View full trends"
+                        android:layout_marginTop="4dp"
+                        android:visibility="gone" />
+
+                    <!-- N5: create/edit the goal from the exercise's Progress context (A-G4) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_set_goal"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Set goal"
+                        android:layout_marginTop="4dp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
 
             </LinearLayout>
 

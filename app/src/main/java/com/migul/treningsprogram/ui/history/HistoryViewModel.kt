@@ -16,8 +16,26 @@ import javax.inject.Inject
 class HistoryViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
     private val bodyMeasurementDao: BodyMeasurementDao,
-    private val backupScheduler: BackupScheduler
+    private val backupScheduler: BackupScheduler,
+    // N5: goal storage + reach/progress helpers for the Progress tab's goal management.
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
 ) : ViewModel() {
+
+    // ── N5: lift goals ────────────────────────────────────────────────────────────────────
+    val goals: StateFlow<List<com.migul.treningsprogram.data.db.entity.LiftGoal>> =
+        goalRepository.observeAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    suspend fun goalCurrentBest(goal: com.migul.treningsprogram.data.db.entity.LiftGoal): Float? =
+        goalRepository.currentBestFor(goal)
+
+    fun saveGoal(name: String, targetKg: Float, isE1rm: Boolean, targetDateMs: Long) {
+        viewModelScope.launch { goalRepository.createOrReplace(name, targetKg, isE1rm, targetDateMs) }
+    }
+
+    fun abandonGoal(goal: com.migul.treningsprogram.data.db.entity.LiftGoal) {
+        viewModelScope.launch { goalRepository.abandon(goal) }
+    }
 
     // ── Log tab ──────────────────────────────────────────────────────────
     // Completed real workouts only — drives the Stats tab totals (totalWorkouts / best streak),

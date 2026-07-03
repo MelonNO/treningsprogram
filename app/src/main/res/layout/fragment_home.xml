@@ -343,6 +343,31 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- N5: quiet goal nudge — shown only when an active goal is within one normal
+                 progression step, so the attempt gets planned. Lands right after the today
+                 card (Home stack order: today → goal nudge → Wrapped-ready → rest-day). -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_goal_nudge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/game_gold">
+
+                <TextView
+                    android:id="@+id/tv_goal_nudge"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="14dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="@color/game_gold"
+                    android:lineSpacingMultiplier="1.15" />
+
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- 4. Body weight card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

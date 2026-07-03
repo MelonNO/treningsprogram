@@ -8,9 +8,14 @@ import javax.inject.Inject
 
 @HiltViewModel
 class RecapTrendsViewModel @Inject constructor(
-    private val workoutRepository: WorkoutRepository
+    private val workoutRepository: WorkoutRepository,
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
 ) : ViewModel() {
 
     suspend fun getStrengthHistory(name: String): List<StrengthPoint> =
         workoutRepository.getStrengthHistory(name)
+
+    /** N5: this exercise's ACTIVE goal, for the target line on the trend charts. */
+    suspend fun activeGoalFor(name: String): com.migul.treningsprogram.data.db.entity.LiftGoal? =
+        goalRepository.activeForExercise(name)
 }

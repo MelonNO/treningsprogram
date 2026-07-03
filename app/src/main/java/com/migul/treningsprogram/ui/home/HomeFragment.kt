@@ -223,6 +223,13 @@ class HomeFragment : Fragment() {
                         binding.cardDeload.visibility = if (active) View.VISIBLE else View.GONE
                     }
                 }
+                launch {
+                    // N5: the quiet goal nudge — visible only when a goal is one step away.
+                    viewModel.goalNudge.collect { line ->
+                        binding.cardGoalNudge.visibility = if (line == null) View.GONE else View.VISIBLE
+                        binding.tvGoalNudge.text = line ?: ""
+                    }
+                }
             }
         }
 

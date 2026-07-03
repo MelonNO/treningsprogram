@@ -32,6 +32,7 @@ class HomeViewModel @Inject constructor(
     private val gymPresetDao: GymPresetDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val backupScheduler: BackupScheduler,
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository,
     val prefs: PreferencesManager
 ) : ViewModel() {
 
@@ -196,6 +197,31 @@ class HomeViewModel @Inject constructor(
         workoutRepository.observeActiveProgram()
             .map { it?.name ?: "" }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    /**
+     * N5: the quiet Home goal nudge — non-null when an ACTIVE goal is within one normal
+     * progression step (GoalProgress.NUDGE_STEP_KG) of the current best, so the attempt is
+     * planned, not accidental. Recomputed when goals change OR a workout completes (new bests).
+     * Shows the closest goal when several qualify.
+     */
+    val goalNudge: kotlinx.coroutines.flow.StateFlow<String?> =
+        kotlinx.coroutines.flow.combine(
+            goalRepository.observeAll(),
+            workoutRepository.getAllCompletedSessions()
+        ) { goals, _ -> goals.filter { it.status == com.migul.treningsprogram.data.db.entity.LiftGoal.STATUS_ACTIVE } }
+            .map { active ->
+                active
+                    .mapNotNull { goal ->
+                        val best = goalRepository.currentBestFor(goal) ?: return@mapNotNull null
+                        val line = com.migul.treningsprogram.domain.GoalProgress.nudgeLine(
+                            goal.exerciseName, best, goal.targetWeightKg, goal.isE1rm
+                        ) ?: return@mapNotNull null
+                        (goal.targetWeightKg - best) to line
+                    }
+                    .minByOrNull { it.first }
+                    ?.second
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         viewModelScope.launch { workoutRepository.ensureExercisesPopulated() }

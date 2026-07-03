@@ -946,6 +946,22 @@ class LogWorkoutFragment : Fragment() {
             }
         }
 
+        // N5: goal-reach rows — the long-arc celebration moment (reuses the PR card language;
+        // no XP rides on goals, A-G1).
+        if (result.reachedGoals.isNotEmpty()) {
+            d.cardGoals.visibility = View.VISIBLE
+            d.layoutGoalRows.removeAllViews()
+            result.reachedGoals.forEach { goal ->
+                val kind = if (goal.isE1rm) "est. 1RM" else "weight"
+                d.layoutGoalRows.addView(TextView(requireContext()).apply {
+                    text = "${goal.exerciseName} — ${formatWeight(goal.targetWeightKg)} kg $kind goal reached!"
+                    setTextColor(requireContext().getColor(R.color.auros_snow))
+                    textSize = 14f
+                    setPadding(0, 4, 0, 4)
+                })
+            }
+        }
+
         // Achievement unlocks as tier-styled cards (reuses the R5 gallery item + tier palette).
         if (result.newAchievements.isNotEmpty()) {
             d.cardAchievements.visibility = View.VISIBLE
@@ -1004,7 +1020,8 @@ class LogWorkoutFragment : Fragment() {
         // Play the moment: count the XP up (same total the bar animates later) and fire the
         // burst — scaled up for level-ups, PRs and Perfect Weeks; brief and never input-blocking.
         val intensity = when {
-            result.perfectWeekXp > 0 || result.didLevelUp -> 1.5f
+            // N5: a reached goal is the long-arc payoff — full celebration intensity.
+            result.perfectWeekXp > 0 || result.didLevelUp || result.reachedGoals.isNotEmpty() -> 1.5f
             result.personalRecords.isNotEmpty()           -> 1.25f
             else                                          -> 1f
         }

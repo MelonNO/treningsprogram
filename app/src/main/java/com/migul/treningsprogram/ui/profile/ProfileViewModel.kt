@@ -19,14 +19,23 @@ data class ProfileUiState(
     val levelTitle: String = "Rookie",
     // Stage-3 item 4: only the PRs earned in the rolling last-7-logical-days window.
     val recentPrs: List<RecentPrs.RecentPr> = emptyList(),
-    val achievements: List<Achievement> = emptyList()
+    val achievements: List<Achievement> = emptyList(),
+    // N5: lift goals — actives with live progress %, plus achieved history. Abandoned hidden.
+    val goals: List<GoalRow> = emptyList()
+)
+
+/** N5: one Profile goal row — the goal plus its current progress (0..100; 100 for achieved). */
+data class GoalRow(
+    val goal: com.migul.treningsprogram.data.db.entity.LiftGoal,
+    val progressPercent: Int
 )
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val gamificationRepository: GamificationRepository,
     private val workoutSetDao: WorkoutSetDao,
-    private val achievementDao: AchievementDao
+    private val achievementDao: AchievementDao,
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -55,6 +64,24 @@ class ProfileViewModel @Inject constructor(
         }
         // Initial load so the PR section populates even before the first userStats emission.
         viewModelScope.launch { refreshRecentPrs() }
+        // N5: goals list — actives first (with live progress), then achieved history.
+        viewModelScope.launch {
+            goalRepository.observeAll().collect { all ->
+                val visible = all.filter {
+                    it.status != com.migul.treningsprogram.data.db.entity.LiftGoal.STATUS_ABANDONED
+                }
+                val rows = visible
+                    .sortedBy { it.status != com.migul.treningsprogram.data.db.entity.LiftGoal.STATUS_ACTIVE }
+                    .map { goal ->
+                        val pct = if (goal.status == com.migul.treningsprogram.data.db.entity.LiftGoal.STATUS_ACHIEVED) 100
+                        else com.migul.treningsprogram.domain.GoalProgress.progressPercent(
+                            goalRepository.currentBestFor(goal), goal.targetWeightKg
+                        )
+                        GoalRow(goal, pct)
+                    }
+                _state.update { it.copy(goals = rows) }
+            }
+        }
     }
 
     private suspend fun refreshRecentPrs() {

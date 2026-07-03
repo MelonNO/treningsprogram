@@ -118,6 +118,41 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- N5: goal-reach celebration — the long-arc moment, styled like the PR card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_goals"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="14dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/game_gold"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎯 GOAL REACHED"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/game_gold"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:id="@+id/layout_goal_rows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Achievement unlocks as tier-styled cards (R5 tier model) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_achievements"
