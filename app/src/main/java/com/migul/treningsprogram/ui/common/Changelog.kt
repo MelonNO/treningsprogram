@@ -13,6 +13,17 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 66, versionName = "1.25.1",
+            highlights = listOf(
+                "Home, reorganized: today's workout leads the screen, the weigh-in card collapses to stay out of the way, and cards with nothing to show tidy themselves away",
+                "Logged the wrong body weight? A quick undo now lets you take it back",
+                "Cleaner logging screen: the set chips wrap neatly instead of running off the edge, and their icons are now crisp vector art",
+                "Monthly Wrapped is easier to leave — the close button stays reachable from anywhere in the story",
+                "Better fit on smaller phones: the week strip no longer crowds its dates",
+                "A more consistent look throughout — unified section headers and a single, forward-looking voice for the empty states",
+            ),
+        ),
+        Entry(
             versionCode = 65, versionName = "1.25.0",
             highlights = listOf(
                 "Lift goals: set a target weight (or est. 1RM) with an optional \"by October\" date — gold target line on the chart, live progress %, a Home nudge when you're one step away, and a real celebration when you take it",
