@@ -53,6 +53,9 @@ class HomeFragment : Fragment() {
     private val sharedResultVm: SharedWorkoutResultViewModel by activityViewModels()
     private val recapTarget: RecapTargetViewModel by activityViewModels()
     private var xpAnimating = false
+    // H2: once the user opens/closes the weigh-in input themselves, stop auto-expanding it
+    // on the empty (zero weigh-ins) state.
+    private var bwInputUserToggled = false
     private val bwDateFmt = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -228,16 +231,26 @@ class HomeFragment : Fragment() {
                 }
                 launch {
                     viewModel.muscleRecovery.collect { items ->
+                        // H3: the recovery card behaves like Home's other conditional cards —
+                        // present only when at least one muscle is actually recovering.
+                        binding.cardRecovery.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
                         renderRecovery(items)
                     }
                 }
                 launch {
                     viewModel.bodyMeasurements.collect { measurements ->
                         renderBodyWeightEntries(measurements.take(5))
-                        // R3: smoothed current weight + trend, hidden until >= 2 entries exist.
-                        val trendLine = com.migul.treningsprogram.domain.WeightTrend.homeLine(measurements)
-                        binding.tvHomeBwTrend.visibility = if (trendLine == null) View.GONE else View.VISIBLE
-                        binding.tvHomeBwTrend.text = trendLine ?: ""
+                        // H2 + R3: compact glance line. >=2 weigh-ins show the smoothed
+                        // current weight + trend; exactly one shows the current weight alone;
+                        // zero shows no glance and opens the input so the first log is one field
+                        // away (auto-expand only until the user has toggled it themselves).
+                        val glance = com.migul.treningsprogram.domain.WeightTrend.homeLine(measurements)
+                            ?: measurements.firstOrNull()?.let { "${formatWeight(it.weightKg)} kg" }
+                        binding.tvHomeBwTrend.visibility = if (glance == null) View.GONE else View.VISIBLE
+                        binding.tvHomeBwTrend.text = glance ?: ""
+                        if (measurements.isEmpty() && !bwInputUserToggled) {
+                            binding.layoutHomeBwInput.visibility = View.VISIBLE
+                        }
                     }
                 }
                 launch {
@@ -269,6 +282,14 @@ class HomeFragment : Fragment() {
             val kg = text.toFloatOrNull() ?: return@setOnClickListener
             viewModel.addBodyWeight(kg)
             binding.etHomeBodyweight.text?.clear()
+        }
+
+        // H2: the weigh-in input + recent entries reveal on demand, so the body-weight card
+        // is a compact glance on days nothing is being entered.
+        binding.btnHomeBwToggle.setOnClickListener {
+            bwInputUserToggled = true
+            val show = binding.layoutHomeBwInput.visibility != View.VISIBLE
+            binding.layoutHomeBwInput.visibility = if (show) View.VISIBLE else View.GONE
         }
     }
 
@@ -620,7 +641,15 @@ class HomeFragment : Fragment() {
             row.addView(tvDate)
             row.addView(tvWeight)
             row.setOnLongClickListener {
+                // H4: deleting a weigh-in is recoverable — an accidental long-press no longer
+                // silently destroys data. The snackbar Undo re-inserts the same entry (id, date
+                // and value preserved), so the trend line and AI context see it again unchanged.
                 viewModel.deleteBodyMeasurement(m)
+                if (isAdded && _binding != null) {
+                    Snackbar.make(binding.root, "Weigh-in deleted", Snackbar.LENGTH_LONG)
+                        .setAction("Undo") { viewModel.restoreBodyMeasurement(m) }
+                        .show()
+                }
                 true
             }
             binding.layoutHomeBwEntries.addView(row)

@@ -183,6 +183,18 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
+     * H4: restore a just-deleted weigh-in (the Undo path). Re-inserts the exact same
+     * [BodyMeasurement] — its id/date/value are preserved, so the trend line and AI context
+     * see it again unchanged. The row was deleted first, so the primary key is free.
+     */
+    fun restoreBodyMeasurement(m: BodyMeasurement) {
+        viewModelScope.launch {
+            bodyMeasurementDao.insert(m)
+            backupScheduler.requestBackup()
+        }
+    }
+
+    /**
      * E2: live deload state of the active program. When true, Home shows a visible deload banner so
      * the user can tell a stall/fatigue-triggered deload week is in effect (M2). Derived from the
      * active program's isDeloadActive flag.
