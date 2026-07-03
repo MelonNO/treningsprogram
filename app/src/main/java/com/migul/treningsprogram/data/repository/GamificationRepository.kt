@@ -529,6 +529,11 @@ class GamificationRepository @Inject constructor(
             return ((xp - start) / (end - start)).coerceIn(0f, 1f)
         }
 
+        // B11 (feature batch 2026-07-03): the ladder now continues past 20 — long-term users always
+        // have a next title to reach. Levels 1–19 are byte-identical to the pre-B11 ladder (users
+        // identify with their current title); 20–24 keeps "Transcendent" (what every 20+ user
+        // already shows today), and the new late-game rungs take over from 25. "Apex" at 100+ is
+        // the open-ended final title. Names under the standing creative-freedom grant (A-L1).
         fun levelTitle(level: Int): String = when (level) {
             1          -> "Rookie"
             2          -> "Novice"
@@ -545,7 +550,16 @@ class GamificationRepository @Inject constructor(
             13         -> "Pro"
             14         -> "Phenom"
             in 15..19  -> "Legend"
-            else       -> "Transcendent"
+            in 20..24  -> "Transcendent"
+            in 25..29  -> "Juggernaut"
+            in 30..34  -> "Titan"
+            in 35..39  -> "Colossus"
+            in 40..44  -> "Immortal"
+            in 45..49  -> "Demigod"
+            in 50..59  -> "Ascendant"
+            in 60..74  -> "Mythic"
+            in 75..99  -> "Eternal"
+            else       -> "Apex"
         }
     }
 }
