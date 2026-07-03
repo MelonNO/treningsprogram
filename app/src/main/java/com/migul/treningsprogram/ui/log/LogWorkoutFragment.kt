@@ -1057,6 +1057,8 @@ class LogWorkoutFragment : Fragment() {
     private fun startCompletionFlow(result: WorkoutResult) {
         if (!isAdded || _binding == null) return
         viewModel.clearResult()
+        // B10: the widget shows streak/challenges now — refresh it the moment they change.
+        com.migul.treningsprogram.ui.widget.TodayWorkoutWidgetProvider.requestRefresh(requireContext())
         val day = viewModel.workoutDayOfWeek.let { if (it > 0) it else currentDayOfWeek() }
         sharedResultVm.setResult(result, day)
         // P2: a completed move commits the week change; flag the Program tab to rebalance the week.

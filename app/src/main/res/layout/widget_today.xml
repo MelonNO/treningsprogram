@@ -35,4 +35,17 @@
         android:lineSpacingExtra="3dp"
         android:textColor="@color/auros_fog" />
 
+    <!-- B10: compact streak + weekly-challenge accents (Auros cyan); GONE when both empty
+         so small sizes and fresh installs keep a clean layout. -->
+    <TextView
+        android:id="@+id/tv_widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textSize="11sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@color/auros_cyan"
+        android:visibility="gone" />
+
 </LinearLayout>

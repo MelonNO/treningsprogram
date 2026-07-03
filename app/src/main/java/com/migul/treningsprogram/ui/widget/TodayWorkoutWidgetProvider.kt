@@ -32,6 +32,11 @@ class TodayWorkoutWidgetProvider : AppWidgetProvider() {
 
     @Inject lateinit var workoutRepository: WorkoutRepository
 
+    // B10: streak (the SAME stored post-R1 adherence streak the app shows — never recomputed
+    // here) + the week's challenge draw for the accent line.
+    @Inject lateinit var userStatsDao: com.migul.treningsprogram.data.db.dao.UserStatsDao
+    @Inject lateinit var dailyChallengeManager: com.migul.treningsprogram.data.preferences.DailyChallengeManager
+
     // Injected for its side effect: constructing PreferencesManager seeds the process-wide
     // DayBoundary cutoff, so "today" in this (possibly app-less) process matches the app.
     @Inject lateinit var prefsManager: PreferencesManager
@@ -87,6 +92,23 @@ class TodayWorkoutWidgetProvider : AppWidgetProvider() {
                     if (more > 0) "$shown\n+ $more more" else shown,
                 )
             }
+        }
+
+        // B10: streak + weekly-challenge accents under the plan (rest days included — a rest
+        // day maintains a plan-adherence streak; that's the point of R1). Hidden entirely when
+        // there is nothing to show. Any failure degrades to the plan-only widget.
+        val statusLine = runCatching {
+            val streak = userStatsDao.get()?.currentStreak ?: 0
+            val challenges = dailyChallengeManager.getTodayChallenges()
+            com.migul.treningsprogram.domain.WidgetStatus.line(
+                streak, challenges.count { it.isCompleted }, challenges.size
+            )
+        }.getOrNull()
+        if (statusLine == null) {
+            views.setViewVisibility(R.id.tv_widget_status, android.view.View.GONE)
+        } else {
+            views.setViewVisibility(R.id.tv_widget_status, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_widget_status, statusLine)
         }
 
         views.setOnClickPendingIntent(
