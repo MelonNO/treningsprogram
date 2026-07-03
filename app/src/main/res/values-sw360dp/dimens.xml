@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- P1: normal & large screens (smallest width >= 360dp) keep the original day-chip sizing,
+         so the week strip looks exactly as it does today. -->
+    <dimen name="day_chip_badge">40dp</dimen>
+    <dimen name="day_chip_padding">4dp</dimen>
+</resources>

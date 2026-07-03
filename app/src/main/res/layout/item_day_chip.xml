@@ -5,14 +5,16 @@
     android:layout_weight="1"
     android:orientation="vertical"
     android:gravity="center"
-    android:padding="4dp"
+    android:padding="@dimen/day_chip_padding"
     android:clickable="true"
     android:focusable="true">
 
+    <!-- P1: badge sizes from @dimen/day_chip_badge so it shrinks on compact widths instead of
+         forcing a fixed 40dp that overflows a 320dp week strip. -->
     <TextView
         android:id="@+id/tv_day_abbr"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="@dimen/day_chip_badge"
+        android:layout_height="@dimen/day_chip_badge"
         android:gravity="center"
         android:textSize="11sp"
         android:textStyle="bold" />

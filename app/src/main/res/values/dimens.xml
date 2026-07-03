@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- P1: Program week-strip day chips. Default (compact, smallest width < 360dp incl. 320dp
+         devices and split-screen) shrinks the badge so all seven days fit without clipping.
+         values-sw360dp/ restores the full 40dp/4dp used on normal & large screens (unchanged). -->
+    <dimen name="day_chip_badge">32dp</dimen>
+    <dimen name="day_chip_padding">2dp</dimen>
+</resources>
