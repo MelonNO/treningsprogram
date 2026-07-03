@@ -377,10 +377,12 @@ class LogWorkoutFragment : Fragment() {
                     combine(restTimerManager.isRunning, restTimerManager.remainingMs) { running, ms -> running to ms }
                         .collect { (running, ms) ->
                             if (running) {
+                                // C2: the ⏱ glyph is now the button's vector icon; the text is
+                                // just the live countdown.
                                 val secs = (ms / 1000).toInt()
-                                binding.btnTimerRecall.text = "⏱ %d:%02d".format(secs / 60, secs % 60)
+                                binding.btnTimerRecall.text = "%d:%02d".format(secs / 60, secs % 60)
                             } else {
-                                binding.btnTimerRecall.text = "⏱"
+                                binding.btnTimerRecall.text = ""
                             }
                         }
                 }
@@ -619,12 +621,12 @@ class LogWorkoutFragment : Fragment() {
         if (dbId != null) {
             binding.ivExerciseImage.visibility = View.VISIBLE
             binding.tvMuscleBannerLabel.visibility = View.GONE
-            binding.tvImageExpandHint.visibility = View.VISIBLE
+            binding.ivImageExpandHint.visibility = View.VISIBLE
             startImageAlternation(dbId)
             binding.layoutMuscleBanner.setOnClickListener { showFullScreenImage(dbId) }
         } else {
             stopImageAlternation()
-            binding.tvImageExpandHint.visibility = View.GONE
+            binding.ivImageExpandHint.visibility = View.GONE
             binding.layoutMuscleBanner.setOnClickListener(null)
             binding.layoutMuscleBanner.isClickable = false
             viewLifecycleOwner.lifecycleScope.launch {

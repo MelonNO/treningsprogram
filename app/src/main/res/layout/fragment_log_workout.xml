@@ -31,14 +31,20 @@
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:layout_marginEnd="4dp" />
+            <!-- C2: pause control as an Auros-tinted vector icon (was the ⏸ emoji glyph). -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_pause_workout"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="36dp" android:layout_height="36dp"
-                android:text="⏸"
-                android:textSize="16sp"
+                app:icon="@drawable/ic_pause"
+                app:iconSize="18dp"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                android:insetTop="0dp" android:insetBottom="0dp"
                 android:minWidth="0dp"
-                android:paddingStart="0dp" android:paddingEnd="0dp" />
+                android:paddingStart="9dp" android:paddingEnd="9dp"
+                android:paddingTop="0dp" android:paddingBottom="0dp"
+                android:contentDescription="Pause workout" />
         </LinearLayout>
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progress_session"
@@ -89,19 +95,25 @@
                                     android:textColor="?attr/colorOnSurface" />
                             </LinearLayout>
 
-                            <!-- target chips row -->
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                                android:orientation="horizontal" android:layout_marginBottom="6dp">
+                            <!-- L1: target spec chips in a wrapping ChipGroup (Material, no new
+                                 dependency) so on a compact screen the weight chip flows to a
+                                 second line instead of clipping off the edge. On normal screens
+                                 they still sit on one line as before. -->
+                            <com.google.android.material.chip.ChipGroup
+                                android:id="@+id/chipgroup_targets"
+                                android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:layout_marginBottom="6dp"
+                                app:chipSpacingHorizontal="8dp"
+                                app:chipSpacingVertical="6dp"
+                                app:singleLine="false">
                                 <TextView android:id="@+id/chip_target_sets"
                                     android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:layout_marginEnd="8dp"
                                     android:paddingStart="10dp" android:paddingEnd="10dp"
                                     android:paddingTop="4dp" android:paddingBottom="4dp"
                                     android:textSize="12sp" android:textStyle="bold"
                                     android:textColor="@color/auros_cyan" android:background="@drawable/bg_spec_chip" />
                                 <TextView android:id="@+id/chip_target_reps"
                                     android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:layout_marginEnd="8dp"
                                     android:paddingStart="10dp" android:paddingEnd="10dp"
                                     android:paddingTop="4dp" android:paddingBottom="4dp"
                                     android:textSize="12sp" android:textStyle="bold"
@@ -112,7 +124,7 @@
                                     android:paddingTop="4dp" android:paddingBottom="4dp"
                                     android:textSize="12sp" android:textStyle="bold"
                                     android:textColor="?attr/colorOnSurfaceVariant" android:background="@drawable/bg_spec_chip" />
-                            </LinearLayout>
+                            </com.google.android.material.chip.ChipGroup>
 
                             <!-- R7: "beat last time" target chip — flares gold "PR! x kg" the
                                  moment a working set beats the exercise's historical best.
@@ -203,17 +215,18 @@
                                     android:scaleType="centerCrop"
                                     android:visibility="gone"
                                     android:contentDescription="Exercise image" />
-                                <TextView
-                                    android:id="@+id/tv_image_expand_hint"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
+                                <!-- C2: expand-image hint as a tinted vector icon (was the ⛶ glyph). -->
+                                <ImageView
+                                    android:id="@+id/iv_image_expand_hint"
+                                    android:layout_width="18dp"
+                                    android:layout_height="18dp"
                                     android:layout_gravity="bottom|end"
                                     android:layout_margin="4dp"
                                     android:padding="2dp"
-                                    android:text="⛶"
-                                    android:textSize="11sp"
-                                    android:textColor="#AAFFFFFF"
+                                    android:src="@drawable/ic_fullscreen"
+                                    app:tint="#CCFFFFFF"
                                     android:background="#44000000"
+                                    android:contentDescription="Expand image"
                                     android:visibility="gone" />
                             </FrameLayout>
                         </com.google.android.material.card.MaterialCardView>
@@ -458,15 +471,20 @@
             android:text="Back"
             android:textSize="13sp" />
         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <!-- C2: rest-timer recall as an Auros-tinted vector icon (was the ⏱ glyph). The button's
+             text carries the live countdown ("1:30") while a timer runs; empty otherwise. -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_timer_recall"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content" android:layout_height="36dp"
-            android:text="⏱"
+            app:icon="@drawable/ic_timer"
+            app:iconSize="18dp"
+            app:iconGravity="textStart"
             android:textSize="14sp"
             android:minWidth="0dp"
-            android:paddingStart="14dp" android:paddingEnd="14dp"
-            android:layout_marginEnd="8dp" />
+            android:paddingStart="12dp" android:paddingEnd="14dp"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="Rest timer" />
         <com.migul.treningsprogram.ui.widget.AuroraGhostButton
             android:id="@+id/btn_next_exercise"
             style="@style/Widget.Auros.Button.Ghost"
