@@ -111,13 +111,31 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v6 -> v7.
+     *
+     * v7 (QoL batch 2026-07-25, item 02) only widens the [GymPreset] rows with the nullable
+     * `avoidExercisesJson` field (per-gym "exercises to avoid"). A v6 backup simply lacks the
+     * field on each preset object, and Gson leaves it null on deserialize — exactly the DB
+     * migration's NULL default — so the step only stamps the new version (same pattern as
+     * v3 -> v4 / v4 -> v5).
+     */
+    private val V6_TO_V7 = object : MigrationStep {
+        override val fromVersion = 6
+        override fun migrate(root: JsonObject): JsonObject {
+            root.addProperty("schema_version", 7)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
         V2_TO_V3,
         V3_TO_V4,
         V4_TO_V5,
-        V5_TO_V6
+        V5_TO_V6,
+        V6_TO_V7
     ).associateBy { it.fromVersion }
 
     /**

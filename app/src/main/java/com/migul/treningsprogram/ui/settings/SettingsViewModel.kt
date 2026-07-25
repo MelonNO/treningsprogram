@@ -336,6 +336,8 @@ class SettingsViewModel @Inject constructor(
                     gson.fromJson<List<String>>(it.equipmentJson, type)
                 }.getOrElse { emptyList() }
             } ?: emptyList()
+            // Item 02: the selected gym's hard exclusion list rides along with its equipment.
+            val gymAvoid = com.migul.treningsprogram.domain.GymExclusions.parse(preset?.avoidExercisesJson)
             // B08: honour the user's rest-day selection (rest-day mode derives days/week; count mode
             // falls back to the passed-in count). Item 9: this Settings generate path now PRESERVES
             // already-logged days and rebalances the rest of the week around them — reusing the same
@@ -359,6 +361,7 @@ class SettingsViewModel @Inject constructor(
                 injurySeverity = prefs.injurySeverity,
                 priorityMuscles = prefs.priorityMuscles,
                 dislikedExercises = prefs.dislikedExercises,
+                gymAvoidExercises = gymAvoid,
                 onboardingContext = prefs.onboardingContext,
                 mesocycle = mesocycle,
                 restDays = eff.restDays,

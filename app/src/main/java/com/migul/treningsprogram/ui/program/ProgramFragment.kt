@@ -654,7 +654,8 @@ class ProgramFragment : Fragment() {
                 val equipment = viewModel.getEquipmentForPreset(selectedPresetId)
                 val notes = viewModel.getNotesForPreset(selectedPresetId)
                 val focus = muscleOptions[muscleSpinner.selectedItemPosition].let { if (it == "AI decides") "" else it }
-                viewModel.regenerateDay(dayOfWeek, equipment, notes, focus)
+                // Item 02: the exclusions follow whichever gym THIS generation targets (the picked preset).
+                viewModel.regenerateDay(dayOfWeek, equipment, notes, focus, viewModel.getAvoidForPreset(selectedPresetId))
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -863,7 +864,8 @@ class ProgramFragment : Fragment() {
                         val presetId = viewModel.currentPresetId
                         viewModel.regeneratePreservingLoggedDays(
                             equipment = viewModel.getEquipmentForPreset(presetId),
-                            equipmentNotes = viewModel.getNotesForPreset(presetId)
+                            equipmentNotes = viewModel.getNotesForPreset(presetId),
+                            avoidExercises = viewModel.getAvoidForPreset(presetId)
                         )
                     }
                     "Make a mesocycle block" -> showMesocycleDialog()

@@ -24,7 +24,7 @@ import com.migul.treningsprogram.data.db.entity.*
         LiftGoal::class,
         ExerciseNote::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -313,6 +313,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Item 02: per-gym "exercises to avoid". Additive nullable column (NULL = no exclusions,
+        // same backup-safe pattern as the v18 plate-profile columns), then a one-time pre-fill of
+        // the SEEDED Home Gym preset with the user's confirmed exclusion (Chest-Supported Dumbbell
+        // Row — their home bench cannot support it). The preset is identified by its seeded name;
+        // a renamed preset is deliberately NOT guessed at (the user can add the entry themselves).
+        // Idempotent: the ADD COLUMN only runs at 19→20, and the UPDATE only touches rows whose
+        // avoidExercisesJson is still NULL.
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE gym_presets ADD COLUMN avoidExercisesJson TEXT")
+                db.execSQL(
+                    "UPDATE gym_presets SET avoidExercisesJson = ? WHERE name = 'Home Gym' AND avoidExercisesJson IS NULL",
+                    arrayOf<Any?>(com.migul.treningsprogram.domain.GymExclusions.HOME_GYM_DEFAULT_JSON)
+                )
+            }
+        }
+
         suspend fun seedPresets(dao: GymPresetDao) {
             if (dao.count() > 0) return
             val gson = Gson()
@@ -333,7 +350,10 @@ abstract class AppDatabase : RoomDatabase() {
             dao.insert(GymPreset(name = "Home Gym",
                 equipmentJson = gson.toJson(listOf("Pull-up bar", "Bench press bench",
                     "Barbell", "Dumbbells", "Ab roller")),
-                notes = "Low ceiling — standing overhead barbell press not possible. Avoid any exercise requiring a barbell held overhead while standing."))
+                notes = "Low ceiling — standing overhead barbell press not possible. Avoid any exercise requiring a barbell held overhead while standing.",
+                // Item 02: fresh installs get the same Home Gym exclusion the 19→20 migration
+                // pre-fills on existing installs (the home bench cannot support this movement).
+                avoidExercisesJson = com.migul.treningsprogram.domain.GymExclusions.HOME_GYM_DEFAULT_JSON))
                 // Home Gym: profile fields left null = the 50 mm home defaults (7 kg bar,
                 // home plate set, plate-loaded dumbbells) from PlateMath.PlateProfile.DEFAULT.
         }

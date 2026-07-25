@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.preferences.PreferencesManager
+import com.migul.treningsprogram.domain.GymExclusions
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,7 @@ class GymPresetsViewModel @Inject constructor(
     fun addPreset(
         name: String, equipment: List<String>, notes: String,
         barWeightKg: Float?, dumbbellBarWeightKg: Float?, platesCsv: String?, loadableDumbbells: Boolean?,
+        avoidExercises: List<String> = emptyList(),
     ) {
         viewModelScope.launch {
             dao.insert(
@@ -38,6 +40,7 @@ class GymPresetsViewModel @Inject constructor(
                     name = name, equipmentJson = gson.toJson(equipment), notes = notes,
                     barWeightKg = barWeightKg, dumbbellBarWeightKg = dumbbellBarWeightKg,
                     platesCsv = platesCsv, loadableDumbbells = loadableDumbbells,
+                    avoidExercisesJson = GymExclusions.toJson(avoidExercises),
                 )
             )
         }
@@ -46,6 +49,7 @@ class GymPresetsViewModel @Inject constructor(
     fun updatePreset(
         preset: GymPreset, newName: String, equipment: List<String>, notes: String,
         barWeightKg: Float?, dumbbellBarWeightKg: Float?, platesCsv: String?, loadableDumbbells: Boolean?,
+        avoidExercises: List<String> = emptyList(),
     ) {
         viewModelScope.launch {
             dao.update(
@@ -53,10 +57,14 @@ class GymPresetsViewModel @Inject constructor(
                     name = newName, equipmentJson = gson.toJson(equipment), notes = notes,
                     barWeightKg = barWeightKg, dumbbellBarWeightKg = dumbbellBarWeightKg,
                     platesCsv = platesCsv, loadableDumbbells = loadableDumbbells,
+                    avoidExercisesJson = GymExclusions.toJson(avoidExercises),
                 )
             )
         }
     }
+
+    /** Item 02: a preset's "exercises to avoid" list (null/malformed JSON ⇒ empty). */
+    fun getAvoidExercises(preset: GymPreset): List<String> = GymExclusions.parse(preset.avoidExercisesJson)
 
     fun deletePreset(preset: GymPreset) {
         viewModelScope.launch {

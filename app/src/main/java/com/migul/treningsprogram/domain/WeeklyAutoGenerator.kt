@@ -124,6 +124,8 @@ class WeeklyAutoGenerator @Inject constructor(
                 gson.fromJson<List<String>>(it.equipmentJson, type)
             }.getOrElse { emptyList() }
         } ?: prefsManager.wizardEquipment.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        // Item 02: the selected gym's hard exclusion list rides along with its equipment.
+        val gymAvoid = GymExclusions.parse(preset?.avoidExercisesJson)
 
         // E2 (M2): stall/fatigue-triggered deload decision, reusing B3's StallDetector via the
         // repository. If we were already deloading last week, the recovery week is done (exit);
@@ -157,6 +159,7 @@ class WeeklyAutoGenerator @Inject constructor(
             injurySeverity = prefsManager.injurySeverity,
             priorityMuscles = prefsManager.priorityMuscles,
             dislikedExercises = prefsManager.dislikedExercises,
+            gymAvoidExercises = gymAvoid,
             onboardingContext = prefsManager.onboardingContext,
             mesocycle = mesocycle,
             restDays = eff.restDays

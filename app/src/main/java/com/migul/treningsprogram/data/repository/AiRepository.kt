@@ -1054,6 +1054,10 @@ $qa
         injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
+        // Item 02: the target gym's "exercises to avoid" list. Enters the prompt as a HARD
+        // never-include AND is deterministically stripped from every parsed plan before the
+        // gates run, so an excluded exercise can never reach a saved plan (see GymExclusions).
+        gymAvoidExercises: List<String> = emptyList(),
         onboardingContext: String = "",
         mesocycle: MesocycleContext = MesocycleContext.NONE,
         // B08: explicit REST weekdays (1=Mon…7=Sun). Non-empty ⇒ the plan must train on EXACTLY the
@@ -1144,7 +1148,7 @@ $qa
                 history, daysPerWeek, goal, experience,
                 sessionDurationMinutes, equipment, equipmentNotes,
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
-                injuries, injurySeverity, priorityMuscles, dislikedExercises, onboardingContext,
+                injuries, injurySeverity, priorityMuscles, dislikedExercises, gymAvoidExercises, onboardingContext,
                 previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
                 restDays, lockedExercises, manualRest, bodyWeightLine
             )
@@ -1192,7 +1196,14 @@ $qa
             val cleanJson = extractJsonOrNull(responseText)
             // parseProgram can still throw on a residual-but-malformed span (gson) — keep that inside
             // the loop too, so it becomes a rejected attempt rather than an escape.
+            // Item 02: the HARD per-gym exclusion guarantee — strip any excluded exercise the model
+            // included anyway, BEFORE the gates run, so the plan the gates approve is exactly the
+            // plan that gets saved (a stripped-empty/under-time plan is rejected + retried as usual).
             val exercises = cleanJson?.let { runCatching { parseProgram(it) }.getOrNull() }
+                ?.let { parsed ->
+                    com.migul.treningsprogram.domain.GymExclusions
+                        .filter(parsed, gymAvoidExercises) { ex -> ex.exerciseName }
+                }
             if (cleanJson == null || exercises == null) {
                 val truncated = isLikelyTruncated(responseText, response.stopReason)
                 val parseRejectionReason = when {
@@ -1567,6 +1578,8 @@ OR
         injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
+        // Item 02: hard per-gym exclusions (rendered in the FORBIDDEN EXERCISES section).
+        gymAvoidExercises: List<String> = emptyList(),
         onboardingContext: String = "",
         previousPlan: String = "",
         // H2: clean whole exercise names from the PREVIOUS plan's structured rows (commas preserved,
@@ -1791,7 +1804,7 @@ ${if (equipmentNotes.isNotBlank()) "Equipment notes: $equipmentNotes" else ""}
 ══════════════════════════════════════════
 FORBIDDEN EXERCISES (equipment not available)
 ══════════════════════════════════════════
-${if (forbidden.isEmpty()) "None — all exercise types are available." else "Do NOT prescribe any of these: ${forbidden.joinToString(", ")}"}$rackNote
+${if (forbidden.isEmpty()) "None — all exercise types are available." else "Do NOT prescribe any of these: ${forbidden.joinToString(", ")}"}$rackNote${com.migul.treningsprogram.domain.GymExclusions.promptLine(gymAvoidExercises).let { if (it.isBlank()) "" else "\n$it" }}
 
 ══════════════════════════════════════════
 GOAL PROGRAMMING — WIDE REP/REST/VOLUME BANDS (GUIDELINES, not a fixed table)
@@ -2051,6 +2064,10 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         injurySeverity: String = "",
         priorityMuscles: String = "",
         dislikedExercises: String = "",
+        // Item 02: the TARGET gym's exclusions — when the swap dialog's preset picker chooses a
+        // different gym, the caller passes THAT gym's list, so the exclusion follows whichever
+        // gym this generation targets. Prompt + deterministic strip, same as the weekly path.
+        gymAvoidExercises: List<String> = emptyList(),
         muscleFocus: String = "",
         onProgress: (String) -> Unit = {}
     ): Result<List<PlannedExercise>> = runCatching {
@@ -2167,6 +2184,9 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 appendLine("EXERCISES TO EXCLUDE (NEVER include): $dislikedExercises")
                 appendLine()
             }
+            com.migul.treningsprogram.domain.GymExclusions.promptLine(gymAvoidExercises).let {
+                if (it.isNotBlank()) { appendLine(it); appendLine() }
+            }
             appendLine("REST OF THE WEEK (already scheduled — avoid training the SAME primary muscle group on immediately adjacent days):")
             appendLine(weekContext)
             appendLine()
@@ -2254,8 +2274,14 @@ Rebalance the remaining days against this already-trained work: manage recovery 
 
             // No-JSON / truncated / unparseable → retryable rejection (matches the weekly loop).
             val cleanJson = extractJsonOrNull(responseText)
+            // Item 02: same HARD exclusion strip as the weekly path — before the gate, so the
+            // reviewed day and the saved day are identical (stripped-empty ⇒ rejected + retried).
             val exercises = cleanJson?.let { runCatching { parseProgram(it) }.getOrNull() }
                 ?.filter { it.dayOfWeek == dayOfWeek }
+                ?.let { parsed ->
+                    com.migul.treningsprogram.domain.GymExclusions
+                        .filter(parsed, gymAvoidExercises) { ex -> ex.exerciseName }
+                }
             if (cleanJson == null || exercises == null || exercises.isEmpty()) {
                 val reason = when {
                     isLikelyTruncated(responseText, response.stopReason) ->

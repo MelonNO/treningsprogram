@@ -34,7 +34,8 @@ class BackupV6GoalsNotesTest {
             }
         """.trimIndent()
         val envelope = BackupMigrations.parseAndMigrate(gson, v5)
-        assertEquals(6, envelope.schemaVersion)
+        // v7 (QoL 2026-07-25): a parsed envelope now lands on the current version (7).
+        assertEquals(7, envelope.schemaVersion)
         assertTrue(envelope.goals.isEmpty())
         assertTrue(envelope.exerciseNotes.isEmpty())
         assertEquals(5, envelope.preferences.daysPerWeek)
@@ -50,7 +51,8 @@ class BackupV6GoalsNotesTest {
             }
         """.trimIndent()
         val envelope = BackupMigrations.parseAndMigrate(gson, v1)
-        assertEquals(6, envelope.schemaVersion)
+        // v7 (QoL 2026-07-25): a parsed envelope now lands on the current version (7).
+        assertEquals(7, envelope.schemaVersion)
         assertTrue(envelope.goals.isEmpty())
         assertTrue(envelope.exerciseNotes.isEmpty())
     }

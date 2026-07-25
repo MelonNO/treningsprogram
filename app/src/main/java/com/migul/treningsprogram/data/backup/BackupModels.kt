@@ -37,7 +37,7 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 6
+const val CURRENT_BACKUP_VERSION = 7
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.

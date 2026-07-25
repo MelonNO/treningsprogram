@@ -102,8 +102,12 @@ class GymPresetsFragment : Fragment() {
                     if (equipment.size > 4) "  +${equipment.size - 4} more" else ""
 
             val tvNotes = card.findViewById<TextView>(R.id.tv_preset_notes)
-            if (preset.notes.isNotBlank()) {
-                tvNotes.text = "⚠️ ${preset.notes}"
+            // Item 02: surface the gym's exclusion list on its card, under the notes.
+            val avoid = viewModel.getAvoidExercises(preset)
+            val avoidLine = if (avoid.isEmpty()) "" else "Avoid: ${avoid.joinToString(", ")}"
+            val notesLine = if (preset.notes.isBlank()) "" else "⚠️ ${preset.notes}"
+            if (notesLine.isNotBlank() || avoidLine.isNotBlank()) {
+                tvNotes.text = listOf(notesLine, avoidLine).filter { it.isNotBlank() }.joinToString("\n")
                 tvNotes.visibility = View.VISIBLE
             }
 
@@ -234,6 +238,68 @@ class GymPresetsFragment : Fragment() {
         addRow.addView(tilNewItem); addRow.addView(btnAdd)
         dialogView.addView(addRow)
 
+        // ── Item 02: exercises to avoid at this gym (never included in generated plans) ──
+        val avoidItems = (existing?.let { viewModel.getAvoidExercises(it) } ?: emptyList()).toMutableList()
+        dialogView.addView(TextView(ctx).apply {
+            text = "Exercises to avoid at this gym"
+            textSize = 14f
+            setTextColor(Color.parseColor("#EDFFFE"))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
+                it.topMargin = dp(16); it.bottomMargin = dp(6)
+            }
+        })
+        val avoidLayout = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        dialogView.addView(avoidLayout)
+
+        fun rebuildAvoidList() {
+            avoidLayout.removeAllViews()
+            avoidItems.forEachIndexed { idx, item ->
+                val row = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dp(4) }
+                }
+                val tv = TextView(ctx).apply {
+                    text = "• $item"
+                    textSize = 13f
+                    setTextColor(Color.parseColor("#7E908E"))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val btnDel = MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                    text = "×"
+                    textSize = 14f
+                    val size = dp(36)
+                    layoutParams = LinearLayout.LayoutParams(size, size)
+                    setOnClickListener { avoidItems.removeAt(idx); rebuildAvoidList() }
+                }
+                row.addView(tv); row.addView(btnDel)
+                avoidLayout.addView(row)
+            }
+        }
+        rebuildAvoidList()
+
+        val avoidAddRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(10) }
+        }
+        val etNewAvoid = TextInputEditText(ctx)
+        val tilNewAvoid = TextInputLayout(ctx, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = "Add exercise to avoid"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(etNewAvoid)
+        }
+        val btnAddAvoid = MaterialButton(ctx).apply {
+            text = "Add"
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginStart = dp(8) }
+            setOnClickListener {
+                val txt = etNewAvoid.text.toString().trim()
+                if (txt.isNotBlank()) { avoidItems.add(txt); etNewAvoid.setText(""); rebuildAvoidList() }
+            }
+        }
+        avoidAddRow.addView(tilNewAvoid); avoidAddRow.addView(btnAddAvoid)
+        dialogView.addView(avoidAddRow)
+
         // ── Plate-calculator profile (leave blank to use the 50 mm home defaults) ──
         val defaults = PlateMath.PlateProfile.DEFAULT
         dialogView.addView(TextView(ctx).apply {
@@ -291,8 +357,8 @@ class GymPresetsFragment : Fragment() {
                 val platesCsv = etPlates.text.toString().trim()
                     .takeIf { PlateMath.PlateProfile.parsePlates(it).isNotEmpty() }
                 val loadable = cbLoadableDb.isChecked
-                if (existing == null) viewModel.addPreset(name, equipmentItems, notes, barKg, dbBarKg, platesCsv, loadable)
-                else viewModel.updatePreset(existing, name, equipmentItems, notes, barKg, dbBarKg, platesCsv, loadable)
+                if (existing == null) viewModel.addPreset(name, equipmentItems, notes, barKg, dbBarKg, platesCsv, loadable, avoidItems)
+                else viewModel.updatePreset(existing, name, equipmentItems, notes, barKg, dbBarKg, platesCsv, loadable, avoidItems)
             }
             .setNegativeButton("Cancel", null)
             .show()

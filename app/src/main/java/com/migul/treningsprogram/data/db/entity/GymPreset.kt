@@ -16,5 +16,10 @@ data class GymPreset(
     val barWeightKg: Float? = null,
     val dumbbellBarWeightKg: Float? = null,
     val platesCsv: String? = null,
-    val loadableDumbbells: Boolean? = null
+    val loadableDumbbells: Boolean? = null,
+    // Item 02 (DB v20): per-gym "exercises to avoid" — JSON array of exercise names that must
+    // never appear in a plan generated for this gym (see domain/GymExclusions). NULLABLE like the
+    // plate profile: null = no exclusions, and old backups (Gson leaves missing fields null) and
+    // the additive migration resolve identically.
+    val avoidExercisesJson: String? = null
 )

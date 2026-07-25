@@ -118,6 +118,8 @@ class SetupWizardViewModel @Inject constructor(
                 injurySeverity = prefs.injurySeverity,
                 priorityMuscles = prefs.priorityMuscles,
                 dislikedExercises = prefs.dislikedExercises,
+                // Item 02: the wizard generates for the selected gym — its exclusions apply.
+                gymAvoidExercises = com.migul.treningsprogram.domain.GymExclusions.parse(preset?.avoidExercisesJson),
                 restDays = eff.restDays,
                 onProgress = { _generationStatus.value = it }
             ).onSuccess { result ->

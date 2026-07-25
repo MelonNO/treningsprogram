@@ -155,6 +155,13 @@ class ProgramViewModel @Inject constructor(
         return presets.value.find { it.id == presetId }?.notes ?: ""
     }
 
+    /** Item 02: the "exercises to avoid" list of [presetId] — follows whichever gym a regen targets. */
+    fun getAvoidForPreset(presetId: Long): List<String> {
+        if (presetId == -1L) return emptyList()
+        return com.migul.treningsprogram.domain.GymExclusions
+            .parse(presets.value.find { it.id == presetId }?.avoidExercisesJson)
+    }
+
     fun selectDay(day: Int) { _selectedDay.value = day }
 
     fun logExercise(exercise: PlannedExercise, actualWeight: Float, actualReps: String, actualSets: Int) {
@@ -260,7 +267,11 @@ class ProgramViewModel @Inject constructor(
 
     fun clearDayGenerationError() { _dayGenerationError.value = null }
 
-    fun regenerateDay(dayOfWeek: Int, equipment: List<String>, equipmentNotes: String, muscleFocus: String = "") {
+    fun regenerateDay(
+        dayOfWeek: Int, equipment: List<String>, equipmentNotes: String, muscleFocus: String = "",
+        // Item 02: the exclusions of the gym this regen TARGETS (the swap dialog's picked preset).
+        avoidExercises: List<String> = emptyList()
+    ) {
         if (prefsManager.apiKey.isBlank()) {
             _dayGenerationError.value = "Set your API key in Profile → Settings first."
             return
@@ -288,6 +299,7 @@ class ProgramViewModel @Inject constructor(
                 injurySeverity = prefsManager.injurySeverity,
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
+                gymAvoidExercises = avoidExercises,
                 muscleFocus = muscleFocus,
                 onProgress = { _dayGenerationStatus.value = it }
             ).onSuccess { exercises ->
@@ -299,8 +311,8 @@ class ProgramViewModel @Inject constructor(
                 if (prefsManager.autoRebalanceEnabled &&
                     com.migul.treningsprogram.domain.MuscleFocus.changed(beforeNames, exercises.map { it.exerciseName })
                 ) {
-                    val (eq, notes) = resolveEquipment()
-                    runRebalance(setOf(dayOfWeek), eq, notes, showNothingError = false)
+                    val (eq, notes, avoid) = resolveEquipment()
+                    runRebalance(setOf(dayOfWeek), eq, notes, showNothingError = false, avoidExercises = avoid)
                     rebalanced = true
                 }
             }.onFailure { e ->
@@ -325,15 +337,17 @@ class ProgramViewModel @Inject constructor(
     private fun currentDayNames(day: Int): List<String> =
         weekPlan.value.filter { it.dayOfWeek == day }.sortedBy { it.orderInDay }.map { it.exerciseName }
 
-    /** Equipment + notes for the user's currently-selected gym preset (for internally-triggered regens). */
-    private suspend fun resolveEquipment(): Pair<List<String>, String> {
+    /** Equipment + notes + avoid-list for the user's currently-selected gym preset (for internally-triggered regens). */
+    private suspend fun resolveEquipment(): Triple<List<String>, String, List<String>> {
         val presetId = prefsManager.selectedGymPresetId
-        if (presetId == -1L) return emptyList<String>() to ""
-        val preset = gymPresetDao.getById(presetId) ?: return emptyList<String>() to ""
+        if (presetId == -1L) return Triple(emptyList(), "", emptyList())
+        val preset = gymPresetDao.getById(presetId) ?: return Triple(emptyList(), "", emptyList())
         val equip = runCatching {
             gson.fromJson<List<String>>(preset.equipmentJson, object : TypeToken<List<String>>() {}.type)
         }.getOrElse { emptyList() }
-        return (equip ?: emptyList()) to preset.notes
+        // Item 02: the gym's exclusion list travels with its equipment on every internal regen.
+        return Triple(equip ?: emptyList(), preset.notes,
+            com.migul.treningsprogram.domain.GymExclusions.parse(preset.avoidExercisesJson))
     }
 
     /**
@@ -348,8 +362,8 @@ class ProgramViewModel @Inject constructor(
         if (afterRows.any { it.isLogged }) return  // never auto-rebalance off a logged day
         val afterNames = afterRows.sortedBy { it.orderInDay }.map { it.exerciseName }
         if (com.migul.treningsprogram.domain.MuscleFocus.changed(beforeNames, afterNames)) {
-            val (eq, notes) = resolveEquipment()
-            runRebalance(setOf(day), eq, notes, showNothingError = false)
+            val (eq, notes, avoid) = resolveEquipment()
+            runRebalance(setOf(day), eq, notes, showNothingError = false, avoidExercises = avoid)
         }
     }
 
@@ -363,7 +377,9 @@ class ProgramViewModel @Inject constructor(
         extraLockedDays: Set<Int>,
         equipment: List<String>,
         equipmentNotes: String,
-        showNothingError: Boolean
+        showNothingError: Boolean,
+        // Item 02: the target gym's exclusions (defaults to none for legacy callers).
+        avoidExercises: List<String> = emptyList()
     ) {
         if (prefsManager.apiKey.isBlank()) {
             if (showNothingError) _dayGenerationError.value = "Set your API key in Profile → Settings first."
@@ -402,6 +418,7 @@ class ProgramViewModel @Inject constructor(
                 injurySeverity = prefsManager.injurySeverity,
                 priorityMuscles = prefsManager.priorityMuscles,
                 dislikedExercises = prefsManager.dislikedExercises,
+                gymAvoidExercises = avoidExercises,
                 onboardingContext = prefsManager.onboardingContext,
                 mesocycle = mesocycle,
                 restDays = eff.restDays,
@@ -432,9 +449,9 @@ class ProgramViewModel @Inject constructor(
      * feeding the already-trained days to the AI as fixed context so it rebalances around them.
      * Never deletes logged sets/history (only planned_exercises for non-logged days are replaced).
      */
-    fun regeneratePreservingLoggedDays(equipment: List<String>, equipmentNotes: String) {
+    fun regeneratePreservingLoggedDays(equipment: List<String>, equipmentNotes: String, avoidExercises: List<String> = emptyList()) {
         generationRunner.scope.launch {   // item 05: survives backgrounding; FGS held inside runRebalance
-            runRebalance(extraLockedDays = emptySet(), equipment = equipment, equipmentNotes = equipmentNotes, showNothingError = true)
+            runRebalance(extraLockedDays = emptySet(), equipment = equipment, equipmentNotes = equipmentNotes, showNothingError = true, avoidExercises = avoidExercises)
         }
     }
 
@@ -446,8 +463,8 @@ class ProgramViewModel @Inject constructor(
      */
     fun rebalanceAfterDayMove() {
         generationRunner.scope.launch {   // item 05: survives backgrounding; FGS held inside runRebalance
-            val (eq, notes) = resolveEquipment()
-            runRebalance(extraLockedDays = emptySet(), equipment = eq, equipmentNotes = notes, showNothingError = false)
+            val (eq, notes, avoid) = resolveEquipment()
+            runRebalance(extraLockedDays = emptySet(), equipment = eq, equipmentNotes = notes, showNothingError = false, avoidExercises = avoid)
         }
     }
 
