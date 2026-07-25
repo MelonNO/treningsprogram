@@ -15,7 +15,7 @@ Created 2026-07-25 from the Raspberry Pi 5 (aarch64) original.
 | `settings/user-settings.json` | model, effort level, theme, enabled plugins | `~/.claude/settings.json` |
 | `settings/user-settings.local.json` | user-scope permission allowlist | `~/.claude/settings.local.json` |
 | `settings/project-settings.local.json` | project-scope permission allowlist | `<repo>/.claude/settings.local.json` |
-| `memory/` | main-session memory (41 files + `MEMORY.md` index) | `~/.claude/projects/<encoded-path>/memory/` |
+| `memory/` | main-session memory (39 files + `MEMORY.md` index) | `~/.claude/projects/<encoded-path>/memory/` |
 | `agent-memory/` | per-agent memory (orchestrator, intake, ui-test-worker) | `<repo>/.claude/agent-memory/` |
 | `plugins/` | marketplace + installed-plugin manifests (reference) | see [Plugins](#4-plugins) |
 | `claude-md/global-CLAUDE.md` | the home-dir `CLAUDE.md` from the Pi | optional, see below |
