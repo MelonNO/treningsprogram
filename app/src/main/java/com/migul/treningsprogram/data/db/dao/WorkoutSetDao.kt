@@ -56,6 +56,19 @@ interface WorkoutSetDao {
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY exerciseName, setNumber")
     suspend fun getSetsForSessionOnce(sessionId: Long): List<WorkoutSet>
 
+    /**
+     * QoL item 04: every set of every completed session, live — the History week-browser
+     * derives its day/exercise summaries and PR baselines from this single stream (placeholder
+     * REST/MISSED sessions carry no sets, so they never appear here).
+     */
+    @Query("""
+        SELECT ws.* FROM workout_sets ws
+        JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE s.isCompleted = 1
+        ORDER BY ws.sessionId, ws.exerciseName, ws.setNumber
+    """)
+    fun observeAllForCompletedSessions(): Flow<List<WorkoutSet>>
+
     @Query("""
         SELECT * FROM workout_sets
         WHERE exerciseName = :exerciseName

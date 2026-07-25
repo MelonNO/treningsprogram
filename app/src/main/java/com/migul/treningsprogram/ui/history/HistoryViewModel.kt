@@ -50,42 +50,55 @@ class HistoryViewModel @Inject constructor(
     // null = All (default); deliberately in-memory only so every visit starts at All (A-12a).
     val logDateRange = MutableStateFlow<com.migul.treningsprogram.domain.DateRangeFilter.Range?>(null)
 
-    // History "Log" timeline — real workouts PLUS auto-logged REST/MISSED days, so empty days are
-    // visible as distinct entries. Uses getHistoryTimeline (not [allSessions]) so placeholders
-    // never reach the Stats. null = still loading (item 2 skeleton); non-null = render (possibly
-    // an empty state).
-    //
-    // F3 (v1.24.1): this was a two-layer chain — the timeline had its own
-    // stateIn(WhileSubscribed) whose null/loading sentinel was threaded through the combine —
-    // and on device (release build) that chain never delivered its first emission, leaving the
-    // list permanently on skeletons with no recovery path (search/range changes couldn't emit
-    // either, since the transform kept returning null). The intermediate share only existed for
-    // the CSV export, which item 15 removed. Now a single sharing layer: the combine reads the
-    // DAO flow directly and only ever sees real lists; null exists solely as stateIn's
-    // pre-first-emission initial value — the shape every other (working) chain in the app uses.
-    val filteredSessions: StateFlow<List<WorkoutSession>?> =
+    // QoL item 04 — the History week-browser model: months → weeks → days derived from the
+    // timeline (real workouts + REST/MISSED placeholders) joined with every completed session's
+    // sets. Grouping/filter/PR math lives in the pure HistoryBrowser/HistoryPrFlags helpers
+    // (unit-tested). Single sharing layer over the DAO flows (the F3 v1.24.1 lesson — never
+    // stack two stateIn(WhileSubscribed) layers); null = still loading (skeleton), non-null =
+    // render (possibly the empty state).
+    val historyBrowser: StateFlow<com.migul.treningsprogram.domain.HistoryBrowser.Model?> =
         combine(
             workoutRepository.getHistoryTimeline(),
+            workoutRepository.observeHistorySets(),
             searchQuery,
             logDateRange
-        ) { sessions, query, range ->
-            // Range inclusive on both ends; both filters evaluate the LOGICAL day (items 7/12),
-            // so searching a date finds the session where History actually files it.
-            sessions.filter {
-                com.migul.treningsprogram.domain.HistorySearch.matches(it.dateMs, query, range)
-            } as List<WorkoutSession>?
+        ) { sessions, sets, query, range ->
+            com.migul.treningsprogram.domain.HistoryBrowser.build(
+                sessions = sessions.map {
+                    com.migul.treningsprogram.domain.HistoryBrowser.SessionRow(
+                        it.id, it.dateMs, it.kind, it.durationMinutes
+                    )
+                },
+                sets = sets.map {
+                    com.migul.treningsprogram.domain.HistoryBrowser.SetRow(
+                        it.sessionId, it.exerciseName, it.muscleGroup, it.setNumber,
+                        it.reps, it.weightKg, it.isWarmup, it.loggedAtMs
+                    )
+                },
+                query = query,
+                range = range,
+                todayEpochDay = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+            ) as com.migul.treningsprogram.domain.HistoryBrowser.Model?
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Browser selection, kept here so it survives view re-creation. null week = month list.
+    val browserWeekStart = MutableStateFlow<Long?>(null)
+    val browserSelectedDay = MutableStateFlow<Long?>(null)
+
+    fun openBrowserWeek(weekStartEpochDay: Long, selectedDay: Long) {
+        browserWeekStart.value = weekStartEpochDay
+        browserSelectedDay.value = selectedDay
+    }
+
+    fun selectBrowserDay(epochDay: Long) { browserSelectedDay.value = epochDay }
+
+    fun closeBrowserWeek() {
+        browserWeekStart.value = null
+        browserSelectedDay.value = null
+    }
 
     suspend fun getSetsForSession(sessionId: Long): List<WorkoutSet> =
         workoutRepository.getSetsForSessionOnce(sessionId)
-
-    fun updateSessionDate(session: WorkoutSession, newDateMs: Long) {
-        viewModelScope.launch { workoutRepository.updateSession(session.copy(dateMs = newDateMs)) }
-    }
-
-    fun deleteSet(set: WorkoutSet) {
-        viewModelScope.launch { workoutRepository.deleteSet(set) }
-    }
 
     /** B7: one-shot full session history (real workouts only get filtered downstream). */
     suspend fun allSessionsOnce(): List<WorkoutSession> = workoutRepository.getAllSessionsOnce()
