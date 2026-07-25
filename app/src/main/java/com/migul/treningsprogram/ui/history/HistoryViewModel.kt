@@ -92,6 +92,35 @@ class HistoryViewModel @Inject constructor(
 
     fun selectBrowserDay(epochDay: Long) { browserSelectedDay.value = epochDay }
 
+    // Week-view swipe: one-shot end-of-range events (+1 = tried past the newest visible week,
+    // -1 = past the oldest). Consumed by the fragment's subtle bounce animation.
+    private val _browserEdgeNudge = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+    val browserEdgeNudge: SharedFlow<Int> = _browserEdgeNudge.asSharedFlow()
+
+    /**
+     * Swipe navigation between browser weeks (direction -1 = older / right swipe, +1 = newer /
+     * left swipe — the Program tab's mapping). Walks only the weeks visible under the active
+     * search/range filter; at either end it emits the edge nudge and stays put. The destination
+     * keeps the same weekday selected (future weekday → the week's default day). All the
+     * resolution math is the pure HistoryBrowser helpers (unit-tested).
+     */
+    fun swipeBrowserWeek(direction: Int) {
+        val model = historyBrowser.value ?: return
+        val current = browserWeekStart.value ?: return
+        val dest = com.migul.treningsprogram.domain.HistoryBrowser
+            .adjacentWeekStart(model, current, direction)
+            ?: run { _browserEdgeNudge.tryEmit(direction); return }
+        val destWeek = model.weeksByStart[dest] ?: return
+        val today = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+        val selected = browserSelectedDay.value
+        browserSelectedDay.value =
+            if (selected != null)
+                com.migul.treningsprogram.domain.HistoryBrowser.carriedDay(destWeek, selected, today)
+            else
+                com.migul.treningsprogram.domain.HistoryBrowser.defaultDay(destWeek, today)
+        browserWeekStart.value = dest
+    }
+
     fun closeBrowserWeek() {
         browserWeekStart.value = null
         browserSelectedDay.value = null

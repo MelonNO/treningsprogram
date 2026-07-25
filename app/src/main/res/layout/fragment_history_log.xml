@@ -100,13 +100,20 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
 
-        <!-- Week view: mirrors the Program tab's week card; shown when a week is opened. -->
-        <LinearLayout
+        <!-- Week view: mirrors the Program tab's week card; shown when a week is opened.
+             Wrapped in HorizontalSwipeLayout so a horizontal swipe ANYWHERE on the open week
+             pages between browsable weeks (right = older, left = newer — Program-tab language)
+             while chip/card taps and vertical scrolling keep working. -->
+        <com.migul.treningsprogram.ui.widget.HorizontalSwipeLayout
             android:id="@+id/layout_week_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_back_to_months"
@@ -237,6 +244,7 @@
                 android:orientation="vertical" />
 
         </LinearLayout>
+        </com.migul.treningsprogram.ui.widget.HorizontalSwipeLayout>
 
     </LinearLayout>
 

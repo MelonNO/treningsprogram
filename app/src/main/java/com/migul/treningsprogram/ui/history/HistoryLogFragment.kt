@@ -98,6 +98,12 @@ class HistoryLogFragment : Fragment() {
 
         binding.btnBackToMonths.setOnClickListener { viewModel.closeBrowserWeek() }
 
+        // Week-view swipe (Program-tab gesture language: right = previous/older week,
+        // left = next/newer week). All week/day resolution lives in the ViewModel + the
+        // pure HistoryBrowser helpers; the fragment only forwards the gesture.
+        binding.layoutWeekView.onSwipeRight = { swipeWeek(-1) }
+        binding.layoutWeekView.onSwipeLeft = { swipeWeek(+1) }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
@@ -109,6 +115,7 @@ class HistoryLogFragment : Fragment() {
                 launch { viewModel.historyBrowser.collect { render() } }
                 launch { viewModel.browserWeekStart.collect { render() } }
                 launch { viewModel.browserSelectedDay.collect { render() } }
+                launch { viewModel.browserEdgeNudge.collect { nudgeWeekView(it) } }
             }
         }
     }
@@ -121,6 +128,29 @@ class HistoryLogFragment : Fragment() {
     override fun onPause() {
         super.onPause()
         backCallback.isEnabled = false
+    }
+
+    /** Forward a completed swipe; if the week actually changed, reorient to the top like
+     *  opening a week from the month list does. */
+    private fun swipeWeek(direction: Int) {
+        val before = viewModel.browserWeekStart.value
+        viewModel.swipeBrowserWeek(direction)
+        if (viewModel.browserWeekStart.value != before) {
+            _binding?.root?.smoothScrollTo(0, 0)
+        }
+    }
+
+    /** Subtle end-of-range nudge: the week view shifts a few dp against the swipe and
+     *  springs back — the overscroll hint that there is no further week that way. */
+    private fun nudgeWeekView(direction: Int) {
+        val v = _binding?.layoutWeekView ?: return
+        val shift = 10f * resources.displayMetrics.density * -direction
+        v.animate().cancel()
+        v.animate().translationX(shift).setDuration(90L).withEndAction {
+            v.animate().translationX(0f).setDuration(180L)
+                .setInterpolator(android.view.animation.OvershootInterpolator())
+                .start()
+        }.start()
     }
 
     // ── Render dispatch ────────────────────────────────────────────────────────────────────

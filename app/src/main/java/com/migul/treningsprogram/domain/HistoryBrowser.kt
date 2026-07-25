@@ -261,6 +261,40 @@ object HistoryBrowser {
             ?: week.days.lastOrNull { it.epochDay <= todayEpochDay }?.epochDay
             ?: week.weekStartEpochDay
 
+    // ── Week-view swipe navigation (History week-swipe, 2026-07-25) ───────────────────────
+
+    /**
+     * Week starts the browser currently SHOWS (filter-respecting), oldest → newest. These are
+     * exactly the weeks a swipe may land on, and the list's ends are the swipe bounds — the
+     * gesture never reaches a week the month list itself would not show.
+     */
+    fun visibleWeekStarts(model: Model): List<Long> =
+        model.months.flatMap { m -> m.weeks.map { it.weekStartEpochDay } }.sorted()
+
+    /**
+     * The week a swipe lands on from [currentWeekStart]: direction -1 = previous/older (right
+     * swipe), +1 = next/newer (left swipe) — the Program tab's direction language. Walks only
+     * the browser-visible (filtered) weeks; null = already at that end (caller nudges). If the
+     * open week itself is no longer visible (the filter changed while it was open), the swipe
+     * lands on the nearest visible week strictly in the swipe direction.
+     */
+    fun adjacentWeekStart(model: Model, currentWeekStart: Long, direction: Int): Long? {
+        val visible = visibleWeekStarts(model)
+        return if (direction < 0) visible.lastOrNull { it < currentWeekStart }
+        else visible.firstOrNull { it > currentWeekStart }
+    }
+
+    /**
+     * Day to select after a swipe lands on [destWeek]: the SAME weekday as
+     * [previousSelectedDay] (positional predictability — the 7-chip strip always renders it,
+     * even empty/rest/missed). Sole fallback: if that weekday lies in the future — possible
+     * only in the current week — the week's normal [defaultDay] pick is used instead.
+     */
+    fun carriedDay(destWeek: Week, previousSelectedDay: Long, todayEpochDay: Long): Long {
+        val target = destWeek.weekStartEpochDay + Math.floorMod(previousSelectedDay + 3L, 7L)
+        return if (target > todayEpochDay) defaultDay(destWeek, todayEpochDay) else target
+    }
+
     /** "This week" / "Week of 21 Jul". */
     fun weekTitle(week: Week, locale: Locale = Locale.getDefault()): String =
         if (week.isCurrent) "This week"
