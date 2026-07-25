@@ -1,0 +1,25 @@
+---
+name: long-session-fix
+description: Layer-2 fix so LONG (~90-120min) AI-gen sessions reach target via MULTI-MODAL structure (strength + duration-sized cardio finisher); root cause + the live-measured model under-bias residual
+metadata:
+  type: project
+---
+
+Layer-2 "long sessions produce NOTHING" fix (docs/intake/long-session-fix-2026-07/). Was: at ~100-120min target, `generateAdaptedProgram` failed the strict ±10 gate on every attempt (model caps a sound strength block ~55-70min, adds only ~5min, "add more" retry TRUNCATED). NOT shipped by me — implemented + verified, HELD for coordinator/user decision on the marginal 100-min case (see residual). All edits in AiRepository.kt + one new test.
+
+**The fix (all in AiRepository.kt):**
+- **Multi-modal for LONG targets only.** New `LONG_SESSION_THRESHOLD_MIN=90` + `isLongSession(target)` (both internal, unit-tested). At ≥90min, buildPrompt injects a "LONG SESSION STRUCTURE" block: build the sound strength block first (respect caps), THEN fill the rest with a DURATION-sized warm-up + conditioning/cardio finisher. Short/mid (<90, incl. the verified-lean 50min) get NOTHING — byte-for-byte unchanged.
+- **CRITICAL classifier constraint (load-bearing):** the estimator only times an entry by its duration when `MuscleClassifier.displayName(name)=="Cardio"`. **"Rowing"→Back, "carries"→Core, "Cable Crunch"→Cardio(!) [pre-existing quirk], elliptical→unclassified.** So the prompt steers the timed finisher ONLY to bike/cycling, treadmill/incline-walk, jog/run/sprint, jump-rope, HIIT/burpee and EXPLICITLY forbids rowing/carries/sled/elliptical (the estimator would read "40 min" as 40 reps → ~4min, silently under-fill). Brief's "row/carries" suggestion was a trap.
+- **Cap exemption:** the ≤8/≤7/≤5 exercise cap counts STRENGTH slots only (primary/accessory/isolation) — warm-up/mobility/cardio/rehab exempt, in BOTH buildPrompt AND validateProgram item #11. Role enum gained "warmup"/"mobility".
+- **dayDurationFeedback long branch** (target≥90 & under): steer multi-modal (extend the cardio finisher), NOT "add a set/accessory". Reject CONDITION byte-for-byte unchanged.
+- **max_tokens 16384→24576 on the GEN CALL ONLY** (`GENERATION_MAX_TOKENS`; default stays 16384 for all other calls) — kills mode-2 truncation. Safe under streaming (upper bound only; runaway fails clean via callTimeout 300s/deadline 360s).
+- **REGRESSION I introduced + fixed:** first pass leaked "see LONG SESSION STRUCTURE"/cardio-EXCEPTION cross-refs into the ALWAYS-present template → the 50min prompt gained conditioning language (likely caused an h50 stray cardio day). Fixed: all long cross-refs gated on `isLongSession`. Verified offline: 50min prompt no longer contains "LONG SESSION STRUCTURE"/"MULTI-MODAL".
+
+**LIVE-MEASURED (20/20 budget, JVM harness rendering REAL buildPrompt via Unsafe+reflection + real gate over a plain live POST; harness DELETED after):**
+- Structure fix WORKS: model reliably builds multi-modal (correct cardio classification, warm-up + finisher), **zero truncation** (all end_turn ~20k chars < 24576). Eliminates the categorical "nothing saved".
+- **hyper_120 SAVED** (a2: days 115-122, all in-window). Proven end-to-end.
+- **Steering evolution (each a real gain):** (1) base "aim center" → model aims FLOOR, one rotating day drops under → fail. (2) "err HIGH: overshoots are auto-trimmed by trimOverflowToWindow, unders are fatal — aim upper half, size EVERY day the same" → fixed the scatter (s100 a2 landed all days a consistent 88-89). **KEY ASYMMETRY: over=salvageable, under=fatal → always steer to overshoot.**
+- **RESIDUAL (the honest gap):** the model has a systematic **self-estimate UNDER-bias** vs the app's exact formula (4s/rep+60s setup+rest-between-sets) — it lands ~5-16min BELOW its own aim, target-dependent. So 120 converges in-window but **100 lands ~1-2min under the 90 floor** (s100 a2 = 88-89). Pure prompt steering can't fully close a miscalibration. Two mitigations NOT yet done (budget exhausted): (a) s100 was capped at 2 attempts to save budget — PRODUCTION gets 3, and with the now-consistent days a 3rd attempt likely closes 1-2min; (b) aiming even higher (~target+12-15) is asymmetrically safe but risks destabilizing the proven-120 case, so left for a budget-funded verify.
+- **Product constraint honored:** NO under-salvage added; a non-converging long plan still FAILS LOUD (never saves under-target). Band NOT widened (user: better fail than bad save; the 100 gap is genuine under-target, not an estimator imprecision).
+
+**Recommendation to user:** ship-worthy as a large improvement (120 works, structure right, no regression) BUT the 100-min "must save" bar is marginal (1-2min under, likely fixed by the production 3rd attempt but unproven). Decide: (a) accept fail-loud on the odd marginal long target, (b) fund one more live iteration (aim ~target+12, verify 100+120), or (c) conservative band-tune at long extremes. Rec version 1.17.0 (prompt-behavior change, DB unchanged v17). [[project_generation_quality_overhaul]] [[reference_live_gen_harness]]

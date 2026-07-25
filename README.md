@@ -104,6 +104,22 @@ export ANDROID_HOME=/home/migul/android-sdk
 export QEMU_LD_PREFIX=/opt/x86_64-sysroot
 ```
 
+### Setting up on a new machine
+
+The paths above are from the original Raspberry Pi 5 (aarch64) host. To bring the
+project up elsewhere — including the full Claude Code CLI configuration (custom
+agents, memory, settings, plugins) — see **[`claude-env/README.md`](claude-env/README.md)**:
+
+```bash
+git clone https://github.com/MelonNO/treningsprogram.git
+cd treningsprogram
+./claude-env/restore.sh          # --dry-run first if you want to see the plan
+```
+
+`claude-env/BUILD-ENV.md` covers the toolchain (and why `QEMU_LD_PREFIX` is only
+needed on ARM hosts), `claude-env/SECRETS.md` lists the files that must move
+out-of-band, and `claude-env/STATE.md` records where the in-flight work stands.
+
 ## First-Time Setup
 
 1. Launch the app and open the **Profile** tab → **Settings**

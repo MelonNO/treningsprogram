@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/migul/treningsprogram log --oneline -20)",
+      "Bash(./build.sh assembleDebug)",
+      "Bash(unzip -l free-exercise-db-main.zip)",
+      "Bash(xargs cat)",
+      "Read(//home/migul/android-sdk/**)",
+      "Read(//home/migul/android-sdk/cmdline-tools/**)",
+      "Bash(git checkout *)"
+    ]
+  },
+  "remote": {
+    "defaultEnvironmentId": "env_01XJW78dRHXTMpTkMedrTALa"
+  }
+}

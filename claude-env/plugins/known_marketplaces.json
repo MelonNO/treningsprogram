@@ -1,0 +1,26 @@
+{
+  "claude-plugins-official": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    },
+    "installLocation": "/home/migul/.claude/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-07-25T12:16:06.806Z"
+  },
+  "ui-ux-pro-max-skill": {
+    "source": {
+      "source": "github",
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    "installLocation": "/home/migul/.claude/plugins/marketplaces/ui-ux-pro-max-skill",
+    "lastUpdated": "2026-07-01T16:34:19.017Z"
+  },
+  "karpathy-skills": {
+    "source": {
+      "source": "github",
+      "repo": "forrestchang/andrej-karpathy-skills"
+    },
+    "installLocation": "/home/migul/.claude/plugins/marketplaces/karpathy-skills",
+    "lastUpdated": "2026-07-01T16:34:21.127Z"
+  }
+}

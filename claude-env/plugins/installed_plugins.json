@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "plugins": {
+    "ui-ux-pro-max@ui-ux-pro-max-skill": [
+      {
+        "scope": "user",
+        "installPath": "/home/migul/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.6.2",
+        "version": "2.6.2",
+        "installedAt": "2026-07-01T16:34:45.813Z",
+        "lastUpdated": "2026-07-01T16:34:45.813Z",
+        "gitCommitSha": "8e43c9d98f62d10b24af2fa4c5f6c4a726d1ac3d"
+      }
+    ],
+    "andrej-karpathy-skills@karpathy-skills": [
+      {
+        "scope": "user",
+        "installPath": "/home/migul/.claude/plugins/cache/karpathy-skills/andrej-karpathy-skills/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-07-01T16:34:47.327Z",
+        "lastUpdated": "2026-07-01T16:34:47.327Z",
+        "gitCommitSha": "2c606141936f1eeef17fa3043a72095b4765b9c2"
+      }
+    ]
+  }
+}
