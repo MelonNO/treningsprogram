@@ -3,8 +3,12 @@ package com.migul.treningsprogram.ui.history
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import com.migul.treningsprogram.domain.ChartAxis
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * R3 — dependency-free body-weight-over-time chart for Stats → Progress, modeled directly on
@@ -68,6 +72,26 @@ class BodyWeightChartView @JvmOverloads constructor(
         textSize = 36f
     }
 
+    // ── QoL item 09: touch-to-read (scrub) — snaps to the nearest RAW weigh-in (the actual
+    // logged value, NOT the smoothed trend — user-confirmed in the brief).
+    private val scrub = ChartScrub(this) { raw.map { it.dateMs } }
+    private val scrubDateFmt = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+    private val scrubLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#997FE9E1")
+        style = Paint.Style.STROKE
+        strokeWidth = 2f
+    }
+    private val scrubRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#E6F2F1")
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+    }
+    private val scrubTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#E6F2F1")
+        textSize = 30f
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
     /** @param rawData weigh-ins in chronological order; @param trendData smoothed overlay series. */
     fun setData(rawData: List<Entry>, trendData: List<Entry>) {
         raw = rawData
@@ -79,6 +103,14 @@ class BodyWeightChartView @JvmOverloads constructor(
         val num = if (v == v.toInt().toFloat()) v.toInt().toString() else "%.1f".format(v)
         return "${num}kg"
     }
+
+    // QoL item 09: same plot geometry as onDraw — ChartScrub needs it to snap touches.
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val pl = 84f; val pr = 28f
+        return scrub.onTouchEvent(event, pl, width - pl - pr) || super.onTouchEvent(event)
+    }
+
+    override fun performClick(): Boolean = super.performClick()
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -182,6 +214,20 @@ class BodyWeightChartView @JvmOverloads constructor(
         if (labels.size >= 3 && cw > 360f) {
             axisPaint.textAlign = Paint.Align.CENTER
             canvas.drawText(labels[1], pl + cw / 2f, baseY, axisPaint)
+        }
+
+        // ── QoL item 09: touch-to-read marker — vertical line + ring on the RAW weigh-in dot,
+        // with the weigh-in's date · exact weight in the top padding band (right-aligned so the
+        // readout never sits under the finger). Drawn last, above trend/callouts.
+        val sel = scrub.selectedIndex
+        if (sel in raw.indices) {
+            val e = raw[sel]
+            val px = x(e.dateMs)
+            canvas.drawLine(px, pt, px, pt + ch, scrubLinePaint)
+            canvas.drawCircle(px, y(e.value), 11f, scrubRingPaint)
+            val readout = scrubDateFmt.format(Date(e.dateMs)) + "  ·  " + fmt(e.value)
+            scrubTextPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(readout, pl + cw, 30f, scrubTextPaint)
         }
     }
 }
