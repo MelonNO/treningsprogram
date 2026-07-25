@@ -124,11 +124,19 @@ class HistoryProgressFragment : Fragment() {
         }
 
         // R3: body-weight chart — independent of the exercise selection; hidden until >= 2
-        // weigh-ins exist. Raw weigh-ins + the smoothed WeightTrend overlay + the trend readout.
+        // weigh-ins exist in the window. Raw weigh-ins + the smoothed WeightTrend overlay + the
+        // trend readout. QoL item 09: the chart (and its trend line/readout) now follows the same
+        // progressDateRange as the strength/reps charts (null = all-time, clearing restores it).
+        // The relative-strength card below DELIBERATELY keeps the unfiltered measurement stream —
+        // changing it was explicitly ruled out of scope by the brief.
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.bodyMeasurements.collect { measurements ->
-                    val sorted = measurements.sortedBy { it.dateMs }
+                kotlinx.coroutines.flow.combine(
+                    viewModel.bodyMeasurements, viewModel.progressDateRange
+                ) { measurements, range ->
+                    DateRangeFilter.filter(measurements, range) { it.dateMs }
+                }.collect { windowed ->
+                    val sorted = windowed.sortedBy { it.dateMs }
                     val show = sorted.size >= 2
                     binding.cardBodyWeight.isVisible = show
                     if (!show) return@collect
