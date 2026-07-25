@@ -109,6 +109,8 @@ class HistoryStatsFragment : Fragment() {
 
             // This-week pulse: current sets/sessions with a vs-last-week delta.
             val delta = viewModel.getWeekDelta()
+            // QoL item 03: estimated weekly calories (on-the-fly; 0 = no real sessions this week).
+            val weekKcal = viewModel.getWeeklyCalories()
             if (_binding == null) return@launch
             val hasPulse = delta.sets > 0 || delta.setsPrev > 0
             binding.cardWeekPulse.isVisible = hasPulse
@@ -119,6 +121,10 @@ class HistoryStatsFragment : Fragment() {
                 binding.tvPulseSessions.text = delta.sessions.toString()
                 binding.tvPulseSessionsDelta.text =
                     "sessions  ·  ${WeekDelta.deltaLabel(delta.sessions, delta.sessionsPrev)}"
+                val showKcal = weekKcal > 0
+                binding.tvPulseKcal.isVisible = showKcal
+                binding.tvPulseKcalLabel.isVisible = showKcal
+                if (showKcal) binding.tvPulseKcal.text = "~$weekKcal"
             }
         }
     }

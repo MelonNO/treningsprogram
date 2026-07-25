@@ -54,5 +54,8 @@ data class SessionRecap(
     val pacing: SessionPacing?,                   // null = too few timestamped sets to measure
     // Stage-3 item 14: achievements this session unlocked (timestamp-attributed via
     // SessionEarned; omit-when-unsure, so historical ambiguity never mis-claims).
-    val earnedAchievements: List<com.migul.treningsprogram.data.db.entity.Achievement> = emptyList()
+    val earnedAchievements: List<com.migul.treningsprogram.data.db.entity.Achievement> = emptyList(),
+    // QoL item 03: on-the-fly estimated kcal (CalorieEstimator; never persisted). null = no figure
+    // (placeholders never reach the recap, but the contract stays "null means show nothing").
+    val estimatedKcal: Int? = null
 )

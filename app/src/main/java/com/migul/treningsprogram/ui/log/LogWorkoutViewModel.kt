@@ -742,7 +742,10 @@ class LogWorkoutViewModel @Inject constructor(
             // N5: goal-reach check AFTER the official completion processing — detectReached
             // promotes ACTIVE→ACHIEVED (once) and the result dialog celebrates it. No XP (A-G1).
             val reachedGoals = goalRepository.detectReached(sid)
-            _workoutResult.value = result.copy(reachedGoals = reachedGoals)
+            // QoL item 03: on-the-fly kcal estimate for the completion dialog — reads the freshly
+            // persisted duration, same estimator as Recap/Stats. Never persisted.
+            val estimatedKcal = workoutRepository.estimateSessionCalories(sid)
+            _workoutResult.value = result.copy(reachedGoals = reachedGoals, estimatedKcal = estimatedKcal)
         }
     }
 

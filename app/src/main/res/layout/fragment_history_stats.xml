@@ -119,6 +119,30 @@
                     </LinearLayout>
 
                 </LinearLayout>
+
+                <!-- QoL item 03: estimated weekly calories (on-the-fly estimate; hidden at 0).
+                     Same stat-number + muted-sublabel language as the two columns above, but a
+                     third 40sp DisplayStat column would clip on small screens — so a smaller
+                     full-width row. -->
+                <TextView
+                    android:id="@+id/tv_pulse_kcal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textAppearance="?attr/textAppearanceTitleLarge"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.02"
+                    android:textColor="@color/auros_snow"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tv_pulse_kcal_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="est. kcal this week"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

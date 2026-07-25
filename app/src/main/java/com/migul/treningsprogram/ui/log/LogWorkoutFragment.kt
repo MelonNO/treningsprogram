@@ -935,8 +935,12 @@ class LogWorkoutFragment : Fragment() {
         }
         d.tvStreak.text = "$streakEmoji ${result.currentStreak}-day streak"
         val volumeStr = if (result.totalVolumeKg > 0f) "  •  ${result.totalVolumeKg.toInt()} kg volume" else ""
+        // QoL item 03: estimated calories on the completion summary (null = no figure).
+        val kcalStr = result.estimatedKcal?.let {
+            "  •  ${com.migul.treningsprogram.domain.CalorieEstimator.format(it)}"
+        } ?: ""
         d.tvSessionSummary.text =
-            "${result.exerciseCount} exercises  •  ${result.setsLogged} sets$volumeStr"
+            "${result.exerciseCount} exercises  •  ${result.setsLogged} sets$volumeStr$kcalStr"
 
         // Itemized breakdown — the SAME component amounts the XP log records (observation only).
         val setXp = result.setsLogged * 5

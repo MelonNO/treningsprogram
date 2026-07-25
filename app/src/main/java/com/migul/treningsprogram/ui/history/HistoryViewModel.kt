@@ -203,6 +203,15 @@ class HistoryViewModel @Inject constructor(
             todayEpochDay = com.migul.treningsprogram.domain.DayBoundary.todayEpochDay(),
         )
 
+    /**
+     * QoL item 03: estimated calories for the current Monday-week — the sum of the same
+     * per-session estimates the Recap shows (CalorieEstimator; derived on the fly, 0 = hide).
+     */
+    suspend fun getWeeklyCalories(): Int =
+        workoutRepository.estimateWeeklyCalories(
+            com.migul.treningsprogram.domain.DayBoundary.todayEpochDay()
+        )
+
     /** F5: muscle × week set-count grid for the volume heatmap (last [weeks] weeks).
      *  Timestamps are shifted to LOGICAL millis first (Item 7 day boundary) so an 01:00
      *  session lands in the same week the rest of the app files it under. */
