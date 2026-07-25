@@ -13,6 +13,12 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 68, versionName = "1.27.0",
+            highlights = listOf(
+                "Swipe between weeks right inside History's week view — right for the previous week, left for the next, just like the Program tab. Your selected weekday follows along, and with a search or date filter on, the swipe visits exactly the weeks it shows",
+            ),
+        ),
+        Entry(
             versionCode = 67, versionName = "1.26.0",
             highlights = listOf(
                 "Generation now survives leaving the app: start it, switch away or lock the phone — it finishes on its own and the \"plan ready\" notification tells you",
