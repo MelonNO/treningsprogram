@@ -43,4 +43,27 @@ class AutoAttributeMoveTest {
             assertEquals("day $d", expected, LogWorkoutViewModel.resolveMoveSource(0, d, today))
         }
     }
+
+    // ── QoL item 10 (2026-07-25): moved-workout finish celebrates like a normal finish ────────
+    // A committed move is attributed to TODAY (the source day is vacated by commitDayMove), so
+    // the celebration must bounce today's chip — never the stored (source) workout day.
+
+    @Test fun movedFinish_celebratesToday_notSourceDay() {
+        // Direct "start Friday's workout" on Wednesday: workoutDay = 5 (source), move committed.
+        assertEquals(today, LogWorkoutViewModel.celebrationDay(moveCommitted = true, workoutDay = 5, today = today))
+    }
+
+    @Test fun explicitMoveFinish_celebratesToday() {
+        // P2 button path: workoutDay already today; committed move still celebrates today.
+        assertEquals(today, LogWorkoutViewModel.celebrationDay(moveCommitted = true, workoutDay = today, today = today))
+    }
+
+    @Test fun normalFinish_celebratesItsOwnDay() {
+        assertEquals(5, LogWorkoutViewModel.celebrationDay(moveCommitted = false, workoutDay = 5, today = today))
+    }
+
+    @Test fun normalFinish_missingDay_fallsBackToToday() {
+        assertEquals(today, LogWorkoutViewModel.celebrationDay(moveCommitted = false, workoutDay = 0, today = today))
+        assertEquals(today, LogWorkoutViewModel.celebrationDay(moveCommitted = false, workoutDay = 8, today = today))
+    }
 }

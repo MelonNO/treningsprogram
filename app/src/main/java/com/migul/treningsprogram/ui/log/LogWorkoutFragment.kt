@@ -165,6 +165,10 @@ class LogWorkoutFragment : Fragment() {
                 .start()
 
             binding.cgRpe.clearCheck()
+            // QoL item 07: the warm-up chip is per-set, not sticky — it clears after every
+            // logged set so a forgotten toggle can't silently record working sets as warm-ups.
+            // (The B1 ramp button logs its warm-ups independently of this chip.)
+            binding.chipWarmup.isChecked = false
 
             val exerciseName = if (freestyleMode) binding.etFreestyleExercise.text?.toString()?.trim() ?: ""
                                else viewModel.currentExercise.value?.exerciseName ?: ""
@@ -823,8 +827,31 @@ class LogWorkoutFragment : Fragment() {
                 }
                 row.addView(rpeTv)
             }
+            // QoL item 01: a misslogged set can be removed on the spot — quiet ✕ per row,
+            // guarded by an "are you sure" dialog. The sets flow re-emits after deletion, so
+            // numbering, counters, ramp and beat targets refresh on their own; the running
+            // rest timer is untouched.
+            val deleteTv = TextView(requireContext()).apply {
+                text = "✕"
+                textSize = 14f
+                setTextColor(Color.parseColor("#7E908E"))
+                setPadding(dpToPx(12), dpToPx(2), dpToPx(4), dpToPx(2))
+                contentDescription = "Delete set $label"
+                setOnClickListener { confirmDeleteSet(set, "$label: ${set.reps} reps @ ${formatWeight(set.weightKg)}kg") }
+            }
+            row.addView(deleteTv)
             binding.layoutLoggedSets.addView(row)
         }
+    }
+
+    /** QoL item 01: "are you sure" guard before a mid-workout set deletion. */
+    private fun confirmDeleteSet(set: WorkoutSet, description: String) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Delete set?")
+            .setMessage("$description will be removed.")
+            .setPositiveButton("Delete") { _, _ -> viewModel.deleteSet(set) }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // Badge label + colour for an exercise, via the shared MuscleClassifier so the Log
@@ -1061,10 +1088,14 @@ class LogWorkoutFragment : Fragment() {
         viewModel.clearResult()
         // B10: the widget shows streak/challenges now — refresh it the moment they change.
         com.migul.treningsprogram.ui.widget.TodayWorkoutWidgetProvider.requestRefresh(requireContext())
-        val day = viewModel.workoutDayOfWeek.let { if (it > 0) it else currentDayOfWeek() }
+        // QoL item 10: a committed move is attributed to TODAY (the source day was vacated), so
+        // the celebration must bounce today's chip — not the stored workout day, which in the
+        // direct "start another day's workout" path is the now-cleared source day.
+        val moveCommitted = viewModel.consumeMoveCommitted()
+        val day = LogWorkoutViewModel.celebrationDay(moveCommitted, viewModel.workoutDayOfWeek, currentDayOfWeek())
         sharedResultVm.setResult(result, day)
         // P2: a completed move commits the week change; flag the Program tab to rebalance the week.
-        if (viewModel.consumeMoveCommitted()) sharedResultVm.setMoveRebalancePending()
+        if (moveCommitted) sharedResultVm.setMoveRebalancePending()
         val prevDestId = findNavController().previousBackStackEntry?.destination?.id
         // Pop logWorkoutFragment so it doesn't persist in any tab's back stack
         findNavController().popBackStack()

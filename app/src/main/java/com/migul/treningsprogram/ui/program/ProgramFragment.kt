@@ -257,14 +257,16 @@ class ProgramFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         // P2: a completed "do another day today" move routes back here — rebalance the week (always,
-        // regardless of the P1 toggle) and stay on the Program tab to show it, instead of the normal
-        // completion animation that hops to Home.
+        // regardless of the P1 toggle), exactly as before.
+        // QoL item 10: but the finish now looks like any other finish — the rebalance is kicked off
+        // silently and we FALL THROUGH to the normal completion celebration (today's chip, since a
+        // committed move is attributed to today) and the automatic hop to Home. The rebalance may
+        // update the visible week around the animation; end state is what matters (accepted A7).
         val pendingMove = sharedResultVm.consumeMoveRebalancePending()
         val result = sharedResultVm.consumeForProgram()
         if (pendingMove) {
             viewModel.selectDay(currentDayOfWeek())
             viewModel.rebalanceAfterDayMove()
-            return
         }
         if (result == null) return
         binding.root.post { playCompletionAnimation() }

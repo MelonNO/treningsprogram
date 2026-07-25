@@ -485,6 +485,16 @@ class LogWorkoutViewModel @Inject constructor(
             else -> 0
         }
 
+        /**
+         * QoL item 10: which day chip the completion celebration should bounce. A committed
+         * "moved" workout is attributed to TODAY (commitDayMove vacates the source day), so
+         * celebrating the stored workout day would bounce a chip the move just cleared —
+         * celebrate today instead. Non-moved finishes keep the workout's own day, falling
+         * back to today when it was never set.
+         */
+        fun celebrationDay(moveCommitted: Boolean, workoutDay: Int, today: Int): Int =
+            if (moveCommitted || workoutDay !in 1..7) today else workoutDay
+
         fun resumeIndexFor(plan: List<PlannedExercise>, loggedSets: List<WorkoutSet>): Int {
             if (plan.isEmpty()) return 0
             if (loggedSets.isEmpty()) return 0
@@ -676,7 +686,13 @@ class LogWorkoutViewModel @Inject constructor(
         }
     }
 
-    fun deleteSet(set: WorkoutSet) { viewModelScope.launch { workoutRepository.deleteSet(set) } }
+    /**
+     * QoL item 01: deletes a misslogged set mid-workout and renumbers the exercise's remaining
+     * sets (see [com.migul.treningsprogram.domain.SetRenumbering]). The sets flow re-emits, so
+     * the list, counters, ramp visibility and beat targets all refresh on their own. The rest
+     * timer is deliberately untouched.
+     */
+    fun deleteSet(set: WorkoutSet) { viewModelScope.launch { workoutRepository.deleteSetAndRenumber(set) } }
 
     fun completeWorkout() {
         val sid = _sessionId.value ?: return

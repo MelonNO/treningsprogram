@@ -72,6 +72,19 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun deleteSet(set: WorkoutSet) = setDao.delete(set)
 
+    /**
+     * QoL item 01: mid-workout deletion — removes the set, then renumbers the exercise's
+     * remaining sets in this session so labels (W1/S2/…) and the "next set = count + 1"
+     * logging rule stay coherent (no gaps, no future duplicates). See [SetRenumbering].
+     */
+    suspend fun deleteSetAndRenumber(set: WorkoutSet) {
+        setDao.delete(set)
+        val remaining = setDao.getSetsForSessionOnce(set.sessionId)
+            .filter { it.exerciseName == set.exerciseName }
+        com.migul.treningsprogram.domain.SetRenumbering.renumberAfterDelete(remaining)
+            .forEach { setDao.update(it) }
+    }
+
     suspend fun getDistinctExerciseNames(): List<String> = setDao.getDistinctExerciseNames()
 
     /** Each exercise with its distinct-session count, for the B03 most-trained-first picker. */
