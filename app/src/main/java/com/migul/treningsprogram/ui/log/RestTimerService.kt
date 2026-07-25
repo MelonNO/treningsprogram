@@ -21,7 +21,11 @@ class RestTimerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     // "rest_timer_v2": channel renamed so users upgrading from IMPORTANCE_LOW get a fresh channel
     private val CHANNEL_ID = "rest_timer_v2"
-    private val CHANNEL_DONE_ID = "rest_timer_done"
+    // QoL item 08: "rest_timer_done_v2" — the done channel is now SILENT (sound comes from our
+    // own Ringtone with explicit notification attributes, see playCompletionSound). Channels are
+    // immutable after creation, so silencing required a rename; the old channel is deleted below.
+    private val CHANNEL_DONE_ID = "rest_timer_done_v2"
+    private val OLD_CHANNEL_DONE_ID = "rest_timer_done"
     private val NOTIF_ID = 4242
     private val NOTIF_DONE_ID = 4243
 
@@ -79,8 +83,16 @@ class RestTimerService : Service() {
                 description = "Rest timer completion alert"
                 setShowBadge(false)
                 enableVibration(false)
+                // QoL item 08: the channel itself is silent. Completion used to fire TWO sounds
+                // at once (this channel's default sound through the system notification path +
+                // an explicitly played default ringtone), which muted music playing in other
+                // apps. The single chime now comes only from playCompletionSound(), which never
+                // requests audio focus — the music keeps playing underneath.
+                setSound(null, null)
             }
         )
+        // Remove the pre-QoL-08 done channel so upgrading installs lose its default sound.
+        notifMgr.deleteNotificationChannel(OLD_CHANNEL_DONE_ID)
     }
 
     private fun tapIntent() = PendingIntent.getActivity(
@@ -115,10 +127,22 @@ class RestTimerService : Service() {
             .build()
     }
 
+    /**
+     * QoL item 08: the ONE completion chime. Played directly (the done channel is silent) with
+     * explicit notification-stream attributes and deliberately NO audio-focus request, so music
+     * playing in another app keeps playing audibly underneath — at most the OS may briefly duck
+     * it (accepted A6), never pause or mute it.
+     */
     private fun playCompletionSound() {
         try {
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            RingtoneManager.getRingtone(applicationContext, uri)?.play()
+            RingtoneManager.getRingtone(applicationContext, uri)?.apply {
+                audioAttributes = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                play()
+            }
         } catch (_: Exception) {}
     }
 
