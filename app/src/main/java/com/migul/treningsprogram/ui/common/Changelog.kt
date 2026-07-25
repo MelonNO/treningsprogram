@@ -13,6 +13,20 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 67, versionName = "1.26.0",
+            highlights = listOf(
+                "Generation now survives leaving the app: start it, switch away or lock the phone — it finishes on its own and the \"plan ready\" notification tells you",
+                "Your new week's plan is ready by Monday morning without opening the app (phone on and online) — and opening the app in a plan-less week now reliably starts one",
+                "Each gym can list exercises to avoid: they never appear in plans generated for that gym (your Home Gym already excludes the chest-supported dumbbell row)",
+                "Estimated calories burned on the workout summary, each session's Recap, and as a weekly total on Stats",
+                "History, rebuilt: browse months → weeks → days just like the Program tab, tap an exercise for its performed sets (warm-ups and PRs marked) plus its info in one sheet — search and date filter still work",
+                "Delete a mis-logged set mid-workout, and the warm-up toggle now clears itself after every set",
+                "The rest-timer chime no longer mutes your music",
+                "Charts are touch-readable: drag on the body-weight, strength and reps charts to read exact points; the body-weight chart follows your date range",
+                "Finishing a workout you moved to today now celebrates like any other finish",
+            ),
+        ),
+        Entry(
             versionCode = 66, versionName = "1.25.1",
             highlights = listOf(
                 "Home, reorganized: today's workout leads the screen, the weigh-in card collapses to stay out of the way, and cards with nothing to show tidy themselves away",
