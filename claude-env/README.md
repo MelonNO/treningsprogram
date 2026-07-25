@@ -2,9 +2,10 @@
 
 Everything needed to reproduce this project's working environment — the Android
 build setup **and** the Claude Code CLI configuration (custom agents, memory,
-settings, plugins) — on a different machine and a different CPU architecture.
+settings, plugins) — on a different machine.
 
-Created 2026-07-25 from the Raspberry Pi 5 (aarch64) original.
+Created 2026-07-25 from the Raspberry Pi 5 (aarch64, Raspberry Pi OS) original.
+Target: **Arch Linux, x86_64**.
 
 ## What's in here
 
@@ -84,10 +85,21 @@ builds, no live API generation, no `git push` over HTTPS.
 
 ### 6. Build environment
 
-See `BUILD-ENV.md`. Short version for an **x86_64** host: install JDK 21 +
-Android SDK 34 (platform + build-tools 34.0.0), write `local.properties`, drop
-`QEMU_LD_PREFIX` from `build.sh`, and you're done — the QEMU shim was purely an
-aarch64 workaround for `aapt2`.
+See `BUILD-ENV.md` — it has a step-by-step **Arch Linux** section, since that's
+the target. Short version:
+
+```bash
+sudo pacman -S jdk21-openjdk nodejs npm
+sudo archlinux-java set java-21-openjdk
+# + Android SDK 34 commandline-tools, then edit build.sh:
+#   JAVA_HOME=/usr/lib/jvm/java-21-openjdk   (no -arm64/-amd64 suffix on Arch)
+#   ANDROID_HOME=$HOME/android-sdk
+#   delete the QEMU_LD_PREFIX line
+```
+
+The QEMU shim was purely an aarch64 workaround for `aapt2` — on x86_64 it runs
+natively. Bonus: Robolectric works on x86_64, so the DB-migration tests that
+never ran on the Pi become available.
 
 ### 7. Claude Code itself
 
