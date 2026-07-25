@@ -33,6 +33,34 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                     it.putString("aiNote", aiNote)
                 }
             }
+
+        /**
+         * QoL item 04 (History week-browser): the same info sheet, prefixed with a read-only
+         * "Performed" section — the day's logged sets (reps × weight), warm-ups distinguished,
+         * and at most one PR-flagged set per the baseline rule ([prIndex] = -1 for none).
+         * Parallel primitive arrays keep the Bundle trivial; all existing callers are unaffected.
+         */
+        fun newInstanceForHistory(
+            exerciseName: String,
+            dbId: String?,
+            performedLabel: String,
+            setNumbers: IntArray,
+            reps: IntArray,
+            weights: FloatArray,
+            warmups: BooleanArray,
+            prIndex: Int
+        ) = ExerciseInfoBottomSheet().apply {
+            arguments = Bundle().also {
+                it.putString("name", exerciseName)
+                it.putString("dbId", dbId)
+                it.putString("perfLabel", performedLabel)
+                it.putIntArray("perfSetNums", setNumbers)
+                it.putIntArray("perfReps", reps)
+                it.putFloatArray("perfWeights", weights)
+                it.putBooleanArray("perfWarmups", warmups)
+                it.putInt("perfPrIndex", prIndex)
+            }
+        }
     }
 
     private var imageView: ImageView? = null
@@ -110,6 +138,62 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
             setTypeface(null, Typeface.BOLD)
             setPadding(0, 0, 0, smallPad)
         })
+
+        // QoL item 04 — the performed-data half of the history detail view: the tapped day's
+        // logged sets for this exercise, above the exercise info so one tap shows everything.
+        val perfReps = arguments?.getIntArray("perfReps")
+        if (perfReps != null && perfReps.isNotEmpty()) {
+            val setNums  = arguments?.getIntArray("perfSetNums") ?: IntArray(perfReps.size) { it + 1 }
+            val weights  = arguments?.getFloatArray("perfWeights") ?: FloatArray(perfReps.size)
+            val warmups  = arguments?.getBooleanArray("perfWarmups") ?: BooleanArray(perfReps.size)
+            val prIndex  = arguments?.getInt("perfPrIndex", -1) ?: -1
+
+            layout.addView(TextView(requireContext()).apply {
+                text = arguments?.getString("perfLabel").orEmpty().ifBlank { "Performed" }
+                textSize = 13f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(0xFF7FE9E1.toInt())
+                setPadding(0, 0, 0, (6 * density).toInt())
+            })
+            for (i in perfReps.indices) {
+                val row = LinearLayout(requireContext()).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, (2 * density).toInt(), 0, (2 * density).toInt())
+                }
+                val main = TextView(requireContext()).apply {
+                    val w = weights.getOrElse(i) { 0f }
+                    val wTxt = if (w > 0f) {
+                        val n = if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+                        "${perfReps[i]} × $n kg"
+                    } else "${perfReps[i]} reps"
+                    text = "Set ${setNums.getOrElse(i) { i + 1 }}   $wTxt"
+                    textSize = 15f
+                    layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    )
+                    if (warmups.getOrElse(i) { false }) {
+                        setTextColor(0xFF888888.toInt())
+                    }
+                }
+                row.addView(main)
+                if (warmups.getOrElse(i) { false }) {
+                    row.addView(TextView(requireContext()).apply {
+                        text = "warm-up"
+                        textSize = 12f
+                        setTextColor(0xFF888888.toInt())
+                    })
+                } else if (i == prIndex) {
+                    row.addView(TextView(requireContext()).apply {
+                        text = "PR"
+                        textSize = 12f
+                        setTypeface(null, Typeface.BOLD)
+                        setTextColor(0xFFFFD54A.toInt())
+                    })
+                }
+                layout.addView(row)
+            }
+            layout.addView(divider(density, medPad))
+        }
 
         // Item 5 — the AI's short, exercise-specific note, shown alongside the DB info.
         // Distinguished from the DB content by a labelled, accent-coloured block. Surfaced

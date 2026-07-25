@@ -70,6 +70,9 @@ class WorkoutRepository @Inject constructor(
     /** History-timeline stream: real workouts plus auto-logged REST/MISSED days (Log tab only). */
     fun getHistoryTimeline(): Flow<List<WorkoutSession>> = sessionDao.getHistoryTimeline()
 
+    /** QoL item 04: live stream of every completed session's sets (History week-browser). */
+    fun observeHistorySets(): Flow<List<WorkoutSet>> = setDao.observeAllForCompletedSessions()
+
     suspend fun updateSession(session: WorkoutSession) = sessionDao.update(session)
 
     suspend fun deleteSet(set: WorkoutSet) = setDao.delete(set)

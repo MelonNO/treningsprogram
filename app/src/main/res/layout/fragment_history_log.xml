@@ -5,33 +5,27 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- QoL item 04: the flat Sessions list became a month → week → day browser that mirrors
+         the Program tab's week card. Strictly read-only history. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="16dp">
 
-        <LinearLayout
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="12dp">
-            <View android:layout_width="6dp" android:layout_height="6dp"
-                android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SESSIONS"
-                android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
-        </LinearLayout>
+            android:layout_marginBottom="12dp"
+            android:text="Training history"
+            style="@style/Widget.Auros.Eyebrow" />
 
-        <!-- Search -->
+        <!-- Search (item requirement: must survive) — now matches exercise names too. -->
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="Search by date (e.g. 12 Jun or Thu)..."
+            android:hint="Search exercises or dates…"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_search"
@@ -41,8 +35,7 @@
                 android:imeOptions="actionSearch" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Stage-3 item 12: calendar start/end range control (replaces the Week/Month/3M chips).
-             Default All; the Reset action reappears only while a range is active. -->
+        <!-- Calendar start/end range control (item requirement: must survive). -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -71,7 +64,7 @@
 
         </LinearLayout>
 
-        <!-- Stage-3 item 2: session-card-shaped skeleton while the list loads. -->
+        <!-- Loading skeleton (kept from the old list; same delayed no-flicker contract). -->
         <LinearLayout
             android:id="@+id/skeleton_log"
             android:layout_width="match_parent"
@@ -86,12 +79,12 @@
                 android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
         </LinearLayout>
 
-        <!-- Empty state -->
+        <!-- Empty state (no history at all, or an active filter that matches nothing). -->
         <TextView
             android:id="@+id/tv_empty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="No sessions yet. Complete a workout to see your history!"
+            android:text="Your training story starts with your first workout."
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:gravity="center"
@@ -100,12 +93,150 @@
             android:drawablePadding="16dp"
             android:visibility="gone" />
 
-        <!-- Session cards go here programmatically -->
+        <!-- Month browser: month eyebrows + week rows, built programmatically. -->
         <LinearLayout
-            android:id="@+id/layout_sessions"
+            android:id="@+id/layout_browser"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical" />
+
+        <!-- Week view: mirrors the Program tab's week card; shown when a week is opened. -->
+        <LinearLayout
+            android:id="@+id/layout_week_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_back_to_months"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:minWidth="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="8dp"
+                android:text="&#8592;  All weeks"
+                android:textColor="@color/auros_cyan" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+
+                        <TextView
+                            android:id="@+id/tv_hist_week_title"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textAppearance="?attr/textAppearanceTitleSmall"
+                            android:textColor="?attr/colorOnSurface" />
+
+                        <TextView
+                            android:id="@+id/tv_hist_week_summary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layout_hist_week_days"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Selected day -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:id="@+id/tv_hist_day_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:id="@+id/tv_hist_day_meta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
+
+            <!-- Rest / missed / empty / future day card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_hist_day_placeholder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/tv_hist_placeholder_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <TextView
+                        android:id="@+id/tv_hist_placeholder_body"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Performed sessions of the selected day (headers + exercise cards). -->
+            <LinearLayout
+                android:id="@+id/layout_hist_day_sessions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
