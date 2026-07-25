@@ -1,0 +1,24 @@
+appId: com.migul.treningsprogram
+---
+# S8: rapid double-tap on a RecyclerView row (Library -> detail) is the classic double-navigate
+# crash spot ("action not found from destination"). The guard must absorb the 2nd tap. We open a
+# library row, go back, and repeat the cycle to stress the guarded navigate, confirming no crash.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    id: "card_settings"
+- tapOn:
+    id: "row_exercise_library"
+- assertVisible:
+    id: "rv_exercises"
+# Rapid open/close cycle x3 on the first row "3/4 Sit-Up" (each open is a guarded navigate).
+- repeat:
+    times: 3
+    commands:
+      - tapOn: "3/4 Sit-Up"
+      - back
+- assertVisible:
+    id: "rv_exercises"
+- takeScreenshot: s8_library_rapid_open_survived

@@ -1,0 +1,60 @@
+appId: com.migul.treningsprogram
+---
+# S2 — manual field edits persist + two rapid edits on the same day both land.
+# Real Wed (day 3) plan, card 0 = Barbell Romanian Deadlift 4 sets / 6-8 / 70 kg,
+#                          card 1 = Dumbbell Sumo Squat 4 sets / 8-10 / 32 kg.
+# Edit dialog fields (unlabeled stacked EditTexts) order: Sets, Reps, Weight, Notes — target by
+# prefilled text. We change card-0 SETS 4->5 and card-1 WEIGHT 32->36 in quick succession.
+# Persistence (restart + rotation) verified via run-as sqlite3 in the report.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "layout_exercises"
+# Program opens on TODAY (Wed). Card 0 = RDL.
+- assertVisible:
+    text: "4 sets"
+- takeScreenshot: s2_fe_before
+# EDIT 1: card 0 SETS 4 -> 5
+- tapOn:
+    id: "btn_edit_exercise"
+    index: 0
+- assertVisible:
+    text: ".*Edit Barbell Romanian Deadlift.*"
+- tapOn: "4"
+- eraseText
+- inputText: "5"
+- hideKeyboard
+- tapOn:
+    text: "Save"
+- assertVisible:
+    text: "5 sets"
+- takeScreenshot: s2_fe_edit1_saved
+# EDIT 2 (immediately after): card 1 WEIGHT 32 -> 36. Card 1 is below the fold after Save scrolls
+# the list to top — scroll it into view first.
+- scrollUntilVisible:
+    element:
+      id: "btn_edit_exercise"
+      index: 1
+    direction: DOWN
+- tapOn:
+    id: "btn_edit_exercise"
+    index: 1
+- assertVisible:
+    text: ".*Edit Dumbbell Sumo Squat.*"
+- tapOn: "32"
+- eraseText
+- inputText: "36"
+- hideKeyboard
+- tapOn:
+    text: "Save"
+- assertVisible:
+    text: "36 kg"
+- takeScreenshot: s2_fe_edit2_saved
+# Both edits visible together on the day.
+- assertVisible:
+    text: "5 sets"
+- assertVisible:
+    text: "36 kg"
+- takeScreenshot: s2_fe_both_landed

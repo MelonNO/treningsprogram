@@ -1,0 +1,30 @@
+appId: com.migul.treningsprogram
+---
+# Regression smoke: launch and visit all bottom-nav tabs with no crash; spot-check key surfaces
+# still render after the B08/B09 changes. Assumes device is onboarded (Home shows normal content).
+- launchApp:
+    stopApp: true
+- assertVisible:
+    id: "homeFragment"
+- takeScreenshot: smoke_home
+# Program tab
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "card_program_switcher"
+- takeScreenshot: smoke_program
+# Stats / History tab
+- tapOn:
+    id: "historyFragment"
+- takeScreenshot: smoke_stats
+# Profile tab
+- tapOn:
+    id: "profileFragment"
+- assertVisible:
+    id: "card_settings"
+- takeScreenshot: smoke_profile
+# Back to Home, no crash
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "homeFragment"

@@ -1,0 +1,38 @@
+appId: com.migul.treningsprogram
+---
+# B09 — label/copy verification (no API needed).
+# Check 1: Program options dialog lists "Regenerate (keep logged days)" (not the old "Regenerate
+#          program now").
+# Check 2: Settings → AI & Program caption explains the full-week/replaces-all behaviour.
+- launchApp:
+    stopApp: true
+
+# ---- Check 1: Program tab options dialog ----
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "btn_program_options"
+- tapOn:
+    id: "btn_program_options"
+- assertVisible:
+    text: "Regenerate (keep logged days)"
+- assertNotVisible:
+    text: "Regenerate program now"
+- takeScreenshot: b09_program_options_dialog
+# dismiss the dialog
+- back
+
+# ---- Check 2: Settings → AI & Program caption ----
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    id: "card_settings"
+- tapOn:
+    id: "row_ai_program"
+- assertVisible:
+    text: ".*Generate Now regenerates the FULL week.*"
+- assertVisible:
+    text: ".*it replaces every day, including ones you've already logged.*"
+- assertVisible:
+    text: ".*use Regenerate on the Program tab.*"
+- takeScreenshot: b09_settings_ai_caption

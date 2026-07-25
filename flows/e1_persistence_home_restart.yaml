@@ -1,0 +1,73 @@
+appId: com.migul.treningsprogram
+---
+# E1 criterion 5 — PERSISTENCE across screens + app restart.
+# Pre-state on today (Wed, day 3) after edit/delete/add/reorder:
+#   [Barbell Row 4x8 @70, Bench Press 5x6 @65 "leg day note", Plank 3x60s Bodyweight].
+# (a) Home today-view must reflect the EDITED Bench Press (5x6 @ 65kg) and the ADDED Plank.
+# (b) After force-stop + relaunch, the Program tab must still show the same edited/added/reordered state.
+- launchApp:
+    stopApp: true
+# --- (a) Home today-view reflects the manual edits/additions ---
+- tapOn:
+    id: "homeFragment"
+# Home today-view is below the fold; scroll the plan into view.
+- scrollUntilVisible:
+    element:
+      id: "tv_today_plan"
+    direction: DOWN
+- assertVisible:
+    id: "tv_today_plan"
+# Edited Bench Press values surface on Home (sets 5 / reps 6 / weight 65).
+- assertVisible:
+    text: ".*Bench Press  5x6 @ 65kg.*"
+# Added Plank surfaces on Home.
+- assertVisible:
+    text: ".*Plank  3x60s.*"
+# The reordered first item (Barbell Row) is present too.
+- assertVisible:
+    text: ".*Barbell Row  4x8 @ 70kg.*"
+- takeScreenshot: e1_persist_home
+# --- (b) Force-stop + relaunch, then verify the Program tab survived restart ---
+- stopApp
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "layout_exercises"
+# Reordered order persisted: Barbell Row is the top card (its up-button disabled).
+- assertVisible:
+    id: "btn_move_up"
+    index: 0
+    enabled: false
+- assertVisible:
+    text: "Barbell Row"
+# Edited Bench Press persisted (it is now the 2nd card after reorder — scroll its chips in).
+- scrollUntilVisible:
+    element:
+      text: "leg day note"
+    direction: DOWN
+- assertVisible:
+    text: "Bench Press"
+- assertVisible:
+    text: "5 sets"
+- assertVisible:
+    text: "6 reps"
+- assertVisible:
+    text: "65 kg"
+- assertVisible:
+    text: "leg day note"
+- takeScreenshot: e1_persist_program_top
+# Added Plank persisted (scroll to it).
+- scrollUntilVisible:
+    element:
+      text: "Plank"
+    direction: DOWN
+- assertVisible:
+    text: "Plank"
+- assertVisible:
+    text: "Bodyweight"
+# Deleted Squat is still gone after restart.
+- assertNotVisible:
+    text: "Squat"
+- takeScreenshot: e1_persist_program_bottom

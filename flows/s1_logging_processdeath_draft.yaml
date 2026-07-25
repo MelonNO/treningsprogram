@@ -1,0 +1,46 @@
+appId: com.migul.treningsprogram
+---
+# S1 (adversarial, gate-mandated): log sets in a real workout, then KILL the app process
+# (process death) and relaunch -> the LOGGED sets must survive (persisted to DB on log, not just
+# in memory). Also: warm-up flag round-trips; Complete persists exactly what was entered.
+#
+# NOTE on Waydroid: et_weight/et_reps come PRE-FILLED with the AI/saved target, and Maestro's
+# eraseText/inputText on this IME is unreliable (appends). So this flow logs the pre-filled target
+# values directly (which exercises persistence + the warm-up flag + Complete just as well), and
+# asserts presence of the rendered W/S rows rather than specific typed numbers.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible: "Start Workout"
+- tapOn: "Start Workout"
+- assertVisible:
+    id: "btn_log_set"
+# --- Log a WORKING set at the prefilled target ---
+- tapOn:
+    id: "btn_log_set"
+# A working-set row "S1: ..." must appear.
+- assertVisible:
+    text: "S1:.*reps @.*kg"
+# --- Toggle Warm-up and log a WARM-UP set -> a "W..." row must appear (flag round-trip) ---
+- tapOn: "Warm-up"
+- tapOn:
+    id: "btn_log_set"
+- assertVisible:
+    text: "W\\d+:.*reps @.*kg"
+# Both rows present (the warm-up summary header "1 working set  +  1 warm-up" also proves the flag).
+- assertVisible:
+    text: ".*working set.*warm-up.*"
+- takeScreenshot: s1_before_kill
+# --- PROCESS DEATH: kill the process, relaunch, re-enter the in-progress session ---
+- stopApp
+- launchApp
+- tapOn:
+    id: "programFragment"
+- tapOn: "Start Workout"
+# Both previously-logged sets MUST still be present after process death.
+- assertVisible:
+    text: "S1:.*reps @.*kg"
+- assertVisible:
+    text: "W\\d+:.*reps @.*kg"
+- takeScreenshot: s1_after_relaunch

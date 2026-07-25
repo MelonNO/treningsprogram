@@ -1,0 +1,29 @@
+appId: com.migul.treningsprogram
+---
+# B3 — Plateau detected (stall) card on Stats → Progress sub-tab.
+# Pre-seeded DB: Bench Press 100kg x5 across 3 sessions (flat e1RM => stalled);
+# Squat rising 100/102.5/105 kg x5 (progressing => NOT stalled).
+- launchApp
+- tapOn:
+    id: "historyFragment"
+# Switch to the "Progress" sub-tab (TabLayout position 2)
+- tapOn:
+    text: "Progress"
+- assertVisible:
+    id: "card_stalled"
+- assertVisible:
+    text: "Plateau detected"
+# The stalled lift is named
+- assertVisible:
+    text: "Bench Press"
+# A concrete suggestion is offered (deload / rep scheme / variation)
+- assertVisible:
+    text: ".*(deload|rep|variation|scheme).*"
+# The progressing lift must NOT be flagged INSIDE the stalled card.
+# (Squat does appear elsewhere on this screen, e.g. the Personal Records list, so the
+#  negative assertion is scoped to children of the stalled card only.)
+- assertNotVisible:
+    text: "Squat"
+    childOf:
+      id: "card_stalled"
+- takeScreenshot: b3_stall

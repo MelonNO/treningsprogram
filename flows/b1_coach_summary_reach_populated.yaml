@@ -1,0 +1,32 @@
+appId: com.migul.treningsprogram
+---
+# B1 — Weekly coach summary: reachable from Profile -> Settings -> Coach Summary,
+# and the populated list renders newest-first with week/date/text fields.
+# Pre-state: at least one weekly_summaries row present (live-generated or seeded).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    text: "Settings"
+# The Coach Summary row exists in an obvious place
+- assertVisible:
+    id: "row_coach_summary"
+- assertVisible:
+    text: "Coach Summary"
+- takeScreenshot: b1_settings_row
+# Navigate into the Weekly Summary screen
+- tapOn:
+    id: "row_coach_summary"
+- assertVisible:
+    id: "rv_summaries"
+# Populated list: a week label, a date, and summary text are shown
+- assertVisible:
+    id: "tv_week"
+- assertVisible:
+    id: "tv_date"
+- assertVisible:
+    id: "tv_summary_text"
+- takeScreenshot: b1_summary_populated

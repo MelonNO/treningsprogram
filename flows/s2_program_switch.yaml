@@ -1,0 +1,30 @@
+appId: com.migul.treningsprogram
+---
+# S2 — switch active program updates the displayed plan (no merge). Two programs exist, each with a
+# DISTINCT Wed card-0 marker (TRAVEL_MARKER_RDL on the active "Travel Programi", HOME_MARKER_RDL on
+# "My Program"). Switching the spinner must swap which marker shows; the other must be GONE.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "card_program_switcher"
+# Active = Travel: its marker is shown on Wed (today).
+- assertVisible:
+    text: "TRAVEL_MARKER_RDL"
+- assertNotVisible:
+    text: "HOME_MARKER_RDL"
+- takeScreenshot: s2_switch_travel_active
+# Open the spinner and pick "My Program".
+- tapOn:
+    id: "spinner_program"
+- assertVisible:
+    text: ".*My Program.*"
+- tapOn:
+    text: ".*My Program.*"
+# Now My Program's marker shows and Travel's is gone (plan swapped, not merged).
+- assertVisible:
+    text: "HOME_MARKER_RDL"
+- assertNotVisible:
+    text: "TRAVEL_MARKER_RDL"
+- takeScreenshot: s2_switch_home_active

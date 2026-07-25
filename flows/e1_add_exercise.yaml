@@ -1,0 +1,48 @@
+appId: com.migul.treningsprogram
+---
+# E1 criterion 3 — ADD a new exercise to a day via the "+ Add exercise" dialog using the
+# catalog autocomplete (type "Plan" -> pick "Plank").
+# Pre-state after delete flow: today (Wed) = [Bench Press, Barbell Row] (2 cards).
+# Add dialog field order: Exercise(autocomplete), Sets(prefill 3), Reps(prefill 8-12), Weight(prefill 0), Notes.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "layout_exercises"
+- assertNotVisible:
+    text: "Plank"
+- takeScreenshot: e1_add_before
+# Day-level "+ Add exercise" button (scroll to it — it is below the cards).
+- scrollUntilVisible:
+    element:
+      id: "btn_add_exercise"
+    direction: DOWN
+- tapOn:
+    id: "btn_add_exercise"
+- assertVisible:
+    text: "Add exercise"
+- takeScreenshot: e1_add_dialog
+# Type into the autocomplete name field and pick the "Plank" suggestion.
+- tapOn:
+    text: "Start typing an exercise…"
+- inputText: "Plan"
+- tapOn: "Plank"
+# Set a recognizable rep target so we can confirm the added card precisely (weight stays 0 -> Bodyweight).
+- tapOn: "8-12"
+- eraseText
+- inputText: "60s"
+- hideKeyboard
+- tapOn:
+    text: "Add"
+# The new Plank card must appear in the day's list (bodyweight since weight=0).
+# Scroll until the Plank card's "Bodyweight" chip is fully visible (it sits below the name).
+- scrollUntilVisible:
+    element:
+      text: "Bodyweight"
+    direction: DOWN
+- assertVisible:
+    text: "Plank"
+- assertVisible:
+    text: "Bodyweight"
+- takeScreenshot: e1_add_after

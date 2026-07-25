@@ -1,0 +1,53 @@
+appId: com.migul.treningsprogram
+---
+# Light regression spot-check (not a deep re-test): confirm prior-batch surfaces still render with
+# no crash after the B08/B09 changes — achievements collapsed-by-default (B04), Progress exercise
+# picker, Stats/Recap render, and the in-session log screen opens (B01/B02 area).
+- launchApp:
+    stopApp: true
+
+# --- B04: achievements collapsed by default, expands on tap ---
+- tapOn:
+    id: "profileFragment"
+- scrollUntilVisible:
+    element:
+      id: "header_achievements"
+    direction: DOWN
+- assertVisible:
+    id: "header_achievements"
+- assertNotVisible:
+    id: "layout_achievements"
+- tapOn:
+    id: "header_achievements"
+- assertVisible:
+    id: "layout_achievements"
+- takeScreenshot: reg_achievements_expanded
+
+# --- Stats/Recap + Progress exercise picker ---
+- tapOn:
+    id: "historyFragment"
+- assertVisible:
+    id: "tab_layout"
+- assertVisible:
+    text: "Progress"
+- tapOn:
+    text: "Progress"
+- assertVisible:
+    id: "ac_exercise"
+- takeScreenshot: reg_progress_picker
+
+# --- In-session log screen (B01/B02): open via a planned day ---
+- tapOn:
+    id: "programFragment"
+- tapOn:
+    text: "Mon"
+- assertVisible:
+    id: "btn_start_day_workout"
+- tapOn:
+    id: "btn_start_day_workout"
+- assertVisible:
+    id: "et_weight"
+- assertVisible:
+    id: "btn_log_set"
+- takeScreenshot: reg_log_screen
+- back

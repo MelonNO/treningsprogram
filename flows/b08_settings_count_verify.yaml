@@ -1,0 +1,21 @@
+appId: com.migul.treningsprogram
+---
+# B08 (Settings) check 3b — verify the saved COUNT-mode choice survives a fresh app launch
+# (prefs re-read from disk). Expected: count mode (switch ON), rest chips hidden, days field = 3.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    id: "card_settings"
+- tapOn:
+    id: "row_training_profile"
+- assertVisible:
+    id: "switch_let_ai_choose_days"
+- assertVisible:
+    id: "layout_count_mode"
+- assertVisible:
+    id: "et_days_per_week"
+- assertNotVisible:
+    id: "chip_group_rest_days"
+- takeScreenshot: b08_count_verified

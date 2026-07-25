@@ -1,0 +1,44 @@
+# LIVE ANTHROPIC API CALL LEDGER — HARD MAX 20 TOTAL (all agents combined) — long-session-fix-2026-07
+# Append EXACTLY ONE line per live API call, BEFORE making it. Never let data lines exceed 20.
+# Format: <n>/20 | <ISO timestamp> | <agent> | <purpose> | <result-after: ok/fail/error>
+# Coordinator reserves 0. Fresh 20-call budget for the Layer-2 long-session fix.
+# --- calls below this line ---
+1/20 | 2026-07-01T14:49:58.021973060+02:00 | orchestrator | gen hyper_120 a1 | sending
+   ^ 1 result: ok stop=end_turn len=19861
+2/20 | 2026-07-01T14:51:06.864078753+02:00 | orchestrator | gen hyper_120 a2 | sending
+   ^ 2 result: ok stop=end_turn len=17904
+3/20 | 2026-07-01T14:52:06.485348375+02:00 | orchestrator | gen hyper_120 a3 | sending
+   ^ 3 result: ok stop=end_turn len=20222
+4/20 | 2026-07-01T14:59:10.204820363+02:00 | orchestrator | gen hyper_120 a1 | sending
+   ^ 4 result: ok stop=end_turn len=21090
+5/20 | 2026-07-01T15:00:22.064531581+02:00 | orchestrator | gen hyper_120 a2 | sending
+   ^ 5 result: ok stop=end_turn len=20201
+6/20 | 2026-07-01T15:01:29.271006344+02:00 | orchestrator | gen hyper_120 a3 | sending
+   ^ 6 result: ok stop=end_turn len=22573
+7/20 | 2026-07-01T15:07:52.778937989+02:00 | orchestrator | gen hyper_120 a1 | sending
+   ^ 7 result: ok stop=end_turn len=20808
+8/20 | 2026-07-01T15:09:11.636333124+02:00 | orchestrator | gen hyper_120 a2 | sending
+   ^ 8 result: ok stop=end_turn len=20639
+9/20 | 2026-07-01T15:12:59.729563046+02:00 | orchestrator | gen hyper_100 a1 | sending
+10/20 | 2026-07-01T15:15:31.022965601+02:00 | orchestrator | gen hyper_100 a1 | sending
+   ^ 10 result: ok stop=end_turn len=20760
+11/20 | 2026-07-01T15:16:42.744578255+02:00 | orchestrator | gen hyper_100 a2 | sending
+   ^ 11 result: ok stop=end_turn len=17748
+12/20 | 2026-07-01T15:17:42.133631416+02:00 | orchestrator | gen hyper_100 a3 | sending
+   ^ 12 result: ok stop=end_turn len=17928
+13/20 | 2026-07-01T15:20:20.627362353+02:00 | orchestrator | gen strength_120 a1 | sending
+   ^ 13 result: ok stop=end_turn len=17376
+14/20 | 2026-07-01T15:21:20.360832566+02:00 | orchestrator | gen strength_120 a2 | sending
+   ^ 14 result: ok stop=end_turn len=17418
+15/20 | 2026-07-01T15:22:22.361331500+02:00 | orchestrator | gen strength_120 a3 | sending
+   ^ 15 result: ok stop=end_turn len=17023
+16/20 | 2026-07-01T15:24:56.525976188+02:00 | orchestrator | gen hyper_50 a1 | sending
+   ^ 16 result: ok stop=end_turn len=15247
+17/20 | 2026-07-01T15:25:47.674313420+02:00 | orchestrator | gen hyper_50 a2 | sending
+   ^ 17 result: ok stop=end_turn len=13533
+18/20 | 2026-07-01T15:26:34.529766665+02:00 | orchestrator | gen hyper_50 a3 | sending
+   ^ 18 result: ok stop=end_turn len=13971
+19/20 | 2026-07-01T15:40:19.453835249+02:00 | orchestrator | gen strength_100 a1 | sending
+   ^ 19 result: ok stop=end_turn len=13835
+20/20 | 2026-07-01T15:41:07.903179654+02:00 | orchestrator | gen strength_100 a2 | sending
+   ^ 20 result: ok stop=end_turn len=14607

@@ -1,0 +1,275 @@
+{
+  "rationale": "This week shifts to a posterior-chain emphasis as directed: rows, hinges, rear-delt, and hamstring work take priority while pressing is kept secondary. All blacklisted exercises are replaced — you'll hit barbell deadlifts, chest-supported rows, seal rows, Bayesian curls, overhead DB pressing from a seated position replaced by Arnold-style, and more. Arms stay prioritised with two dedicated slots across the week (extra sets vs. other groups). Ankle rehab continues with banded/towel ankle circles, single-leg calf raises with wall support, and seated dorsiflexion work staged as light progression — no loaded single-leg balance work used as a primary movement.",
+  "days": [
+    {
+      "dayOfWeek": 2,
+      "name": "Pull — Back & Biceps (Posterior Chain A)",
+      "exercises": [
+        {
+          "name": "Barbell Deadlift",
+          "sets": 4,
+          "targetReps": "5-8",
+          "targetWeightKg": 72.5,
+          "notes": "Primary compound hip hinge. Cap <=8 reps (barbell hinge rule). Leave >=2 RIR — do NOT grind. Controlled ~2 s lowering, drive through floor on ascent. Start at 72.5 kg (slightly above recent 70 kg sumo work, different pattern). Double progression: reach 8 reps across all 4 sets, then add 2.5 kg and reset to 5.",
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Chest-Supported Row (Incline Bench)",
+          "sets": 4,
+          "targetReps": "8-12",
+          "notes": "Accessory horizontal pull. Lie prone on incline bench (~45 deg), row DBs to lower ribcage, elbows flared ~45 deg. No momentum. Start around 20-22 kg per hand — conservative baseline since new movement. ~2 RIR. Double progression: reach 12 reps all sets then +2 kg.",
+          "targetWeightKg": 20.0,
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Seal Row (Bench)",
+          "sets": 3,
+          "targetReps": "10-12",
+          "notes": "Accessory horizontal pull — place bench on two chairs or elevated surface, lie prone, row DBs from dead hang. Eliminates body English. ~2 RIR. Start at 18 kg per hand. Double progression: reach 12 reps all sets then +2 kg.",
+          "targetWeightKg": 18.0,
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Hammer Curl",
+          "sets": 4,
+          "targetReps": "10-12",
+          "notes": "Isolation — brachialis & brachioradialis emphasis, also biceps. Strict curl, no swing. ~1-2 RIR. Start at 12 kg per hand. Double progression: reach 12 reps all sets then +2 kg. Priority muscle — 4 sets this session.",
+          "targetWeightKg": 12.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Dumbbell Spider Curl (Incline Bench, Prone)",
+          "sets": 3,
+          "targetReps": "10-15",
+          "notes": "Isolation — biceps in short head stretch position. Lie face-down on incline bench, curl DB up toward shoulder, hold peak contraction 1 s. ~1 RIR. Start at 8 kg. Double progression: reach 15 reps then +1-2 kg.",
+          "targetWeightKg": 8.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Seated Ankle Dorsiflexion (Towel Resistance)",
+          "sets": 2,
+          "targetReps": "15-20",
+          "targetWeightKg": 0.0,
+          "notes": "Ankle rehab — sit on bench, loop a towel around forefoot, manually resist dorsiflexion. Slow, controlled. No load beyond towel tension. Progression: increase hold time to 3 s per rep over weeks, then add light band when stable.",
+          "recommendedRestSeconds": 45
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 3,
+      "name": "Push — Chest, Shoulders & Triceps",
+      "exercises": [
+        {
+          "name": "Barbell Floor Press",
+          "sets": 4,
+          "targetReps": "6-10",
+          "notes": "Primary compound horizontal push — barbell bench press without rack (floor-loaded). Lie on floor, lower until upper arms touch floor, press. Controlled ~2 s eccentric. ~2-3 RIR. Start at 60 kg (conservative — new loading position). Double progression: reach 10 reps all sets then +2.5 kg.",
+          "targetWeightKg": 60.0,
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Arnold Press (Seated on Bench)",
+          "sets": 3,
+          "targetReps": "8-12",
+          "notes": "Accessory vertical push — seated on bench for stability (no overhead barbell due to ceiling constraint). Rotate from pronated at bottom to neutral at top. ~2 RIR. Start at 14 kg per hand. Double progression: reach 12 reps then +2 kg.",
+          "targetWeightKg": 14.0,
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Lateral Raise",
+          "sets": 3,
+          "targetReps": "12-15",
+          "notes": "Isolation — direct lateral-delt work. Slight forward lean, thumbs slightly down, lead with elbows. Avoid momentum. ~1-2 RIR. Start at 8 kg. Double progression: reach 15 reps all sets then +1-2 kg.",
+          "targetWeightKg": 8.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Dumbbell Rear-Delt Row (Bent-Over, Elbows Flared 90)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "notes": "Isolation — rear-delt emphasis. Hinge to ~45 deg, row DBs with elbows flared perpendicular to torso, not toward hip. Light load, full range. ~1-2 RIR. Start at 10 kg. Double progression: reach 15 reps then +2 kg.",
+          "targetWeightKg": 10.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Diamond Push-Up",
+          "sets": 3,
+          "targetReps": "10-15",
+          "notes": "Accessory — triceps & inner chest. Hands form diamond shape, elbows track back. Bodyweight. ~2 RIR. Progression: when 15 reps across all sets is easy, add a weight plate on back or slow 3 s eccentric.",
+          "targetWeightKg": 0.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Wall Calf Raise (Single-Leg, Hand on Wall)",
+          "sets": 2,
+          "targetReps": "12-15",
+          "notes": "Ankle rehab/prehab — hand firmly on wall for full support. Slow controlled rise and lower (2 s up, 2 s down). No load. Progression: increase reps to 20, then reduce wall contact to fingertips over weeks.",
+          "targetWeightKg": 0.0,
+          "recommendedRestSeconds": 45
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 5,
+      "name": "Lower — Hamstrings, Glutes & Quads (Posterior Chain B)",
+      "exercises": [
+        {
+          "name": "Barbell Hip Thrust (Bench-Supported)",
+          "sets": 4,
+          "targetReps": "10-15",
+          "notes": "Primary compound — glutes & hamstrings. Shoulders on bench, barbell across hips (pad if needed). Drive hips to full extension, squeeze glutes at top 1 s. Exempt from hinge rep cap (bodyweight/light hip-extension category). ~2 RIR. Start at 60 kg — conservative new movement. Double progression: reach 15 reps all sets then +5 kg.",
+          "targetWeightKg": 60.0,
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Romanian Deadlift",
+          "sets": 3,
+          "targetReps": "8-12",
+          "notes": "Accessory hip hinge — DB variation, cap <=12 reps. Hinge at hips, soft knee bend, DBs track down shins, feel hamstring stretch. Leave >=2 RIR. ~2 RIR. Start at 22 kg per hand. Double progression: reach 12 reps all sets then +2 kg.",
+          "targetWeightKg": 22.0,
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Goblet Squat",
+          "sets": 3,
+          "targetReps": "8-12",
+          "notes": "Accessory knee-dominant quad movement — bilateral, fully stable for ankle. Hold DB at chest, upright torso, full depth. ~2 RIR. Start at 24 kg. Double progression: reach 12 reps then +2-4 kg.",
+          "targetWeightKg": 24.0,
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Lying Dumbbell Hamstring Curl (Prone on Bench)",
+          "sets": 3,
+          "targetReps": "12-15",
+          "notes": "Isolation — lie prone on bench, DB held between feet (or ankles), curl toward glutes. Slow 2-3 s eccentric on isolation movement is fine here. ~1-2 RIR. Start at 10 kg. Double progression: reach 15 reps all sets then +2 kg.",
+          "targetWeightKg": 10.0,
+          "recommendedRestSeconds": 75
+        },
+        {
+          "name": "Bodyweight Glute Bridge (Double-Leg)",
+          "sets": 2,
+          "targetReps": "15-20",
+          "notes": "Rehab/accessory — bilateral glute activation and lumbar stability. Drive hips up fully, hold 2 s. Fully bilateral, ankle-safe. Progression: add a weight plate across hips when 20 reps is easy across both sets.",
+          "targetWeightKg": 0.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Standing Ankle Alphabet (Wall-Supported)",
+          "sets": 2,
+          "targetReps": "1-1",
+          "targetWeightKg": 0.0,
+          "notes": "Ankle rehab — stand on one foot (hand on wall), trace alphabet A-Z with toe. Each full alphabet = 1 rep. Improves proprioception and ankle control. No load. Progression: reduce wall contact over weeks as stability improves.",
+          "recommendedRestSeconds": 30
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 6,
+      "name": "Upper — Arms Priority & Rear Delt",
+      "exercises": [
+        {
+          "name": "Barbell Bent-Over Row (Supinated Grip)",
+          "sets": 4,
+          "targetReps": "6-10",
+          "notes": "Primary compound horizontal pull — supinated grip shifts load toward biceps and lower lats. Hinge to ~45 deg, pull bar to lower abs, squeeze shoulder blades. ~2-3 RIR. Start at 45 kg. Double progression: reach 10 reps all sets then +2.5 kg.",
+          "targetWeightKg": 45.0,
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Chin-Up (Supinated Grip)",
+          "sets": 4,
+          "targetReps": "6-10",
+          "notes": "Accessory vertical pull — supinated grip (different from last week's pronated pull-up). Full hang at bottom, chin over bar at top. ~2 RIR. Bodyweight baseline. Progression: when 10 reps across all sets, add a DB held between feet or use a weighted belt.",
+          "targetWeightKg": 0.0,
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Concentration Curl",
+          "sets": 4,
+          "targetReps": "10-12",
+          "notes": "Isolation — biceps priority muscle (4 sets). Elbow braced on inner thigh, full ROM, slow 2-3 s eccentric for isolation. Hold peak contraction 1 s at top. ~1-2 RIR. Start at 10 kg. Double progression: reach 12 reps all sets then +2 kg.",
+          "targetWeightKg": 10.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Dumbbell Overhead Tricep Extension (Seated, Two-Hand)",
+          "sets": 3,
+          "targetReps": "10-15",
+          "notes": "Isolation — triceps long head in stretched position. Seated on bench, hold one DB with both hands overhead, lower behind head, extend fully. Slow 2-3 s eccentric appropriate here. ~1-2 RIR. Start at 16 kg. Double progression: reach 15 reps then +2 kg.",
+          "targetWeightKg": 16.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Dumbbell Bent-Over Rear-Delt Fly",
+          "sets": 3,
+          "targetReps": "12-15",
+          "notes": "Isolation — rear delt. Hinge forward ~45-60 deg, arms hang, fly out to sides keeping slight elbow bend. Don't shrug. ~1-2 RIR. Start at 8 kg. Double progression: reach 15 reps then +2 kg.",
+          "targetWeightKg": 8.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Dumbbell Tricep Kickback",
+          "sets": 3,
+          "targetReps": "12-15",
+          "notes": "Isolation — triceps lateral head. Upper arm parallel to floor, extend fully, hold peak contraction 1 s. ~1-2 RIR. Start at 8 kg. Double progression: reach 15 reps then +1-2 kg. Priority muscle extra volume.",
+          "targetWeightKg": 8.0,
+          "recommendedRestSeconds": 60
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 7,
+      "name": "Full-Body Metabolic + Ankle Rehab",
+      "exercises": [
+        {
+          "name": "Barbell Bent-Over Row (Pronated, Wide Grip)",
+          "sets": 4,
+          "targetReps": "6-10",
+          "notes": "Primary compound — wide pronated grip targets upper back and rear delt differently from Saturday's supinated row. ~2-3 RIR. Start at 42.5 kg. Double progression: reach 10 reps all sets then +2.5 kg.",
+          "targetWeightKg": 42.5,
+          "recommendedRestSeconds": 120
+        },
+        {
+          "name": "Dumbbell Bench Press (Flat, Neutral Grip)",
+          "sets": 3,
+          "targetReps": "8-12",
+          "notes": "Accessory horizontal push — neutral grip variation, different from floor press (Friday) and last week's bench work. ~2 RIR. Start at 22 kg per hand. Double progression: reach 12 reps then +2 kg.",
+          "targetWeightKg": 22.0,
+          "recommendedRestSeconds": 90
+        },
+        {
+          "name": "Dumbbell Reverse Curl",
+          "sets": 4,
+          "targetReps": "10-12",
+          "notes": "Isolation — brachialis, brachioradialis, and forearm extensors. Pronated grip curl. Arms priority — 4 sets. ~1-2 RIR. Start at 9 kg. Double progression: reach 12 reps all sets then +1-2 kg.",
+          "targetWeightKg": 9.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Ab Wheel Rollout",
+          "sets": 3,
+          "targetReps": "8-12",
+          "notes": "Accessory core — kneeling rollout, full extension without lumbar sag. ~2 RIR. No load. Progression: increase range of motion, then attempt standing rollout negatives when 12 reps kneeling is solid across all sets.",
+          "targetWeightKg": 0.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Dumbbell Shrug",
+          "sets": 3,
+          "targetReps": "12-15",
+          "notes": "Accessory — upper trap. Hold DBs at sides, shrug straight up (no rolling), hold 1 s, lower slowly. ~1-2 RIR. Start at 24 kg per hand. Double progression: reach 15 reps then +2 kg.",
+          "targetWeightKg": 24.0,
+          "recommendedRestSeconds": 60
+        },
+        {
+          "name": "Bilateral Calf Raise (Bodyweight, Slow Tempo)",
+          "sets": 3,
+          "targetReps": "15-20",
+          "notes": "Ankle rehab/strength — stand on flat floor (or edge of step if available), 3 s rise, 3 s lower. Fully bilateral for ankle safety. Progression: add DBs held at sides once 20 reps is easy. Slow eccentric is appropriate for this isolation/rehab context.",
+          "targetWeightKg": 0.0,
+          "recommendedRestSeconds": 45
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+appId: com.migul.treningsprogram
+---
+# U1 (gate-critical): Home Muscle Recovery card shows ONLY recovering fine-grain muscles,
+# each with "Xh left" and a "trained Xh ago" subtitle. Bench -> Chest/Front Delts/Triceps,
+# Squat -> Quads/Glutes/Hamstrings/Core. Tapping a muscle opens that muscle's LAST session
+# recap (History tab), NOT a new workout.
+# Pre-state seeded: session 3 = Bench Press (6h ago), session 4 = Squat (3h ago).
+- launchApp:
+    stopApp: true
+- assertVisible:
+    id: "homeFragment"
+- tapOn:
+    id: "homeFragment"
+# Scroll the Muscle Recovery card into view
+- scrollUntilVisible:
+    element:
+      text: "Muscle Recovery"
+    direction: DOWN
+- takeScreenshot: u1_recovery_card
+# Fine-grain muscles from the bench session
+- assertVisible: "Chest"
+- assertVisible: "Front Delts"
+- assertVisible: "Triceps"
+# Fine-grain muscles from the squat session
+- assertVisible: "Quads"
+- assertVisible: "Glutes"
+- assertVisible: "Hamstrings"
+- assertVisible: "Core"
+# Recovering markers
+- assertVisible:
+    text: "\\d+h left"
+- assertVisible:
+    text: "trained \\d+h ago"
+# Rested/ready muscles must be HIDDEN (Biceps was never trained -> not shown)
+- assertNotVisible: "Biceps"
+- assertNotVisible: "Calves"
+- assertNotVisible: "Ready"
+- assertNotVisible: "Untrained"

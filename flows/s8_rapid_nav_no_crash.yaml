@@ -1,0 +1,58 @@
+appId: com.migul.treningsprogram
+---
+# S8 (headline fix): rapid navigation must NOT crash. The currentDestination guard makes a second
+# rapid tap a no-op instead of throwing "action not found from destination". We drive each
+# Settings sub-screen, return, and (for the rapid-tap stress) thrash the bottom-nav tabs and
+# re-enter Settings repeatedly. A crash would abort the flow; reaching the end = survived.
+# Pre-state: onboarding complete (normal app state).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "profileFragment"
+# Profile -> Settings
+- tapOn:
+    id: "card_settings"
+- assertVisible:
+    id: "row_training_profile"
+# Visit each sub-screen and come back (exercises every guarded navigate action).
+- tapOn:
+    id: "row_training_profile"
+- back
+- assertVisible:
+    id: "row_exercise_library"
+- tapOn:
+    id: "row_exercise_library"
+- back
+- tapOn:
+    id: "row_coach_summary"
+- back
+- tapOn:
+    id: "row_ai_program"
+- back
+- tapOn:
+    id: "row_backup"
+- back
+- tapOn:
+    id: "row_about"
+- back
+- assertVisible:
+    id: "row_training_profile"
+- takeScreenshot: s8_settings_subscreens_survived
+# --- Rapid bottom-nav tab thrash (stress the tab reselection guards) ---
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: "homeFragment"
+      - tapOn:
+          id: "historyFragment"
+      - tapOn:
+          id: "programFragment"
+      - tapOn:
+          id: "profileFragment"
+# App still alive and on Profile.
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "homeFragment"
+- takeScreenshot: s8_tab_thrash_survived

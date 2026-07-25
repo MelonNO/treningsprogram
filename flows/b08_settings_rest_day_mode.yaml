@@ -1,0 +1,103 @@
+appId: com.migul.treningsprogram
+---
+# B08 (Settings → Training Profile) — day-selection two-mode verification.
+# Covers: (1) switch toggles reveal/hide the correct controls; (2) rest-day chips update the
+# derived training-days hint; (3a) rest-day selection persists across leave/return.
+# Entry saved state on this device is COUNT mode (switch ON, days=4).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    id: "card_settings"
+- tapOn:
+    id: "row_training_profile"
+- assertVisible:
+    id: "switch_let_ai_choose_days"
+
+# --- Check 1a: initial = COUNT mode (switch ON) → count controls shown, rest controls hidden ---
+- assertVisible:
+    id: "layout_count_mode"
+- assertVisible:
+    id: "et_days_per_week"
+- assertNotVisible:
+    id: "chip_group_rest_days"
+
+# --- Check 1b: toggle switch OFF → REST-DAY mode controls revealed, count hidden ---
+- tapOn:
+    id: "switch_let_ai_choose_days"
+- assertVisible:
+    id: "layout_rest_mode"
+- assertVisible:
+    id: "chip_group_rest_days"
+- assertVisible:
+    id: "tv_training_days_hint"
+- assertNotVisible:
+    id: "et_days_per_week"
+# No rest days selected yet (saved CSV blank) ⇒ train all 7
+- assertVisible:
+    text: "Training 7 days/week: Mon, Tue, Wed, Thu, Fri, Sat, Sun"
+- takeScreenshot: b08_restmode_all7
+
+# --- Check 2: chip selection updates the hint ---
+# Check Sat ⇒ 6 training days
+- tapOn:
+    id: "chip_rest_6"
+- assertVisible:
+    text: "Training 6 days/week: Mon, Tue, Wed, Thu, Fri, Sun"
+# Check Sun ⇒ 5 training days (Mon–Fri)
+- tapOn:
+    id: "chip_rest_7"
+- assertVisible:
+    text: "Training 5 days/week: Mon, Tue, Wed, Thu, Fri"
+- takeScreenshot: b08_restmode_satsun
+# Uncheck Sat ⇒ rest={Sun} only ⇒ Sat becomes a training day ⇒ 6 days Mon–Sat (unchecking works too)
+- tapOn:
+    id: "chip_rest_6"
+- assertVisible:
+    text: "Training 6 days/week: Mon, Tue, Wed, Thu, Fri, Sat"
+# Re-check Sat ⇒ Sat+Sun rest again for the persistence test
+- tapOn:
+    id: "chip_rest_6"
+- assertVisible:
+    text: "Training 5 days/week: Mon, Tue, Wed, Thu, Fri"
+
+# --- Check 1c: toggle back ON → count controls return, rest hidden ---
+- tapOn:
+    id: "switch_let_ai_choose_days"
+- assertVisible:
+    id: "layout_count_mode"
+- assertNotVisible:
+    id: "chip_group_rest_days"
+# --- toggle OFF again to save rest-day mode (Sat+Sun) ---
+- tapOn:
+    id: "switch_let_ai_choose_days"
+- assertVisible:
+    text: "Training 5 days/week: Mon, Tue, Wed, Thu, Fri"
+
+# --- Check 3a: persist rest-day selection (Sat+Sun) ---
+- assertVisible:
+    id: "btn_save"
+- tapOn:
+    id: "btn_save"
+# Changed settings ⇒ "Settings saved" dialog; choose Later (do NOT generate)
+- assertVisible:
+    text: "Settings saved"
+- tapOn:
+    text: "Later"
+# Leave the screen (back to Settings hub) and return — fragment re-reads prefs
+- back
+- assertVisible:
+    id: "row_training_profile"
+- tapOn:
+    id: "row_training_profile"
+- assertVisible:
+    id: "switch_let_ai_choose_days"
+# Persisted: rest-day mode shown, count hidden, hint == Sat+Sun rest (Mon–Fri training)
+- assertVisible:
+    id: "layout_rest_mode"
+- assertNotVisible:
+    id: "et_days_per_week"
+- assertVisible:
+    text: "Training 5 days/week: Mon, Tue, Wed, Thu, Fri"
+- takeScreenshot: b08_restmode_persisted

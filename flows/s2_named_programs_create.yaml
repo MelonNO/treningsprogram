@@ -1,0 +1,29 @@
+appId: com.migul.treningsprogram
+---
+# S2 — named programs: CREATE (Save as new). From 1 program ("My Program") create "Travel Program".
+# Save copies the current plan into the new program; the new program becomes active.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "card_program_switcher"
+- assertVisible:
+    id: "spinner_program"
+- takeScreenshot: s2_np_before
+- tapOn:
+    id: "btn_save_program"
+- assertVisible:
+    text: "Save as new program"
+# NOTE: do NOT hideKeyboard here — it back-presses and dismisses the dialog before Save. The
+# dialog EditText is auto-focused, so inputText lands directly; Maestro resolves Save even after
+# the soft keyboard pushes the dialog upward.
+- inputText: "Travel Program"
+- tapOn:
+    text: "Save"
+# After save, the switcher label should show the new active program.
+- assertVisible:
+    id: "spinner_program"
+- assertVisible:
+    text: ".*Travel Program.*"
+- takeScreenshot: s2_np_after_create

@@ -1,0 +1,25 @@
+appId: com.migul.treningsprogram
+---
+# S2 — deload indicators render when the active program isDeloadActive=1 (seeded directly, since a
+# live deload-triggering generation is flaky on Waydroid). Program tab shows the "🌿 Deload" chip;
+# Home shows the amber deload banner card.
+- launchApp:
+    stopApp: true
+# Program tab: deload chip visible.
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "card_program_switcher"
+- assertVisible:
+    id: "tv_program_deload_chip"
+- takeScreenshot: s2_deload_chip
+# Home tab: deload banner (below the fold) visible.
+- tapOn:
+    id: "homeFragment"
+- scrollUntilVisible:
+    element:
+      id: "card_deload"
+    direction: DOWN
+- assertVisible:
+    id: "tv_deload_title"
+- takeScreenshot: s2_deload_banner

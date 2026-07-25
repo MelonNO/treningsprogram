@@ -1,0 +1,14 @@
+appId: com.migul.treningsprogram
+---
+# U1: with no training history, the recovery card shows the empty state
+# "All muscles are rested and ready." — not a broken/blank panel or crash.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- scrollUntilVisible:
+    element:
+      text: "Muscle Recovery"
+    direction: DOWN
+- assertVisible: "All muscles are rested and ready."
+- takeScreenshot: u1_recovery_empty

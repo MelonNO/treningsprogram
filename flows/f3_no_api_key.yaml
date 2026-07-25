@@ -1,0 +1,22 @@
+appId: com.migul.treningsprogram
+---
+# F3: with NO API key set, triggering an AI generation shows a clear message and does NOT crash
+# or hang. Pre-state: secure prefs cleared so apiKey is blank.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "btn_program_options"
+- tapOn:
+    id: "btn_program_options"
+- tapOn: "Regenerate program now"
+# Clear, user-visible message (Snackbar) — no crash, no spinner stuck.
+- assertVisible:
+    text: ".*API key.*"
+- takeScreenshot: f3_no_api_key
+# App still responsive: navigate away and back, no crash
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "programFragment"

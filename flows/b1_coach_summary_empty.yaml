@@ -1,0 +1,26 @@
+appId: com.migul.treningsprogram
+---
+# B1 — Weekly coach summary empty state: with NO summaries stored the screen shows a
+# sensible empty state (layout_empty / tv_empty_subtitle), NOT a crash or blank error.
+# Pre-state: weekly_summaries table emptied (and the once-per-week guard must be primed so
+# the launch trigger does not immediately regenerate a row — handled outside this flow).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    text: "Settings"
+- tapOn:
+    id: "row_coach_summary"
+# Empty container + its subtitle are visible; the list is gone
+- assertVisible:
+    id: "layout_empty"
+- assertVisible:
+    id: "tv_empty_subtitle"
+- assertVisible:
+    text: "No weekly summary yet"
+- assertNotVisible:
+    id: "tv_summary_text"
+- takeScreenshot: b1_summary_empty

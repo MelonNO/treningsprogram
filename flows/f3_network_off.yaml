@@ -1,0 +1,34 @@
+appId: com.migul.treningsprogram
+---
+# F3 (gate-critical adversarial): with the network OFF, triggering an AI generation must end in
+# a CLEAR user-visible failure message (network/timeout, "try again") and NEVER an indefinite
+# spinner. Pre-state: API key IS configured; the harness disables radios via adb BEFORE this run.
+# The deload-aware FULL regeneration is the path under test.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "btn_program_options"
+- tapOn:
+    id: "btn_program_options"
+- tapOn: "Regenerate program now"
+- takeScreenshot: f3_netoff_started
+# The progress indicator must clear (terminal state reached) -- the connect failure plus the
+# bounded retry must resolve well within this ceiling; a stuck spinner past it = FAIL.
+- extendedWaitUntil:
+    notVisible:
+      id: "layout_regen_progress"
+    timeout: 180000
+# A clear, user-visible network/connection failure message (Snackbar). Matches the friendly
+# IOException / SocketTimeout copy ("...connection...try again." / "...timed out...").
+- extendedWaitUntil:
+    visible:
+      text: ".*(connection|Network error|timed out|try again).*"
+    timeout: 20000
+- takeScreenshot: f3_netoff_message
+# App still responsive (no ANR/hang): navigate away and back.
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "programFragment"

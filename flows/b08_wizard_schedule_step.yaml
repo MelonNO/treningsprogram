@@ -1,0 +1,39 @@
+appId: com.migul.treningsprogram
+---
+# B08 check 4 — first-run Setup Wizard "Training Schedule" step defaults.
+# Pre-state: onboarding NOT completed (encrypted prefs removed; no .skip_onboarding) ⇒ Home shows
+# the first-launch card. Expected on the Training Schedule step: switch defaults to rest-day mode
+# (OFF), Sat+Sun pre-selected as rest days, training-days hint shows Mon–Fri (5 days).
+- launchApp:
+    stopApp: true
+# Home first-launch card
+- assertVisible:
+    id: "card_first_launch"
+- assertVisible:
+    id: "btn_start_setup"
+- takeScreenshot: b08_wizard_first_launch
+- tapOn:
+    id: "btn_start_setup"
+# Wizard step 1: Fitness Goal
+- assertVisible:
+    id: "tv_wizard_step_title"
+- assertVisible:
+    text: "Fitness Goal"
+# Advance to step 2: Training Schedule
+- tapOn:
+    id: "btn_wizard_next"
+- assertVisible:
+    text: "Training Schedule"
+# B08 defaults on this step
+- assertVisible:
+    id: "switch_let_ai_choose_days"
+- assertVisible:
+    id: "layout_rest_mode"
+- assertVisible:
+    id: "chip_group_rest_days"
+- assertNotVisible:
+    id: "chip_group_days"
+# Default Sat+Sun rest ⇒ training Mon–Fri (5 days)
+- assertVisible:
+    text: "Training 5 days/week: Mon, Tue, Wed, Thu, Fri"
+- takeScreenshot: b08_wizard_training_schedule

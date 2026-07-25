@@ -1,0 +1,24 @@
+appId: com.migul.treningsprogram
+---
+# S2 — Program tab empty / first-run state: with no plan for the active program, the empty-state
+# card ("No Program Yet") shows and the week/day sections are hidden — no crash, no blank screen.
+# Pre-state: planned_exercises emptied for the active program (seeded via run-as sqlite3).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "card_empty_state"
+- assertVisible:
+    text: "No Program Yet"
+# Week + day sections are hidden in the empty state.
+- assertNotVisible:
+    id: "card_week"
+- assertNotVisible:
+    id: "layout_day_section"
+- takeScreenshot: s2_empty_first_run
+# Switcher still present + responsive (can still open Options to regenerate).
+- assertVisible:
+    id: "card_program_switcher"
+- assertVisible:
+    id: "btn_program_options"

@@ -1,0 +1,30 @@
+appId: com.migul.treningsprogram
+---
+# E3 — Graceful degradation: an exercise lacking instructions shows a fallback, not a broken screen.
+# "Iron Cross" is one of 5 catalog entries with no instructions.
+- launchApp
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    text: "Settings"
+- tapOn:
+    id: "row_exercise_library"
+- assertVisible:
+    id: "rv_exercises"
+- tapOn:
+    id: "et_search"
+- inputText: "Iron Cross"
+- hideKeyboard
+# Tap the exact "Iron Cross" list row (Shoulders • Dumbbell) inside the results list.
+- tapOn:
+    text: "Iron Cross"
+    childOf:
+      id: "rv_exercises"
+- assertVisible:
+    id: "tv_name"
+- assertVisible:
+    id: "tv_instructions"
+# Fallback text instead of numbered steps
+- assertVisible:
+    text: "No instructions available."
+- takeScreenshot: e3_detail_no_instructions

@@ -1,0 +1,20 @@
+appId: com.migul.treningsprogram
+---
+# F1 + S6: Profile achievements header shows X/200 (denominator == defined set size),
+# no crash, daily challenges render. Independent Wave-1 verification.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "profileFragment"
+- tapOn:
+    id: "profileFragment"
+# Header is "Achievements (N/200)" — assert the /200 denominator via regex.
+- assertVisible:
+    text: "Achievements \\(\\d+/200\\)"
+- takeScreenshot: f1s6_profile_achievements
+# Expand the achievements list (tap header) to confirm rows render without crash
+- tapOn:
+    id: "header_achievements"
+- takeScreenshot: f1s6_profile_expanded

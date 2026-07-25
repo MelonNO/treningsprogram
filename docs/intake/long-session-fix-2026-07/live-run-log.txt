@@ -1,0 +1,181 @@
+=== LIVE RUN 2026-07-01T14:49:57.826937966+02:00 ===
+[hyper_120 a1] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 76 min inWin=false cardio=true
+    day 2: 63 min inWin=false cardio=true
+    day 4: 68 min inWin=false cardio=true
+    day 6: 61 min inWin=false cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Incline Treadmill Walk=10 min; Incline Treadmill Walk=10 min; Incline Treadmill Walk=10 min
+[hyper_120 a2] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 99 min inWin=false cardio=true
+    day 3: 84 min inWin=false cardio=true
+    day 5: 92 min inWin=false cardio=true
+    day 7: 85 min inWin=false cardio=true
+    cardio entries: Stationary Bike=45 min; Incline Treadmill Walk=35 min; Stationary Bike=45 min; Incline Treadmill Walk=35 min
+[hyper_120 a3] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 92 min inWin=false cardio=true
+    day 3: 85 min inWin=false cardio=true
+    day 5: 83 min inWin=false cardio=true
+    day 7: 84 min inWin=false cardio=true
+    cardio entries: Stationary Bike=10 min; Easy Jog=20 min; Stationary Bike=10 min; Stationary Bike=25 min; Stationary Bike=10 min; Easy Jog=22 min; Stationary Bike=10 min; Stationary Bike=25 min
+[hyper_120] FAILED after 3 attempts (would throw, save nothing)
+
+SUMMARY: {hyper_120=false}  (ledger at 3/20)
+
+--- run 2 (strengthened steering) ---
+=== LIVE RUN 2026-07-01T14:59:10.011075867+02:00 ===
+[hyper_120 a1] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 79 min inWin=false cardio=true
+    day 2: 72 min inWin=false cardio=true
+    day 4: 76 min inWin=false cardio=true
+    day 6: 69 min inWin=false cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Incline Treadmill Walk=10 min; Incline Treadmill Walk=10 min; Incline Treadmill Walk=10 min
+[hyper_120 a2] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 116 min inWin=true cardio=true
+    day 3: 111 min inWin=true cardio=true
+    day 5: 107 min inWin=false cardio=true
+    day 7: 104 min inWin=false cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Stationary Bike=45 min; Incline Treadmill Walk=10 min; Stationary Bike=45 min; Incline Treadmill Walk=10 min; Stationary Bike=45 min; Incline Treadmill Walk=10 min; Stationary Bike=45 min
+[hyper_120 a3] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 118 min inWin=true cardio=true
+    day 3: 117 min inWin=true cardio=true
+    day 5: 116 min inWin=true cardio=true
+    day 7: 106 min inWin=false cardio=true
+    cardio entries: Stationary Bike=50 min; Incline Treadmill Walk=45 min; Stationary Bike=50 min; Incline Treadmill Walk=45 min
+[hyper_120] FAILED after 3 attempts (would throw, save nothing)
+
+SUMMARY: {hyper_120=false}  (ledger at 6/20)
+
+--- run 3 (err-high + consistent-days steering) ---
+=== LIVE RUN 2026-07-01T15:07:52.571107926+02:00 ===
+[hyper_120 a1] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 103 min inWin=false cardio=true
+    day 3: 108 min inWin=false cardio=true
+    day 5: 101 min inWin=false cardio=true
+    day 7: 100 min inWin=false cardio=true
+    cardio entries: Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=45 min; Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=35 min; Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=40 min; Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=35 min
+[hyper_120 a2] stop=end_turn target=120 win=[110,130] allIn=true
+    day 1: 122 min inWin=true cardio=true
+    day 3: 115 min inWin=true cardio=true
+    day 5: 115 min inWin=true cardio=true
+    day 7: 117 min inWin=true cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Stationary Bike=54 min; Incline Treadmill Walk=10 min; Stationary Bike=53 min; Incline Treadmill Walk=10 min; Stationary Bike=54 min; Incline Treadmill Walk=10 min; Stationary Bike=54 min
+[hyper_120] SUCCESS on attempt 2
+
+SUMMARY: {hyper_120=true}  (ledger at 8/20)
+
+--- scenario h100 ---
+=== LIVE RUN 2026-07-01T15:12:59.534469089+02:00 ===
+--- scenario h100 (bg) ---
+=== LIVE RUN 2026-07-01T15:15:30.813103719+02:00 ===
+[hyper_100 a1] stop=end_turn target=100 win=[90,110] allIn=false
+    day 1: 87 min inWin=false cardio=true
+    day 3: 89 min inWin=false cardio=true
+    day 5: 80 min inWin=false cardio=true
+    day 7: 82 min inWin=false cardio=true
+    cardio entries: Stationary Bike=20 min; Stationary Bike=25 min; Stationary Bike=22 min; Stationary Bike=22 min
+[hyper_100 a2] stop=end_turn target=100 win=[90,110] allIn=false
+    day 1: 99 min inWin=true cardio=true
+    day 3: 86 min inWin=false cardio=true
+    day 5: 90 min inWin=true cardio=true
+    day 7: 86 min inWin=false cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Stationary Bike=35 min; Incline Treadmill Walk=10 min; Stationary Bike=35 min; Incline Treadmill Walk=10 min; Stationary Bike=35 min; Incline Treadmill Walk=10 min; Stationary Bike=37 min
+[hyper_100 a3] stop=end_turn target=100 win=[90,110] allIn=false
+    day 1: 83 min inWin=false cardio=true
+    day 3: 78 min inWin=false cardio=true
+    day 5: 75 min inWin=false cardio=true
+    day 7: 73 min inWin=false cardio=true
+    cardio entries: Stationary Bike=30 min; Incline Treadmill Walk=28 min; Stationary Bike=30 min; Incline Treadmill Walk=28 min
+[hyper_100] FAILED after 3 attempts (would throw, save nothing)
+
+SUMMARY: {hyper_100=false}  (ledger at 12/20)
+
+--- scenario s120 (bg) ---
+=== LIVE RUN 2026-07-01T15:20:20.433787131+02:00 ===
+[strength_120 a1] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 111 min inWin=true cardio=true
+    day 2: 108 min inWin=false cardio=true
+    day 4: 106 min inWin=false cardio=true
+    day 6: 108 min inWin=false cardio=true
+    cardio entries: Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=45 min; Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=43 min; Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=43 min; Stationary Bike Warm-Up=10 min; Stationary Bike Finisher=43 min
+[strength_120 a2] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 108 min inWin=false cardio=true
+    day 3: 110 min inWin=true cardio=true
+    day 5: 107 min inWin=false cardio=true
+    day 7: 108 min inWin=false cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Stationary Bike=45 min; Incline Treadmill Walk=10 min; Stationary Bike=45 min; Incline Treadmill Walk=10 min; Stationary Bike=43 min; Incline Treadmill Walk=10 min; Stationary Bike=44 min
+[strength_120 a3] stop=end_turn target=120 win=[110,130] allIn=false
+    day 1: 111 min inWin=true cardio=true
+    day 3: 106 min inWin=false cardio=true
+    day 5: 114 min inWin=true cardio=true
+    day 7: 107 min inWin=false cardio=true
+    cardio entries: Incline Treadmill Walk=10 min; Stationary Bike=45 min; Incline Treadmill Walk=10 min; Stationary Bike=42 min; Incline Treadmill Walk=10 min; Stationary Bike=47 min; Incline Treadmill Walk=10 min; Stationary Bike=43 min
+[strength_120] FAILED after 3 attempts (would throw, save nothing)
+
+SUMMARY: {strength_120=false}  (ledger at 15/20)
+
+--- scenario h50 (bg) ---
+=== LIVE RUN 2026-07-01T15:24:56.351546357+02:00 ===
+[hyper_50 a1] stop=end_turn target=50 win=[40,60] allIn=false
+    day 1: 37 min inWin=false cardio=false
+    day 3: 40 min inWin=true cardio=false
+    day 5: 37 min inWin=false cardio=false
+    day 7: 62 min inWin=false cardio=true
+    cardio entries: Cable Crunch=15-20
+[hyper_50 a2] stop=end_turn target=50 win=[40,60] allIn=false
+    day 1: 46 min inWin=true cardio=false
+    day 3: 37 min inWin=false cardio=false
+    day 5: 46 min inWin=true cardio=false
+    day 7: 39 min inWin=false cardio=false
+    cardio entries: (none)
+[hyper_50 a3] stop=end_turn target=50 win=[40,60] allIn=false
+    day 1: 45 min inWin=true cardio=false
+    day 3: 37 min inWin=false cardio=false
+    day 5: 45 min inWin=true cardio=false
+    day 7: 39 min inWin=false cardio=false
+    cardio entries: (none)
+[hyper_50] FAILED after 3 attempts (would throw, save nothing)
+
+SUMMARY: {hyper_50_regression=false}  (ledger at 18/20)
+
+=== OFFLINE DIAGNOSTICS 2026-07-01T15:31:41.290407030+02:00 ===
+50-min prompt contains 'LONG SESSION STRUCTURE': true
+120-min prompt contains 'LONG SESSION STRUCTURE': true
+50-min prompt contains 'MULTI-MODAL': false
+displayName('Cable Crunch') = Cardio
+displayName('Cable Woodchopper') = Training
+displayName('Ab Wheel Rollout') = Core
+displayName('Stationary Bike') = Cardio
+displayName('Incline Treadmill Walk') = Cardio
+displayName('Rowing Machine') = Back
+displayName('Farmer's Carry') = Core
+displayName('Easy Jog') = Cardio
+=== OFFLINE DIAGNOSTICS 2026-07-01T15:37:05.475931860+02:00 ===
+50-min prompt contains 'LONG SESSION STRUCTURE': false
+120-min prompt contains 'LONG SESSION STRUCTURE': true
+50-min prompt contains 'MULTI-MODAL': false
+displayName('Cable Crunch') = Cardio
+displayName('Cable Woodchopper') = Training
+displayName('Ab Wheel Rollout') = Core
+displayName('Stationary Bike') = Cardio
+displayName('Incline Treadmill Walk') = Cardio
+displayName('Rowing Machine') = Back
+displayName('Farmer's Carry') = Core
+displayName('Easy Jog') = Cardio
+--- FINAL: s100 (aim-high, ATTEMPTS=2) ---
+=== LIVE RUN 2026-07-01T15:40:19.239422202+02:00 ===
+[strength_100 a1] stop=end_turn target=100 win=[90,110] allIn=false verdict=HAS-UNDER → fatal (no save)
+    day 1: 81 min inWin=false cardio=true
+    day 3: 80 min inWin=false cardio=true
+    day 5: 77 min inWin=false cardio=true
+    day 7: 78 min inWin=false cardio=true
+    cardio entries: Stationary Bike=30 min; Stationary Bike=30 min; Stationary Bike=35 min; Stationary Bike=30 min
+[strength_100 a2] stop=end_turn target=100 win=[90,110] allIn=false verdict=HAS-UNDER → fatal (no save)
+    day 1: 89 min inWin=false cardio=true
+    day 3: 88 min inWin=false cardio=true
+    day 5: 89 min inWin=false cardio=true
+    day 7: 88 min inWin=false cardio=true
+    cardio entries: Stationary Bike=38 min; Stationary Bike=37 min; Incline Treadmill Walk=38 min; Stationary Bike=38 min
+[strength_100] FAILED after 3 attempts (would throw, save nothing)
+
+SUMMARY: {strength_100=false}  (ledger at 20/20)
+

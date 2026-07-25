@@ -1,0 +1,27 @@
+# LIVE ANTHROPIC API CALL LEDGER — HARD MAX 20 TOTAL (all agents combined) — gen-calibration-2026-07
+# Append EXACTLY ONE line per live API call, BEFORE making it. Never let data lines exceed 20.
+# Format: <n>/20 | <ISO timestamp> | <agent> | <purpose> | <result-after: ok/fail/error>
+# Coordinator reserves 0. Fresh 20-call budget for the duration-calibration A/B (attempt-1 landing).
+# Old baselines are DOCUMENTED (overnight run: low-volume goals @50 land ~34-40 on attempt 1;
+#   v1.17.0: 100-min lands ~88-89) — do NOT re-run the OLD prompt; only test the NEW (buffered) prompt.
+# --- calls below this line ---
+1/20 | 2026-07-01T16:40:43.326317090+02:00 | orchestrator | gen Strength_50 a1 | sending
+   ^ 1 result: ok stop=end_turn len=11992
+2/20 | 2026-07-01T16:41:27.589841456+02:00 | orchestrator | gen Endurance_50 a1 | sending
+   ^ 2 result: ok stop=end_turn len=15232
+3/20 | 2026-07-01T16:42:22.392652805+02:00 | orchestrator | gen Weight_Loss_50 a1 | sending
+   ^ 3 result: ok stop=end_turn len=14028
+4/20 | 2026-07-01T16:43:13.645223327+02:00 | orchestrator | gen Hypertrophy_50 a1 | sending
+   ^ 4 result: ok stop=end_turn len=14187
+5/20 | 2026-07-01T16:44:06.081022803+02:00 | orchestrator | gen Hypertrophy_100 a1 | sending
+   ^ 5 result: ok stop=end_turn len=20608
+6/20 | 2026-07-01T16:45:13.918601344+02:00 | orchestrator | gen Hypertrophy_120 a1 | sending
+   ^ 6 result: ok stop=end_turn len=19566
+7/20 | 2026-07-01T16:51:31.518672720+02:00 | orchestrator | gen Hypertrophy_100_ladder a1 a1 | sending
+   ^ 7 result: ok stop=end_turn len=20502
+8/20 | 2026-07-01T16:52:40.777445297+02:00 | orchestrator | gen Hypertrophy_100_ladder a2 a1 | sending
+   ^ 8 result: ok stop=end_turn len=20370
+9/20 | 2026-07-01T16:53:48.305897359+02:00 | orchestrator | gen Hypertrophy_100_ladder a3 a1 | sending
+   ^ 9 result: ok stop=end_turn len=17357
+# --- FINAL TALLY: 9/20 live calls used (11 unspent) ---
+# 6 attempt-1 grid cells + 3-attempt 100-min ladder. Stopped early — decision clear.

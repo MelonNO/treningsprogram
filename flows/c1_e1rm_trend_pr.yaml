@@ -1,0 +1,37 @@
+appId: com.migul.treningsprogram
+---
+# C1 — Estimated-1RM trend + PR history on Stats → Recap → tap exercise row.
+# Default-selected session is the most recent (Bench Press, seeded stalled lift, 3 sessions).
+- launchApp
+- tapOn:
+    id: "historyFragment"
+- tapOn:
+    text: "Recap"
+# The default session (latest) is Bench Press. Tap its row to open the trend screen.
+- assertVisible:
+    text: "Bench Press"
+- tapOn:
+    text: "Bench Press"
+# RecapTrendsFragment
+- assertVisible:
+    id: "tv_trend_title"
+- assertVisible:
+    text: "Bench Press"
+# With 3 working-set sessions there are >=2 trend points → the e1RM chart is shown
+- assertVisible:
+    id: "chart_trend_e1rm"
+# Epley e1RM readout. 100kg x5 → ~117 kg (warm-up 200kg correctly excluded)
+- assertVisible:
+    text: ".*Estimated 1RM.*Epley.*"
+- takeScreenshot: c1_bench_top
+# PR history list is below the fold — scroll to it.
+- scrollUntilVisible:
+    element:
+      id: "layout_trend_pr_history"
+    direction: DOWN
+- assertVisible:
+    id: "layout_trend_pr_history"
+# Bench Press PR history shows a PR row: "100 kg × 5" with its date
+- assertVisible:
+    text: "100 kg × 5"
+- takeScreenshot: c1_bench_pr

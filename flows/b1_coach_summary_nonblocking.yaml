@@ -1,0 +1,30 @@
+appId: com.migul.treningsprogram
+---
+# B1 — Non-blocking: the automatic weekly-summary generation must not freeze the UI.
+# Fresh launch (when the trigger would fire), then drive all tabs in quick succession and
+# open the summary screen — every tap must land, proving the UI thread is responsive.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "card_recovery"
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "card_week"
+- tapOn:
+    id: "historyFragment"
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    text: "Settings"
+- tapOn:
+    id: "row_coach_summary"
+- assertVisible:
+    id: "rv_summaries"
+- assertVisible:
+    id: "tv_summary_text"
+- takeScreenshot: b1_nonblocking_summary

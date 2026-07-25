@@ -1,0 +1,33 @@
+appId: com.migul.treningsprogram
+---
+# S8 (headline fix) lifecycle: in the Setup wizard, advance a step + make a selection, then
+# ROTATE -> the wizard must STAY on the same step with selections intact (not reset to step 1).
+# Pre-state: harness has removed files/.skip_onboarding so the first-launch card shows.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn: "Get Started"
+# Step 1 = "Fitness Goal". Pick a non-default goal so we can detect a reset.
+- assertVisible: "Fitness Goal"
+- tapOn:
+    id: "chip_goal_strength"
+# Advance to step 2 = "Training Schedule".
+- tapOn:
+    id: "btn_wizard_next"
+- assertVisible: "Training Schedule"
+- takeScreenshot: s8_wizard_step2_before_rotate
+# ROTATE to landscape, then back — the S8 fix must keep us on step 2 (not reset to step 1).
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Training Schedule"
+- assertNotVisible: "Fitness Goal"
+- takeScreenshot: s8_wizard_step2_landscape
+- setOrientation: PORTRAIT
+- assertVisible: "Training Schedule"
+- assertNotVisible: "Fitness Goal"
+- takeScreenshot: s8_wizard_step2_after_rotate
+# Going BACK must return to step 1 with the strength goal still selected (selection survived).
+- tapOn:
+    id: "btn_wizard_back"
+- assertVisible: "Fitness Goal"
+- takeScreenshot: s8_wizard_step1_back

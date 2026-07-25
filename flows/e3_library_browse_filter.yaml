@@ -1,0 +1,48 @@
+appId: com.migul.treningsprogram
+---
+# E3 — Exercise library: reachable from Settings, browse, search, filter, count updates.
+- launchApp
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    text: "Settings"
+- assertVisible:
+    id: "row_exercise_library"
+- tapOn:
+    id: "row_exercise_library"
+# Library opens
+- assertVisible:
+    id: "rv_exercises"
+- assertVisible:
+    id: "tv_count"
+# Full catalog is far more than ~26 (873 entries) — assert a 3-digit count is visible
+- assertVisible:
+    text: ".*[0-9][0-9][0-9] exercises.*"
+- takeScreenshot: e3_library_full
+# Search narrows results
+- tapOn:
+    id: "et_search"
+- inputText: "Bench Press"
+- assertVisible:
+    text: "Barbell Bench Press - Medium Grip"
+- takeScreenshot: e3_library_search
+# Clear search before filtering
+- tapOn:
+    id: "et_search"
+- eraseText
+# Filter by muscle
+- tapOn:
+    id: "dd_muscle"
+- tapOn:
+    text: "Biceps"
+- assertVisible:
+    id: "tv_count"
+- takeScreenshot: e3_filter_muscle
+# Filter by equipment too
+- tapOn:
+    id: "dd_equipment"
+- tapOn:
+    text: "Barbell"
+- assertVisible:
+    id: "tv_count"
+- takeScreenshot: e3_filter_muscle_equipment

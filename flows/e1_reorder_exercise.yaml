@@ -1,0 +1,54 @@
+appId: com.migul.treningsprogram
+---
+# E1 criterion 4 — REORDER exercises within a day, plus edge-disable of move buttons.
+# Pre-state after add flow: today (Wed) = [Bench Press(0), Barbell Row(1), Plank(2)].
+# Action: move Bench Press DOWN (top card, index 0, always visible) -> [Barbell Row, Bench Press, Plank].
+# Edge checks: top row's ↑ disabled BEFORE the move; after the move the new top card (Barbell Row)
+# has ↑ disabled; bottom row (Plank) has ↓ disabled.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "layout_exercises"
+- assertVisible:
+    text: "Bench Press"
+- takeScreenshot: e1_reorder_before
+# EDGE (before): top row (index 0 = Bench Press) up-button must be DISABLED.
+- assertVisible:
+    id: "btn_move_up"
+    index: 0
+    enabled: false
+# EDGE (before): top row down-button is ENABLED (not the last row).
+- assertVisible:
+    id: "btn_move_down"
+    index: 0
+    enabled: true
+# Move the top card (Bench Press) DOWN.
+- tapOn:
+    id: "btn_move_down"
+    index: 0
+# After the move the FIRST card must now be Barbell Row.
+- assertVisible:
+    text: "Barbell Row"
+# New top row's up-button must be DISABLED (it is now Barbell Row at index 0).
+- assertVisible:
+    id: "btn_move_up"
+    index: 0
+    enabled: false
+- takeScreenshot: e1_reorder_after
+# EDGE (after): bottom row (Plank, last) down-button must be DISABLED.
+# Scroll so all 3 cards' action rows are visible, then assert the (unique) disabled down-button.
+- scrollUntilVisible:
+    element:
+      text: "+ Add exercise"
+    direction: DOWN
+- assertVisible:
+    id: "btn_move_down"
+    enabled: false
+# And confirm there is at least one ENABLED down-button (the non-bottom rows), proving the
+# disable is edge-specific rather than blanket-disabled.
+- assertVisible:
+    id: "btn_move_down"
+    enabled: true
+- takeScreenshot: e1_reorder_edges

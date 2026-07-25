@@ -1,0 +1,147 @@
+# Feedback — Workout Generation Prompt
+
+**Scope:** feedback on the *generator prompt* (and its validator loop), not on any single week's plan.
+**Goal of these changes:** make the prompt honor the user's hard inputs (days, duration ±10 min, goal, experience, equipment, injuries + severity, focus muscles, exclusions, cardio days) while producing scientifically defensible, progressable plans — and stop the infinite reject/regenerate loop.
+
+---
+
+## 0. Assumptions & the one open question
+
+These recommendations assume the artifacts come from a **generate → validate → reject-and-regenerate** loop (the "PREVIOUS PLAN REJECTED" blocks read like a critic feeding reasons back in). If any fix below targets "the validator," and there is in fact no separate validator, that fix collapses into a single self-check inside the generator.
+
+**Open question that gates items 3.3 and 3.4 (progressive overload):**
+Does the generator currently receive the user's **full per-exercise load history** and a **notion of where in a training block the user is** — or only the last session's exercises plus a blacklist? If it only gets a blacklist, progressive overload is an *app-plumbing* problem, not a prompt problem, and no prompt wording can fix it.
+
+---
+
+## 1. Priority order (resolve conflicts in this sequence)
+
+```
+safety  →  user hard boundaries  →  equipment  →  goal  →  experience
+        →  recovery / fatigue  →  focus muscles  →  movement balance  →  variation
+```
+
+Note the change from the earlier draft: **recovery/fatigue sits ABOVE focus muscles.** Recovery is an efficacy-and-safety constraint. If focus muscles outranks it, a "focus arms" directive can legitimately stack elbow work on consecutive days — which the fatigue limits (section 4) then try to forbid, creating an internal conflict.
+
+---
+
+## 2. Sustain (keep as-is)
+
+- User-selected training days as a hard constraint.
+- Session duration as a hard constraint with ±10 min tolerance.
+- Goal-specific programming (strength, hypertrophy, endurance, weight loss).
+- Experience-level scaling (beginner, intermediate, advanced).
+- Equipment feasibility as a hard requirement.
+- Injury free-text + injury severity as inputs (see 3.6 for the empty-input clarification).
+- Focus muscles as a *slight* priority, not full specialization.
+- Excluded exercises fully forbidden, including renamed near-duplicates.
+- Separate cardio day as a hard setting when enabled (default: cardio on its own day; gate this on goal — it matters for weight-loss/endurance, is irrelevant for a pure hypertrophy block).
+- Effort targets (RPE/RIR) and progression rules on every exercise.
+- The physically-incoherent-cue guard (e.g. rejecting "Bulgarian split squat with both feet down").
+- The tiered hinge rep caps (see section 5) as hard safety overrides.
+
+---
+
+## 3. Fix / improve (highest value first)
+
+### 3.1 Delete the broken time-budget mechanism — do not just add rules around it
+This is the single most important change. The current prompt hard-codes contradictory constants that survive from a copy-pasted template:
+
+- "program a FULL ~19–20 working sets" (fixed regardless of the duration input),
+- "with ~20 sets and 120 s rest a day estimates ~46–47 min … above the 60-min floor" (46 min is **below** a 60-min floor — a leftover from the 40-min template),
+- "120 s is the hypertrophy maximum" (the ceiling that makes long sessions arithmetically impossible).
+
+With the caps as written, a session is bounded at ~45–50 min, so any target above ~50 min is rejected every regeneration. **Instruction to add:** *"Remove all hard-coded set counts, fixed minute targets, and the 120 s rest ceiling from the time-budget and hypertrophy sections. Volume, rest, and exercise count are DERIVED per request from goal × experience × days/week × session duration — never asserted as fixed numbers."*
+
+### 3.2 One source of truth for the time estimate, self-checked before emit
+- The generator computes each day's total with the **same** formula the validator enforces, checks it against the ±10 window, and self-corrects **before** returning. (Generate and validate currently run two copies of a formula that already drifted once.)
+- Fix the per-rep work constant: 3 s/rep undercounts controlled tempo (~4–5 s is realistic), which biases every estimate low.
+- Emit the estimate's components per exercise (`workSeconds` / `restSeconds` / `setupSeconds`) so the number is auditable, not a black box.
+
+### 3.3 Anchor load to logged history (was dropped — it is load-bearing)
+The numeric guidelines give progression increments (+2.5 kg, etc.) but nothing says what they increment *from*, so every `targetWeightKg` is currently fabricated. **Add:** *"Starting load = most recent logged performance for that lift (or an estimate from a closely related logged lift). Apply the increment to that base. If no history exists, prescribe by RPE/RIR and start conservative — never emit an absolute kg the user has no basis for."*
+
+### 3.4 Make "progression block" a first-class concept
+The blacklist forces change every week; progressive overload requires *repeating* a lift to add load to it. These directly conflict without a block concept. **Add a flag:**
+- **Continue block** → repeat anchor lifts, progress load, rotate only accessories.
+- **New block** → rotate anchors.
+Combined with 3.3, this is really one architectural gap: the loop needs *state* (prior loads + block position), not just a blacklist.
+
+### 3.5 Scale coverage and volume to days × duration
+Requiring full movement-pattern coverage (8 patterns + focus work) is infeasible on few/short days and forces the cramming you are trying to prevent. **Revise to:** *"Coverage is a target that scales with training days and session length; on low-frequency or short sessions, prioritize multi-pattern compounds over exhaustive coverage."*
+
+### 3.6 Empty injury input = zero modification
+"Required input" risks the model inventing prehab when there is no injury. **Add:** *"No injury text = no injury-driven selection changes and no added rehab."* For MILD, prefer a note + at most one optional prehab slot per *week* — not a rehab slot every session, and no selection change unless the text names a clear aggravator. Reserve mandatory per-session selection changes for MODERATE/SEVERE.
+
+### 3.7 Systematic variation (not full rotation)
+- Keep key movement patterns stable for progression; rotate **grip / angle / order / accessory selection** week to week.
+- **Do not** use rep range as a variation lever — rep range is fixed by role + goal (see 3.8); drifting it breaks progression tracking.
+- Track recent plans; avoid repeating the same full day structure, exercise sequence, or weekly split *unless intentionally continuing a block*.
+- Replacement rule: *"vary enough to avoid repeating the exact same plan, while preserving trackable progressive overload"* — not "rotate every exercise every week."
+
+### 3.8 Replace the narrow deterministic rep table with wide goal-based bands
+The original prompt's narrow role→rep table (6–10 / 8–12 / 10–15) should be replaced by the wider bands in section 5, keeping only the hinge caps as hard overrides. Hypertrophy is achievable across a broad load spectrum, so a narrow table adds rigidity without benefit (see Evidence basis).
+
+### 3.9 Goal-general, not hypertrophy-baked
+Remove hypertrophy-only assumptions from the general prompt. Longer rests for heavy strength work, shorter rests for endurance/density work. Never fill session time with junk volume or duplicate movement patterns.
+
+---
+
+## 4. Fatigue / pattern limits (guidelines)
+
+- Usually max 1 *heavy* barbell hinge per week (define "heavy" = near-max, so a light second hinge such as an RDL after a deadlift day is not blocked — 2 loaded hinge patterns/week is common and safe).
+- Avoid duplicate near-identical movements in one session.
+- Avoid heavy same-muscle primary work on consecutive days.
+- Avoid excessive direct elbow/shoulder isolation volume across consecutive days.
+
+---
+
+## 5. Numeric guardrails — GUIDELINES, not absolute rules
+
+Use these to prevent strange generated values; adjust when goal, duration, injury, equipment, or exercise type justifies it. All values are defensible against current literature; effect sizes are small and individual, so "usually" is deliberate.
+
+**Sets per exercise** — Beginner 1–3 · Intermediate 2–4 · Advanced 2–5
+**Exercises per session** — Beginner 3–6 · Intermediate 4–7 · Advanced 4–8
+**Hard sets per session** — Beginner 6–14 · Intermediate 8–20 · Advanced 10–24
+**Weekly hard sets per muscle** — maintenance ~4–8 · normal ~6–16 · focus ~8–20 · avoid >~25 unless justified
+
+**RPE / RIR** — heavy compounds RPE 6–9 / 1–4 RIR (generally not to failure) · isolation RPE 7–10 / 0–3 RIR · rehab RPE 3–6 / 3–6 RIR
+
+**Rep ranges** — strength compounds 1–6 · hypertrophy compounds/accessories 5–15 · hypertrophy isolation 8–30 · endurance 12–30+ or time-based · rehab 8–30 or time-based holds
+*(Hinge caps override: barbell hinges ≤8 reps; loaded dumbbell hinges ≤12 reps; bodyweight/light hip-extension work is exempt and may run high-rep.)*
+
+**Rest periods** — strength compounds 120–300 s · hypertrophy compounds 90–240 s · hypertrophy isolation 45–150 s · endurance/circuit 15–90 s · rehab 30–90 s
+
+**Load progression** — barbell upper +1.25–2.5 kg · barbell lower +2.5–5 kg · dumbbells +1–2 kg each · bodyweight via reps/ROM/tempo/pause/leverage/added load
+
+**Rehab/prehab** — 1–4 sets, RPE 3–6, **not** counted as primary strength/hypertrophy volume.
+
+**Duration** — must fit user-selected duration ±10 min. If the target is hard to reach, adjust useful rest, warm-up, mobility, rehab, carries, or conditioning **before** adding junk volume.
+
+---
+
+## 6. Required output metadata (per exercise / per day / per week)
+
+Per exercise: `role`, `movementPattern`, `primaryMuscles`, `secondaryMuscles`, `countsAsHardSets`, `workSeconds`, `restSeconds`, `setupSeconds`, `estimatedMinutes`, `injuryModification`.
+Per day: `dayEstimateMinutes`, `withinDurationWindow` (bool).
+Per week: `weeklyVolumeSummary` (sets/muscle), `movementPatternSummary`, `durationSummary`, `blockState` (continue/new), `constraintNotes`.
+
+Rationale: this lets the validator sum directly from generator-declared numbers rather than re-deriving from exercise names with a fragile name-parser, and makes 3.2's single-source-of-truth check trivial.
+
+---
+
+## 7. Evidence basis (for verification)
+
+- **Rest intervals:** longer rest (3 min) produced greater strength and hypertrophy than 1 min in resistance-trained men — Schoenfeld et al., *J Strength Cond Res* 30(7):1805–1812, 2016. Directly justifies removing the 120 s ceiling (section 3.1) and the strength/compound rest bands in section 5.
+- **Load / rep range:** hypertrophy is achievable across a wide loading spectrum while maximal strength favors heavy loads — Schoenfeld, Grgic, Ogborn & Krieger, *J Strength Cond Res* 31(12):3508–3523, 2017. Justifies replacing the narrow rep table with wide bands (section 3.8).
+- **Exercise variation:** varied vs fixed exercise selection produced similar hypertrophy/strength, with only a motivation benefit for variation; a 2022 systematic review found variation can blunt gains in some muscles vs fixed selection — Baz-Valle et al., *PLoS One* 14(12):e0226989, 2019. Justifies "systematic variation, not full rotation" (section 3.7).
+
+*Caveat:* these are direction-of-effect findings; magnitudes are small and vary between individuals. Treat section 5 as guardrails, not targets to defend.
+
+---
+
+## 8. Summary of net changes vs the previous draft
+
+**Added:** delete broken constants (3.1) · single source of truth + self-check (3.2) · anchor load to history (3.3) · progression-block state (3.4) · coverage scales with days×duration (3.5) · empty-injury = no-op (3.6) · expanded metadata (section 6) · cited evidence (section 7).
+**Revised:** priority order (recovery above focus muscles) · rep range removed from variation levers · wide bands replace the narrow deterministic table · "heavy" hinge defined.
+**Open:** does the generator receive per-exercise load history + block position? (Gates 3.3 / 3.4.)

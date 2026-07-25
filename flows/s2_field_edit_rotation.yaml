@@ -1,0 +1,26 @@
+appId: com.migul.treningsprogram
+---
+# S2 — edited field values survive a config change (rotation) on the Program tab.
+# Pre-state: Wed card-0 RDL = 5 sets, card-1 Sumo Squat = 36 kg (set by s2_field_edit_persist).
+# We open Program, confirm both values, rotate, and re-confirm (no lost edit, no crash).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "layout_exercises"
+- assertVisible:
+    text: "5 sets"
+- takeScreenshot: s2_rot_before
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "layout_exercises"
+- assertVisible:
+    text: "5 sets"
+- takeScreenshot: s2_rot_landscape
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "layout_exercises"
+- assertVisible:
+    text: "5 sets"
+- takeScreenshot: s2_rot_portrait

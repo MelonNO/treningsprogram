@@ -1,0 +1,43 @@
+appId: com.migul.treningsprogram
+---
+# C1 (multi-PR + warm-up exclusion) — Squat progressing lift: 100/102.5/105 kg x5.
+# Must show 3 PR rows. Select the Squat session from the dropdown, then tap the Squat row.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "historyFragment"
+- assertVisible:
+    text: "Recap"
+- tapOn:
+    text: "Recap"
+# Open the session dropdown and pick a Squat session (50 min duration label distinguishes them).
+- tapOn:
+    id: "ac_session"
+- tapOn:
+    text: ".*50 min.*"
+- assertVisible:
+    text: "Squat"
+- tapOn:
+    text: "Squat"
+- assertVisible:
+    id: "tv_trend_title"
+- assertVisible:
+    text: "Squat"
+- assertVisible:
+    id: "chart_trend_e1rm"
+# PR history below the fold — scroll to it. Squat progressed 100→102.5→105 → 3 PR rows.
+- scrollUntilVisible:
+    element:
+      id: "layout_trend_pr_history"
+    direction: DOWN
+- assertVisible:
+    id: "layout_trend_pr_history"
+- assertVisible:
+    text: "105 kg × 5"
+- assertVisible:
+    text: "102.5 kg × 5"
+- assertVisible:
+    text: "100 kg × 5"
+- takeScreenshot: c1_squat_trend

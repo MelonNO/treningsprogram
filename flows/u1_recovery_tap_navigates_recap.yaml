@@ -1,0 +1,25 @@
+appId: com.migul.treningsprogram
+---
+# U1 (gate-critical): tapping a recovering muscle navigates to that muscle's LAST session
+# recap (History/Recap), NOT a new/generate-workout screen.
+# Tap "Triceps" -> last session that trained Triceps = the Bench Press session (id 3, 45 min).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- scrollUntilVisible:
+    element:
+      text: "Triceps"
+    direction: DOWN
+- tapOn: "Triceps"
+# Landed on History tab, Recap sub-tab — must show the bench session content, not a logging screen.
+- assertVisible: "Recap"
+- assertVisible: "Bench Press"
+# Session header carries the bench session's 45-min duration ("... · 45 min")
+- assertVisible:
+    text: ".*45 min.*"
+# Negative: must NOT be a workout-logging / generate screen
+- assertNotVisible: "Complete Workout"
+- assertNotVisible: "Add Set"
+- assertNotVisible: "Generate AI Program"
+- takeScreenshot: u1_tap_triceps_recap

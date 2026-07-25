@@ -1,0 +1,43 @@
+appId: com.migul.treningsprogram
+---
+# E1 criterion 2 — DELETE an exercise from a day; it disappears from the day's list.
+# Pre-state after the edit flow: today (Wed) = [Bench Press(edited), Squat, Barbell Row] (3 cards).
+# We delete the MIDDLE card (Squat, index 1) and confirm it is gone and the list shrinks to 2.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "layout_exercises"
+- assertVisible:
+    text: "Squat"
+# Barbell Row is below the fold; confirm it exists by scrolling to it, then scroll back up.
+- scrollUntilVisible:
+    element:
+      text: "Barbell Row"
+    direction: DOWN
+- assertVisible:
+    text: "Barbell Row"
+- takeScreenshot: e1_delete_before
+# Delete button on the Squat card (index 1).
+- scrollUntilVisible:
+    element:
+      id: "btn_delete_exercise"
+      index: 1
+    direction: DOWN
+- tapOn:
+    id: "btn_delete_exercise"
+    index: 1
+- assertVisible:
+    text: "Remove Squat?"
+- takeScreenshot: e1_delete_confirm
+- tapOn:
+    text: "Remove"
+# Squat must be gone; Bench Press and Barbell Row remain.
+- assertNotVisible:
+    text: "Squat"
+- assertVisible:
+    text: "Bench Press"
+- assertVisible:
+    text: "Barbell Row"
+- takeScreenshot: e1_delete_after

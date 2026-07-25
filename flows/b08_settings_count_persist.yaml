@@ -1,0 +1,50 @@
+appId: com.migul.treningsprogram
+---
+# B08 (Settings) check 3b — COUNT-mode persistence round-trip.
+# Entry state: rest-day mode saved (Sat+Sun). Switch to count mode, set a distinct day count,
+# save, leave, return — count mode must be shown with the persisted number.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    id: "card_settings"
+- tapOn:
+    id: "row_training_profile"
+- assertVisible:
+    id: "switch_let_ai_choose_days"
+# Toggle to COUNT mode
+- tapOn:
+    id: "switch_let_ai_choose_days"
+- assertVisible:
+    id: "et_days_per_week"
+- assertNotVisible:
+    id: "chip_group_rest_days"
+# Set a distinct number (3). Erase any prefilled value first.
+- tapOn:
+    id: "et_days_per_week"
+- eraseText
+- inputText: "3"
+- takeScreenshot: b08_count_set
+- assertVisible:
+    id: "btn_save"
+- tapOn:
+    id: "btn_save"
+- assertVisible:
+    text: "Settings saved"
+- tapOn:
+    text: "Later"
+# Leave + return
+- back
+- tapOn:
+    id: "row_training_profile"
+- assertVisible:
+    id: "switch_let_ai_choose_days"
+# Count mode persisted (switch ON, count field shown, rest chips hidden)
+- assertVisible:
+    id: "layout_count_mode"
+- assertVisible:
+    id: "et_days_per_week"
+- assertNotVisible:
+    id: "chip_group_rest_days"
+- takeScreenshot: b08_count_persisted

@@ -1,0 +1,22 @@
+appId: com.migul.treningsprogram
+---
+# B09 check 3 — NO-OP guard + data safety. Pre-state (seeded): the active program's current week
+# has every training day already logged (3 logged days, daysPerWeek=3). Tapping
+# "Regenerate (keep logged days)" must show the "nothing to regenerate" snackbar and make NO
+# change to the data (no AI call). Re-query of planned_exercises afterward proves rows are intact.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "btn_program_options"
+- tapOn:
+    id: "btn_program_options"
+- assertVisible:
+    text: "Regenerate (keep logged days)"
+- tapOn:
+    text: "Regenerate (keep logged days)"
+# No-op guard snackbar (em-dash tolerant regex)
+- assertVisible:
+    text: ".*already logged.*nothing to regenerate.*"
+- takeScreenshot: b09_noop_snackbar

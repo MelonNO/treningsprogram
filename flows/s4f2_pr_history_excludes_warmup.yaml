@@ -1,0 +1,41 @@
+appId: com.migul.treningsprogram
+---
+# S4 + F2: Progress tab shows the new "PR history (estimated 1RM)" / "Working sets only ·
+# Epley formula" widget. With no exercise selected it prompts to select one. Selecting
+# Overhead Press shows working-set PR rows (40/42 kg) and NEVER the heavy warm-up (100 kg).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "historyFragment"
+- assertVisible: "Progress"
+- tapOn: "Progress"
+# S4: new heading + subtitle present
+- assertVisible: "PR history (estimated 1RM)"
+- assertVisible: "Working sets only · Epley formula"
+# No exercise selected yet -> prompt
+- assertVisible:
+    text: ".*Select an exercise above.*"
+- takeScreenshot: s4f2_progress_unselected
+# Select Overhead Press
+- tapOn:
+    id: "ac_exercise"
+- inputText: "Overhead"
+- tapOn:
+    text: "Overhead Press"
+    index: 0
+- hideKeyboard
+# PR rows: working sets 40 and 42 kg
+- scrollUntilVisible:
+    element:
+      text: ".*42 kg × 5.*"
+    direction: DOWN
+- assertVisible:
+    text: ".*42 kg × 5.*"
+- assertVisible:
+    text: ".*40 kg × 5.*"
+# F2 CORE: the heavy warm-up (100 kg) must NOT appear as a PR
+- assertNotVisible:
+    text: ".*100 kg.*"
+- takeScreenshot: s4f2_pr_history_ohp

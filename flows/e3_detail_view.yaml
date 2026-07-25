@@ -1,0 +1,33 @@
+appId: com.migul.treningsprogram
+---
+# E3 — Exercise detail: target muscles, equipment, instructions, image where available.
+- launchApp
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    text: "Settings"
+- tapOn:
+    id: "row_exercise_library"
+- assertVisible:
+    id: "rv_exercises"
+# Search for a well-documented exercise with image + instructions
+- tapOn:
+    id: "et_search"
+- inputText: "Barbell Bench Press - Medium Grip"
+- hideKeyboard
+- tapOn:
+    text: "Barbell Bench Press - Medium Grip"
+    childOf:
+      id: "rv_exercises"
+# Detail screen
+- assertVisible:
+    id: "tv_name"
+- assertVisible:
+    text: ".*Target.*"
+- assertVisible:
+    text: ".*Equipment.*"
+- assertVisible:
+    id: "tv_instructions"
+- assertVisible:
+    text: "1. .*"
+- takeScreenshot: e3_detail_full

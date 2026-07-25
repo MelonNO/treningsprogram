@@ -1,0 +1,20 @@
+appId: com.migul.treningsprogram
+---
+# B2 — Neutral/empty state: an old/blank-rationale plan hides the rationale card and the
+# Program tab renders normally with NO error/crash.
+# Pre-state: planned_exercises.rationale = '' for the active week (the natural pre-feature state).
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "programFragment"
+# Week view renders normally
+- assertVisible:
+    id: "card_week"
+# Rationale card is GONE (hidden) — no error shown
+- assertNotVisible:
+    id: "card_rationale"
+- assertNotVisible:
+    id: "tv_rationale"
+- takeScreenshot: b2_rationale_blank_hidden

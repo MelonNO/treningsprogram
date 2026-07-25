@@ -1,0 +1,68 @@
+
+=== LIVE CALIBRATION RUN 2026-07-01T16:40:43.217269372+02:00 (buffer=12 exp=Intermediate days=4) ===
+[Strength_50 a1] stop=end_turn target=50 win=[40,60] aim=62 allIn=true
+    day 1: 42 min inWin=true
+    day 3: 45 min inWin=true
+    day 5: 40 min inWin=true
+    day 7: 46 min inWin=true
+[Endurance_50 a1] stop=end_turn target=50 win=[40,60] aim=62 allIn=false
+    day 1: 39 min inWin=false
+    day 3: 35 min inWin=false
+    day 5: 51 min inWin=true
+    day 7: 46 min inWin=true
+[Weight_Loss_50 a1] stop=end_turn target=50 win=[40,60] aim=62 allIn=false
+    day 1: 34 min inWin=false
+    day 2: 37 min inWin=false
+    day 4: 39 min inWin=false
+    day 6: 45 min inWin=true
+[Hypertrophy_50 a1] stop=end_turn target=50 win=[40,60] aim=62 allIn=false
+    day 1: 42 min inWin=true
+    day 3: 40 min inWin=true
+    day 5: 37 min inWin=false
+    day 7: 42 min inWin=true
+[Hypertrophy_100 a1] stop=end_turn target=100 win=[90,110] aim=112 allIn=false
+    day 1: 78 min inWin=false
+    day 3: 68 min inWin=false
+    day 5: 68 min inWin=false
+    day 7: 60 min inWin=false
+[Hypertrophy_120 a1] stop=end_turn target=120 win=[110,130] aim=132 allIn=true
+    day 1: 123 min inWin=true
+    day 3: 118 min inWin=true
+    day 5: 121 min inWin=true
+    day 7: 119 min inWin=true
+SUMMARY (ledger at 6/20):
+  Strength_50: attempt-1 allIn=true  (4/4 days in-window; mins=[42, 45, 40, 46])
+  Endurance_50: attempt-1 allIn=false  (2/4 days in-window; mins=[39, 35, 51, 46])
+  Weight_Loss_50: attempt-1 allIn=false  (1/4 days in-window; mins=[34, 37, 39, 45])
+  Hypertrophy_50: attempt-1 allIn=false  (3/4 days in-window; mins=[42, 40, 37, 42])
+  Hypertrophy_100: attempt-1 allIn=false  (0/4 days in-window; mins=[78, 68, 68, 60])
+  Hypertrophy_120: attempt-1 allIn=true  (4/4 days in-window; mins=[123, 118, 121, 119])
+
+=== LIVE LADDER RUN 2026-07-01T16:51:31.368238797+02:00 Hypertrophy_100_ladder (buffer=12 aim=112) ===
+[Hypertrophy_100_ladder a1] stop=end_turn allIn=false mins=[74, 75, 64, 68]
+[Hypertrophy_100_ladder a2] stop=end_turn allIn=false mins=[112, 105, 102, 100]
+[Hypertrophy_100_ladder a3] stop=end_turn allIn=false mins=[60, 54, 52, 49]
+LADDER RESULT Hypertrophy_100_ladder: saved=false
+
+============================================================
+CALIBRATION A/B VERDICT (buffer DURATION_AIM_BUFFER_MIN = 12, aim = target+12)
+============================================================
+ATTEMPT-1 grid (Intermediate / 4-day / no-history), window = target ±10:
+  Strength@50    : ALL-IN  [42,45,40,46]   CLOSED  (old baseline ~34-40 UNDER)
+  Hypertrophy@50 : 3/4     [42,40,37,42]   improved (day5 37, 3 under)  (control: not near ceiling → not "lean-regressed")
+  Endurance@50   : 2/4     [39,35,51,46]   improved
+  Weight-Loss@50 : 1/4     [34,37,39,45]   marginally improved
+  Hypertrophy@100: 0/4     [78,68,68,60]   attempt-1 under-cardio
+  Hypertrophy@120: ALL-IN  [123,118,121,119] SAVES — NO REGRESSION
+
+100-min RETRY LADDER (buffered feedback):
+  a1 [74,75,64,68] under -> a2 [112,105,102,100] OVER-ONLY (day1 +2, others in) -> a3 [60,54,52,49] over-corrected
+  => a2 is a clean OVER-ONLY salvage candidate; production trimOverflowToWindow trims day1 (112->=<110)
+     and SAVES in-window. vs v1.17.0's 88-89 UNDER-floor (unsalvageable, saved nothing) => real fix.
+
+FINDINGS:
+ - 50-min self-estimate under-bias is UNIFORMLY ~16-25 across ALL goals (not goal-dependent);
+   buffer pass-through only ~40-50% => no single buffer closes the short-rest goals on attempt-1.
+ - Rest-band width gates the buffer: Strength (long rest) closes; Endurance/Weight-Loss (short rest) can't.
+ - Every cell >= old baseline (no regression); Strength@50 + 120 close attempt-1; 100 now SAVES via salvage.
+ - Buffer 12 kept (verified). Higher = diminishing returns + tips long cells over the ceiling.

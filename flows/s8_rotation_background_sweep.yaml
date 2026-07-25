@@ -1,0 +1,55 @@
+appId: com.migul.treningsprogram
+---
+# S8/general adversarial: rotation + background/restore across a sampling of screens
+# (Library, Profile, Program, Progress/History) must not crash or lose state.
+- launchApp:
+    stopApp: true
+# --- Program: rotate + background/restore ---
+- tapOn:
+    id: "programFragment"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "programFragment"
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "programFragment"
+- pressKey: Home
+- launchApp
+- assertVisible:
+    id: "programFragment"
+# --- Profile: rotate (use the stable tab id; Achievements may scroll off in landscape) ---
+- tapOn:
+    id: "profileFragment"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "profileFragment"
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "profileFragment"
+# --- Library: rotate + background/restore ---
+- tapOn:
+    id: "profileFragment"
+- tapOn:
+    id: "card_settings"
+- tapOn:
+    id: "row_exercise_library"
+- assertVisible:
+    id: "rv_exercises"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "rv_exercises"
+- setOrientation: PORTRAIT
+- pressKey: Home
+- launchApp
+- assertVisible:
+    id: "rv_exercises"
+- takeScreenshot: s8_library_after_bg_restore
+# --- History/Progress: rotate (charts must not break) ---
+- tapOn:
+    id: "historyFragment"
+- tapOn: "Progress"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Progress"
+- setOrientation: PORTRAIT
+- assertVisible: "Progress"
+- takeScreenshot: s8_progress_after_rotate

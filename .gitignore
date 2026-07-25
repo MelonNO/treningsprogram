@@ -23,3 +23,12 @@ tkn
 
 # Kotlin build artifacts (not source)
 .kotlin/
+
+# Large binaries / build outputs — never commit (releases live on GitHub)
+*.apk
+free-exercise-db-main.zip
+Change docs/Archive/sample-set.zip
+Change docs/Archive/sample-set/
+
+# Agent scratch / debug dumps
+scratchpad/

@@ -1,0 +1,28 @@
+appId: com.migul.treningsprogram
+---
+# F3 (gate-critical): trigger the live full-program regeneration (the deload-aware path) with
+# network ON and a real API key. It must END in a terminal state within the raised timeout —
+# either a completed program OR a clear, user-visible failure (friendly Snackbar + the
+# Regenerate option still available as a retry path) — NEVER an indefinite spinner.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "programFragment"
+- assertVisible:
+    id: "btn_program_options"
+- tapOn:
+    id: "btn_program_options"
+- tapOn: "Regenerate program now"
+- takeScreenshot: f3_regen_started
+# Wait for a terminal state: the in-progress indicator must eventually disappear (generation
+# finished or failed). callTimeout is 240s, up to 6 calls; give a generous ceiling.
+- extendedWaitUntil:
+    notVisible:
+      id: "layout_regen_progress"
+    timeout: 280000
+- takeScreenshot: f3_regen_ended
+# App is still responsive at the end (no ANR / hang).
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "programFragment"

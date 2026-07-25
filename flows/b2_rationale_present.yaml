@@ -1,0 +1,22 @@
+appId: com.migul.treningsprogram
+---
+# B2 — "Why did the program change?" rationale card shows on the Program tab when the
+# week's plan has a non-blank rationale. Card sits near the top of the week view.
+# Pre-state: planned_exercises.rationale set to a non-blank marker text for the active week.
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "homeFragment"
+- tapOn:
+    id: "programFragment"
+# Week view is shown
+- assertVisible:
+    id: "card_week"
+# Rationale card visible with plain-language text
+- assertVisible:
+    id: "card_rationale"
+- assertVisible:
+    id: "tv_rationale"
+- assertVisible:
+    text: ".*MAESTRO_RATIONALE_MARKER.*"
+- takeScreenshot: b2_rationale_present

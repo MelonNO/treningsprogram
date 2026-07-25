@@ -1,0 +1,27 @@
+appId: com.migul.treningsprogram
+---
+# C4 — Muscle Recovery view on Home.
+# Pre-seeded DB: Chest trained 1d ago (Recovering), Legs trained 4d ago (Ready),
+# Back/Shoulders/Arms/Core never trained (Untrained).
+- launchApp
+- tapOn:
+    id: "homeFragment"
+- assertVisible:
+    id: "card_recovery"
+- assertVisible:
+    text: "Muscle Recovery"
+# Each major group shows a state
+- assertVisible:
+    text: "Chest"
+- assertVisible:
+    text: "Recovering"
+- assertVisible:
+    text: "Legs"
+- assertVisible:
+    text: "Ready"
+# A never-trained group shows Untrained (not an error)
+- assertVisible:
+    text: "Back"
+- assertVisible:
+    text: "Untrained"
+- takeScreenshot: c4_recovery
