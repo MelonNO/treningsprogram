@@ -37,6 +37,22 @@ object DateRangeFilter {
         range == null ||
             DayBoundary.logicalEpochDay(dateMs, cutoffHour, zone) in range.startEpochDay..range.endEpochDay
 
+    /**
+     * QoL item 09: the [items] whose [dateOf] timestamp falls inside [range] (both ends
+     * inclusive, same logical-day evaluation as [contains]; null range = everything passes).
+     * Extracted so the body-weight chart's range windowing is unit-testable exactly like the
+     * strength/reps filtering (ChartTouchTest).
+     */
+    fun <T> filter(
+        items: List<T>,
+        range: Range?,
+        cutoffHour: Int = DayBoundary.cutoffHour,
+        zone: ZoneId = ZoneId.systemDefault(),
+        dateOf: (T) -> Long
+    ): List<T> =
+        if (range == null) items
+        else items.filter { contains(range, dateOf(it), cutoffHour, zone) }
+
     /** The control's display text: "All time" or "5 Jun 2026 – 2 Jul 2026" (single day collapses). */
     fun label(range: Range?): String {
         if (range == null) return "All time"
