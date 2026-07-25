@@ -24,34 +24,22 @@ import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.NavigationUI
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import com.migul.treningsprogram.data.db.dao.GymPresetDao
 import com.migul.treningsprogram.data.db.dao.WeeklySummaryDao
 import com.migul.treningsprogram.data.db.entity.WeeklySummary
 import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.preferences.isoWeekKey
-import com.migul.treningsprogram.domain.DeloadPolicy
+import com.migul.treningsprogram.domain.WeeklyAutoGenerator
 import com.migul.treningsprogram.domain.WeeklySummaryTrigger
 import com.migul.treningsprogram.data.repository.AiRepository
 import com.migul.treningsprogram.data.repository.GamificationRepository
-import com.migul.treningsprogram.data.repository.MesocycleContext
 import com.migul.treningsprogram.data.repository.WorkoutRepository
-import com.migul.treningsprogram.data.repository.autoGenWeekKey
-import com.migul.treningsprogram.data.repository.thisMonday
 import com.migul.treningsprogram.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-
-    private companion object {
-        /** Launches an automatic weekly generation may fail on before the week is written off. */
-        const val MAX_AUTO_GEN_LAUNCH_TRIES = 3
-    }
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
@@ -67,9 +55,8 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var workoutRepository: WorkoutRepository
     @Inject lateinit var aiRepository: AiRepository
     @Inject lateinit var gamificationRepository: GamificationRepository
-    @Inject lateinit var gymPresetDao: GymPresetDao
     @Inject lateinit var weeklySummaryDao: WeeklySummaryDao
-    @Inject lateinit var gson: Gson
+    @Inject lateinit var weeklyAutoGenerator: WeeklyAutoGenerator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -178,7 +165,9 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             gamificationRepository.ensureAchievementsSeeded()
-            checkAndAutoGenerateWeeklyPlan()
+            // Item 06: extracted weekly auto-gen (same guards as always); the generation itself
+            // runs app-scoped + service-protected (item 05), so it survives this activity dying.
+            weeklyAutoGenerator.runIfDue()
             // B1: weekly coach summary — independent of and after plan gen, in the background so
             // it never blocks UI. Its own guards (API key / onboarding / once-per-week / data) apply.
             checkAndGenerateWeeklySummary()
@@ -254,6 +243,13 @@ class MainActivity : AppCompatActivity() {
         com.migul.treningsprogram.ui.widget.TodayWorkoutWidgetProvider.requestRefresh(this)
         // F3: re-assert the reminder alarm (inexact alarms don't survive every OEM's app kill).
         com.migul.treningsprogram.notify.ReminderScheduler.sync(this, prefsManager)
+        // Item 06 (facet c): re-evaluate the weekly auto-gen on EVERY foreground entry — onStart
+        // fires on cold launch AND on a warm resume from recents, so a process that survived the
+        // weekend can no longer skip the new week's generation (the old trigger ran in onCreate
+        // only). Guards + mutex inside make re-entry a cheap no-op.
+        lifecycleScope.launch { weeklyAutoGenerator.runIfDue() }
+        // Item 06 (facet b): keep the unattended Monday-morning run scheduled (idempotent KEEP).
+        com.migul.treningsprogram.notify.AutoGenWorkScheduler.ensureScheduled(this)
     }
 
     private fun showUpdateDialog(release: UpdateChecker.ReleaseInfo, currentVersion: String) {
@@ -349,98 +345,8 @@ class MainActivity : AppCompatActivity() {
         downloadReceiver?.let { unregisterReceiver(it) }
     }
 
-    private suspend fun checkAndAutoGenerateWeeklyPlan() {
-        val thisWeek = autoGenWeekKey()
-        if (prefsManager.lastAutoGenerateWeek == thisWeek) return
-        if (prefsManager.apiKey.isBlank()) return
-        if (!prefsManager.hasCompletedOnboarding) return  // wait until user completes onboarding
-        // E2: assumption N — a FROZEN program opts out of automatic weekly AI re-adaptation. Skip
-        // generation (and do not mark the week done) so its plan stays as-is until the user acts.
-        val activeProgram = workoutRepository.ensureActiveProgramId().let {
-            workoutRepository.getActiveProgramOnce()
-        }
-        if (activeProgram?.isFrozen == true) return
-        val monday = thisMonday()
-        val existing = workoutRepository.getPlannedForWeek(monday).first()
-        if (existing.isEmpty()) {
-            val preset = gymPresetDao.getById(prefsManager.selectedGymPresetId)
-            val equipment: List<String> = preset?.let {
-                runCatching {
-                    val type = object : TypeToken<List<String>>() {}.type
-                    gson.fromJson<List<String>>(it.equipmentJson, type)
-                }.getOrElse { emptyList() }
-            } ?: prefsManager.wizardEquipment.split(",").map { it.trim() }.filter { it.isNotBlank() }
-
-            // E2 (M2): stall/fatigue-triggered deload decision, reusing B3's StallDetector via the
-            // repository. If we were already deloading last week, the recovery week is done (exit);
-            // otherwise enter a deload iff enough lifts are concurrently stalled.
-            val stalledLifts = workoutRepository.computeStalledLifts()
-            val isDeload = DeloadPolicy.nextDeloadState(
-                currentlyDeloading = activeProgram?.isDeloadActive ?: false,
-                stalledCount = stalledLifts.size
-            )
-            // E2 (L1): mesocycle position so the model knows it is producing week N of a block.
-            val mesocycle = activeProgram?.let { p ->
-                MesocycleContext(
-                    mesocycleWeeks = p.mesocycleWeeks,
-                    weekInBlock = workoutRepository.weekInBlock(p, monday),
-                    isDeload = isDeload,
-                    stalledLifts = stalledLifts
-                )
-            } ?: MesocycleContext(isDeload = isDeload, stalledLifts = stalledLifts)
-
-            // B08: honour pinned rest days (rest-day mode derives days/week; count mode unchanged).
-            // This is the automatic start-of-week generation — B09 leaves its preserve behaviour
-            // untouched; only the day placement now respects the user's chosen rest days.
-            val eff = com.migul.treningsprogram.domain.TrainingDaySelection.effective(
-                prefsManager.restDaysCsv, prefsManager.daysPerWeek
-            )
-            val result = aiRepository.generateAdaptedProgram(
-                daysPerWeek = eff.daysPerWeek,
-                goal = prefsManager.fitnessGoal,
-                experience = prefsManager.experienceLevel,
-                sessionDurationMinutes = prefsManager.sessionDurationMinutes,
-                equipment = equipment,
-                equipmentNotes = preset?.notes ?: "",
-                separateCardioDays = prefsManager.separateCardioDays,
-                injuries = prefsManager.injuries,
-                injurySeverity = prefsManager.injurySeverity,
-                priorityMuscles = prefsManager.priorityMuscles,
-                dislikedExercises = prefsManager.dislikedExercises,
-                onboardingContext = prefsManager.onboardingContext,
-                mesocycle = mesocycle,
-                restDays = eff.restDays
-            )
-            result.onSuccess { generationResult ->
-                // B2: stamp the week's rationale onto every row so any row of the week carries it.
-                workoutRepository.savePlan(
-                    monday,
-                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) }
-                )
-                prefsManager.lastGenerationAttemptCount = generationResult.attemptCount
-                // E2: persist the deload flag the generated week was built for, so Home/Program show
-                // (or clear) the deload indicator coherently with the plan that was just saved.
-                workoutRepository.setActiveDeload(isDeload)
-                prefsManager.lastAutoGenerateWeek = thisWeek
-            }
-            result.onFailure {
-                // A transient failure no longer writes the whole week off (the old unconditional
-                // marking meant one bad API call = no plan until next Monday). Retry on a later
-                // launch, but stop after a small cap so a persistent failure doesn't keep burning
-                // API attempts every launch. Mirrors the weekly-summary retry guard.
-                val failures = 1 + if (prefsManager.autoGenFailWeek == thisWeek) prefsManager.autoGenFailCount else 0
-                prefsManager.autoGenFailWeek = thisWeek
-                prefsManager.autoGenFailCount = failures
-                if (failures >= MAX_AUTO_GEN_LAUNCH_TRIES) prefsManager.lastAutoGenerateWeek = thisWeek
-            }
-        } else {
-            // Plan already present (e.g. generated manually) — the week is genuinely done.
-            prefsManager.lastAutoGenerateWeek = thisWeek
-        }
-    }
-
     /**
-     * B1: automatic, non-blocking weekly coach summary. Mirrors [checkAndAutoGenerateWeeklyPlan]'s
+     * B1: automatic, non-blocking weekly coach summary. Mirrors [WeeklyAutoGenerator]'s
      * once-per-week guard but keyed by [isoWeekKey] and persisted as its own [WeeklySummary] row.
      * Guards (skip → no-op, no broken row written): API key blank, onboarding incomplete, already
      * generated this ISO week, or too little data (no completed sessions in the lookback).

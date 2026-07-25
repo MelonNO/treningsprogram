@@ -26,7 +26,8 @@ class SetupWizardViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
     val prefs: PreferencesManager,
     private val gymPresetDao: GymPresetDao,
-    private val gson: Gson
+    private val gson: Gson,
+    private val generationRunner: com.migul.treningsprogram.domain.GenerationRunner
 ) : ViewModel() {
 
     val presets = gymPresetDao.getAll()
@@ -81,7 +82,10 @@ class SetupWizardViewModel @Inject constructor(
         separateCardioDays: Boolean,
         apiKey: String
     ) {
-        viewModelScope.launch {
+        // Item 05: app-scoped + foreground-service-protected — the wizard's generation completes
+        // and saves even if the user backgrounds/locks during it; the observed state flows still
+        // drive the wizard UI when it is (or comes back) on screen.
+        generationRunner.launch {
             _isGenerating.value = true
             _generationError.value = null
 
