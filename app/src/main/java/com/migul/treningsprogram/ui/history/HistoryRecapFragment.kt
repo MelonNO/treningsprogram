@@ -256,6 +256,14 @@ class HistoryRecapFragment : Fragment() {
         chips.addView(statChip("${r.totalVolumeKg.toInt()} kg"))
         col.addView(chips)
 
+        // QoL item 03: estimated calories as a fourth stat chip on its own row (a 4th chip in the
+        // row above would clip on narrow screens). null = no figure, no chip.
+        r.estimatedKcal?.let { kcal ->
+            col.addView(statChip(com.migul.treningsprogram.domain.CalorieEstimator.format(kcal)).apply {
+                (layoutParams as LinearLayout.LayoutParams).topMargin = dp(8)
+            })
+        }
+
         // Accent underline — the hero band signature.
         col.addView(View(requireContext()).apply {
             background = requireContext().getDrawable(R.drawable.bg_gradient_accent)

@@ -37,7 +37,9 @@ class WorkoutRepository @Inject constructor(
     private val backupScheduler: BackupScheduler,
     private val preferencesManager: PreferencesManager,
     // Stage-3 item 14: read-only, for attributing achievement unlocks to sessions in the recap.
-    private val achievementDao: AchievementDao
+    private val achievementDao: AchievementDao,
+    // QoL item 03: read-only, for the per-session body-weight term of the calorie estimate.
+    private val bodyMeasurementDao: BodyMeasurementDao
 ) {
 
     companion object {
@@ -722,7 +724,8 @@ class WorkoutRepository @Inject constructor(
      */
     suspend fun buildSessionRecap(sessionId: Long): SessionRecap? {
         val session = sessionDao.getById(sessionId) ?: return null
-        val working = setDao.getSetsForSessionOnce(sessionId).filter { !it.isWarmup }
+        val allSets = setDao.getSetsForSessionOnce(sessionId)
+        val working = allSets.filter { !it.isWarmup }
         if (working.isEmpty()) return null
 
         val prByName = setDao.getPRsWithDate().associateBy { it.exerciseName }
@@ -844,8 +847,56 @@ class WorkoutRepository @Inject constructor(
             estimatedMinutes = estimatedMinutes,
             skippedExercises = skipped,
             pacing = pacing,
-            earnedAchievements = earnedAchievements
+            earnedAchievements = earnedAchievements,
+            // QoL item 03: same estimator as the completion dialog and the Stats weekly total.
+            estimatedKcal = com.migul.treningsprogram.domain.CalorieEstimator.estimateSession(
+                session, allSets,
+                com.migul.treningsprogram.domain.CalorieEstimator.bodyWeightFor(
+                    session.dateMs, bodyMeasurementDao.getAllOnce()
+                )
+            )
         )
+    }
+
+    // ── QoL item 03: on-the-fly calorie estimates (nothing persisted) ─────────────────────────
+
+    /**
+     * Estimated kcal for one session via [com.migul.treningsprogram.domain.CalorieEstimator], or
+     * null when no figure must be shown (REST/MISSED placeholders, no sets). The SAME call path
+     * feeds the workout-complete dialog; [buildSessionRecap] and [estimateWeeklyCalories] apply
+     * the identical estimator, so all three surfaces always agree.
+     */
+    suspend fun estimateSessionCalories(sessionId: Long): Int? {
+        val session = sessionDao.getById(sessionId) ?: return null
+        val sets = setDao.getSetsForSessionOnce(sessionId)
+        return com.migul.treningsprogram.domain.CalorieEstimator.estimateSession(
+            session, sets,
+            com.migul.treningsprogram.domain.CalorieEstimator.bodyWeightFor(
+                session.dateMs, bodyMeasurementDao.getAllOnce()
+            )
+        )
+    }
+
+    /**
+     * Sum of the per-session estimates of every completed real workout in the CURRENT Monday-based
+     * logical week (Stats pulse card). Placeholders are excluded up front (and would estimate to
+     * null anyway). Sets are loaded only for the in-week sessions.
+     */
+    suspend fun estimateWeeklyCalories(todayEpochDay: Long): Int {
+        val monday = com.migul.treningsprogram.domain.RecapGraphs.mondayOfEpochDay(todayEpochDay)
+        val weekSessions = sessionDao.getAllOnce().filter {
+            it.isCompleted && !it.isPlaceholder &&
+                com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it.dateMs) in monday until monday + 7
+        }
+        if (weekSessions.isEmpty()) return 0
+        val weighIns = bodyMeasurementDao.getAllOnce()
+        val inputs = weekSessions.map {
+            com.migul.treningsprogram.domain.CalorieEstimator.SessionInput(
+                it, setDao.getSetsForSessionOnce(it.id),
+                com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it.dateMs)
+            )
+        }
+        return com.migul.treningsprogram.domain.CalorieEstimator.weeklyTotal(inputs, weighIns, todayEpochDay)
     }
 }
 

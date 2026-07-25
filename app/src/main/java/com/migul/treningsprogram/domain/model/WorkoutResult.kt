@@ -47,5 +47,11 @@ data class WorkoutResult(
      * GoalRepository.detectReached — the one-way flip that makes the celebration fire exactly
      * once). NO XP rides on these (A-G1); they only drive the celebration surface.
      */
-    val reachedGoals: List<LiftGoal> = emptyList()
+    val reachedGoals: List<LiftGoal> = emptyList(),
+    /**
+     * QoL item 03: estimated kcal for THIS session, computed on the fly at completion via
+     * [com.migul.treningsprogram.domain.CalorieEstimator] (same estimator as Recap and the Stats
+     * weekly total). null = show no figure. Never persisted.
+     */
+    val estimatedKcal: Int? = null
 )
