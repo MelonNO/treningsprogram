@@ -20,6 +20,7 @@ playServicesAuth = "21.2.0"
 googleApiClient = "2.6.0"
 googleApiServicesDrive = "v3-rev20240628-2.0.0"
 googleHttpClientGson = "1.44.2"
+work = "2.9.1"
 
 [libraries]
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -45,6 +46,7 @@ retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", ver
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 coil = { group = "io.coil-kt", name = "coil", version.ref = "coil" }

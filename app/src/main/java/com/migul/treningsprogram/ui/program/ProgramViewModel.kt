@@ -26,7 +26,8 @@ class ProgramViewModel @Inject constructor(
     private val prefsManager: PreferencesManager,
     private val gymPresetDao: GymPresetDao,
     private val gson: Gson,
-    generationState: com.migul.treningsprogram.domain.GenerationState
+    generationState: com.migul.treningsprogram.domain.GenerationState,
+    private val generationRunner: com.migul.treningsprogram.domain.GenerationRunner
 ) : ViewModel() {
 
     // Item 8: app-scoped full-generation signal (a generation launched from a Settings screen). The
@@ -173,7 +174,9 @@ class ProgramViewModel @Inject constructor(
     }
 
     fun swapExercise(exercise: PlannedExercise, newName: String) {
-        viewModelScope.launch {
+        // Item 05: app scope — a triggered auto-rebalance (an AI generation) must survive
+        // backgrounding; the FGS is held only inside runRebalance, so plain edits stay silent.
+        generationRunner.scope.launch {
             val beforeNames = currentDayNames(exercise.dayOfWeek)
             workoutRepository.updatePlannedExercise(
                 exercise.copy(exerciseName = newName, isLogged = false, actualWeightKg = 0f, actualReps = "", actualSets = 0)
@@ -207,7 +210,7 @@ class ProgramViewModel @Inject constructor(
      * freshly-persisted rows, so rapid delete/reorder/add in succession can't clobber one another.
      */
     fun deleteExercise(exercise: PlannedExercise) {
-        viewModelScope.launch {
+        generationRunner.scope.launch {   // item 05: possible auto-rebalance tail must survive
             val beforeNames = currentDayNames(exercise.dayOfWeek)
             workoutRepository.editDayPlan(thisMonday(), exercise.dayOfWeek) { current ->
                 com.migul.treningsprogram.domain.DayPlanEditor.remove(current, exercise)
@@ -218,7 +221,7 @@ class ProgramViewModel @Inject constructor(
 
     /** Add a new exercise to the end of [day]'s plan, re-indexing so orderInDay = list position. */
     fun addExercise(day: Int, name: String, sets: Int, reps: String, weight: Float, notes: String) {
-        viewModelScope.launch {
+        generationRunner.scope.launch {   // item 05: possible auto-rebalance tail must survive
             val beforeNames = currentDayNames(day)
             workoutRepository.editDayPlan(thisMonday(), day) { current ->
                 val newRow = PlannedExercise(
@@ -262,7 +265,9 @@ class ProgramViewModel @Inject constructor(
             _dayGenerationError.value = "Set your API key in Profile → Settings first."
             return
         }
-        viewModelScope.launch {
+        // Item 05: app-scoped + foreground-service-protected — the day regen (and any chained
+        // auto-rebalance) completes and saves even if the user backgrounds/locks immediately.
+        generationRunner.launch {
             _isDayGenerating.value = true
             _dayGenerationError.value = null
             val weekStart = thisMonday()
@@ -380,38 +385,43 @@ class ProgramViewModel @Inject constructor(
             return
         }
 
-        val mesocycle = workoutRepository.buildRegenMesocycle(monday)
-        aiRepository.generateAdaptedProgram(
-            daysPerWeek = eff.daysPerWeek,
-            goal = prefsManager.fitnessGoal,
-            experience = prefsManager.experienceLevel,
-            sessionDurationMinutes = prefsManager.sessionDurationMinutes,
-            equipment = equipment,
-            equipmentNotes = equipmentNotes,
-            separateCardioDays = prefsManager.separateCardioDays,
-            injuries = prefsManager.injuries,
-            injurySeverity = prefsManager.injurySeverity,
-            priorityMuscles = prefsManager.priorityMuscles,
-            dislikedExercises = prefsManager.dislikedExercises,
-            onboardingContext = prefsManager.onboardingContext,
-            mesocycle = mesocycle,
-            restDays = eff.restDays,
-            lockedExercises = lockedExercises,
-            onProgress = { _dayGenerationStatus.value = it }
-        ).onSuccess { generationResult ->
-            workoutRepository.savePlanPreservingLoggedDays(
-                monday,
-                generationResult.exercises.map { it.copy(rationale = generationResult.rationale) },
-                preserveDays
-            )
-            workoutRepository.setActiveDeload(mesocycle.isDeload)
-            _dayGenerationStatus.value = ""
-        }.onFailure { e ->
-            _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
-                e.message ?: "Program rejected after all attempts"
-            else
-                friendlyAiErrorMessage(e)
-            _dayGenerationStatus.value = ""
+        // Item 05: hold the foreground service across the actual generation + save (the cheap
+        // guards above stay outside so a no-op rebalance never flashes the service notification).
+        // All runRebalance callers already run on the app-scoped GenerationRunner.
+        generationRunner.withProtection {
+            val mesocycle = workoutRepository.buildRegenMesocycle(monday)
+            aiRepository.generateAdaptedProgram(
+                daysPerWeek = eff.daysPerWeek,
+                goal = prefsManager.fitnessGoal,
+                experience = prefsManager.experienceLevel,
+                sessionDurationMinutes = prefsManager.sessionDurationMinutes,
+                equipment = equipment,
+                equipmentNotes = equipmentNotes,
+                separateCardioDays = prefsManager.separateCardioDays,
+                injuries = prefsManager.injuries,
+                injurySeverity = prefsManager.injurySeverity,
+                priorityMuscles = prefsManager.priorityMuscles,
+                dislikedExercises = prefsManager.dislikedExercises,
+                onboardingContext = prefsManager.onboardingContext,
+                mesocycle = mesocycle,
+                restDays = eff.restDays,
+                lockedExercises = lockedExercises,
+                onProgress = { _dayGenerationStatus.value = it }
+            ).onSuccess { generationResult ->
+                workoutRepository.savePlanPreservingLoggedDays(
+                    monday,
+                    generationResult.exercises.map { it.copy(rationale = generationResult.rationale) },
+                    preserveDays
+                )
+                workoutRepository.setActiveDeload(mesocycle.isDeload)
+                _dayGenerationStatus.value = ""
+            }.onFailure { e ->
+                _dayGenerationError.value = if (e is IllegalStateException && e.message?.startsWith("Program rejected") == true)
+                    e.message ?: "Program rejected after all attempts"
+                else
+                    friendlyAiErrorMessage(e)
+                _dayGenerationStatus.value = ""
+            }
         }
         _isDayGenerating.value = false
     }
@@ -423,7 +433,7 @@ class ProgramViewModel @Inject constructor(
      * Never deletes logged sets/history (only planned_exercises for non-logged days are replaced).
      */
     fun regeneratePreservingLoggedDays(equipment: List<String>, equipmentNotes: String) {
-        viewModelScope.launch {
+        generationRunner.scope.launch {   // item 05: survives backgrounding; FGS held inside runRebalance
             runRebalance(extraLockedDays = emptySet(), equipment = equipment, equipmentNotes = equipmentNotes, showNothingError = true)
         }
     }
@@ -435,7 +445,7 @@ class ProgramViewModel @Inject constructor(
      * the logged days. Triggered when the user returns to the Program tab post-completion.
      */
     fun rebalanceAfterDayMove() {
-        viewModelScope.launch {
+        generationRunner.scope.launch {   // item 05: survives backgrounding; FGS held inside runRebalance
             val (eq, notes) = resolveEquipment()
             runRebalance(extraLockedDays = emptySet(), equipment = eq, equipmentNotes = notes, showNothingError = false)
         }

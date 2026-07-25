@@ -100,6 +100,8 @@ dependencies {
     implementation(libs.okhttp.logging)
 
     implementation(libs.coroutines.android)
+    // Item 06: unattended weekly generation (persisted schedule + network constraint + wakelock).
+    implementation(libs.work.runtime)
     implementation(libs.gson)
     implementation(libs.security.crypto)
     implementation(libs.coil)

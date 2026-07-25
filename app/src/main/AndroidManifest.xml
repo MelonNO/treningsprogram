@@ -35,6 +35,13 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <!-- Item 05: pins the process's importance while an AI generation is in flight, so
+             backgrounding/locking no longer freezes or kills the in-process generation. -->
+        <service
+            android:name=".notify.GenerationForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
         <!-- F2: today's-workout home-screen widget -->
         <receiver
             android:name=".ui.widget.TodayWorkoutWidgetProvider"

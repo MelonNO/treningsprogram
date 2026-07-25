@@ -53,6 +53,7 @@ class SettingsViewModel @Inject constructor(
     private val backupScheduler: BackupScheduler,
     private val resolutionLog: ExerciseResolutionLog,
     private val generationState: com.migul.treningsprogram.domain.GenerationState,
+    private val generationRunner: com.migul.treningsprogram.domain.GenerationRunner,
     val promptLog: PromptLog,
     val rejectionLog: RejectionLog,
     val crashLog: CrashLog
@@ -317,7 +318,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun doGenerate(daysPerWeek: Int, goal: String, experience: String, sessionDurationMinutes: Int) {
-        viewModelScope.launch {
+        // Item 05: app-scoped + foreground-service-protected so the generation completes and saves
+        // even if the user backgrounds/locks immediately. The VM's own state flows keep driving the
+        // on-screen status exactly as before (the lambda captures them; writes after a VM clear are
+        // harmless), and GenerationState mirrors progress for the Program tab.
+        generationRunner.launch {
             _isGenerating.value = true
             // Item 8: publish the app-scoped signal so the Program tab can show a generating animation.
             generationState.begin()
