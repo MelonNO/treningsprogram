@@ -23,6 +23,7 @@ import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.MuscleClassifier
 import com.migul.treningsprogram.databinding.FragmentHistoryLogBinding
+import com.migul.treningsprogram.databinding.ViewHistoryWeekContentBinding
 import com.migul.treningsprogram.domain.DateRangeFilter
 import com.migul.treningsprogram.domain.DayBoundary
 import com.migul.treningsprogram.domain.HistoryBrowser
@@ -96,13 +97,21 @@ class HistoryLogFragment : Fragment() {
         }
         binding.btnDateRangeClear.setOnClickListener { viewModel.logDateRange.value = null }
 
-        binding.btnBackToMonths.setOnClickListener { viewModel.closeBrowserWeek() }
+        // The week view is a two-pane finger-following pager: both panes carry the same
+        // content layout, so chrome listeners are wired on both.
+        listOf(binding.paneWeekA, binding.paneWeekB).forEach { pane ->
+            pane.btnBackToMonths.setOnClickListener { viewModel.closeBrowserWeek() }
+        }
 
         // Week-view swipe (Program-tab gesture language: right = previous/older week,
         // left = next/newer week). All week/day resolution lives in the ViewModel + the
-        // pure HistoryBrowser helpers; the fragment only forwards the gesture.
+        // pure HistoryBrowser helpers; the fragment only forwards the gesture and renders
+        // the peeking adjacent week into the pager's back pane on demand.
         binding.layoutWeekView.onSwipeRight = { swipeWeek(-1) }
         binding.layoutWeekView.onSwipeLeft = { swipeWeek(+1) }
+        binding.layoutWeekView.onPrepareAdjacent = { fingerRight ->
+            prepareAdjacentWeek(if (fingerRight) -1 else +1)
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -131,13 +140,42 @@ class HistoryLogFragment : Fragment() {
     }
 
     /** Forward a completed swipe; if the week actually changed, reorient to the top like
-     *  opening a week from the month list does. */
+     *  opening a week from the month list does. If it did NOT change (the model shifted
+     *  between drag-preview and commit — rare race), force a re-render so the pane the
+     *  pager just promoted to front shows the still-open week again. */
     private fun swipeWeek(direction: Int) {
         val before = viewModel.browserWeekStart.value
         viewModel.swipeBrowserWeek(direction)
         if (viewModel.browserWeekStart.value != before) {
             _binding?.root?.smoothScrollTo(0, 0)
+        } else {
+            render()
         }
+    }
+
+    // ── Pager panes ────────────────────────────────────────────────────────────────────────
+
+    /** The pane currently showing the open week (the pager swaps roles on each commit). */
+    private fun frontPane(): ViewHistoryWeekContentBinding =
+        if (binding.layoutWeekView.frontView === binding.paneWeekB.root) binding.paneWeekB
+        else binding.paneWeekA
+
+    private fun backPane(): ViewHistoryWeekContentBinding =
+        if (binding.layoutWeekView.frontView === binding.paneWeekB.root) binding.paneWeekA
+        else binding.paneWeekB
+
+    /** Drag started (or flipped direction): render the week the swipe would land on into
+     *  the pager's back pane — with the SAME selected-day carry the commit will use — so
+     *  the peeking preview matches what a completed swipe shows. False = range end. */
+    private fun prepareAdjacentWeek(direction: Int): Boolean {
+        val week = viewModel.peekAdjacentBrowserWeek(direction) ?: return false
+        val today = DayBoundary.todayEpochDay()
+        val selected = viewModel.browserSelectedDay.value
+        val destSelected =
+            if (selected != null) HistoryBrowser.carriedDay(week, selected, today)
+            else HistoryBrowser.defaultDay(week, today)
+        renderWeekViewInto(backPane(), week, destSelected)
+        return true
     }
 
     /** Subtle end-of-range nudge: the week view shifts a few dp against the swipe and
@@ -267,26 +305,37 @@ class HistoryLogFragment : Fragment() {
         binding.tvEmpty.isVisible = false
         binding.layoutWeekView.isVisible = true
 
-        binding.tvHistWeekTitle.text = HistoryBrowser.weekTitle(week)
-        binding.tvHistWeekSummary.text = HistoryBrowser.weekSummary(week)
-
         val selected = viewModel.browserSelectedDay.value
             ?.takeIf { week.days.any { d -> d.epochDay == it } }
             ?: HistoryBrowser.defaultDay(week, DayBoundary.todayEpochDay())
 
-        binding.layoutHistWeekDays.removeAllViews()
+        renderWeekViewInto(frontPane(), week, selected)
+    }
+
+    /** Render a week (with [selected] day open) into one pager pane — used both for the
+     *  committed front pane and for the adjacent-week preview in the back pane. */
+    private fun renderWeekViewInto(
+        pane: ViewHistoryWeekContentBinding, week: HistoryBrowser.Week, selected: Long
+    ) {
+        pane.tvHistWeekTitle.text = HistoryBrowser.weekTitle(week)
+        pane.tvHistWeekSummary.text = HistoryBrowser.weekSummary(week)
+
+        pane.layoutHistWeekDays.removeAllViews()
         week.days.forEachIndexed { i, day ->
-            binding.layoutHistWeekDays.addView(
-                buildDayChip(day, dayAbbreviations[i], day.epochDay == selected)
+            pane.layoutHistWeekDays.addView(
+                buildDayChip(pane, day, dayAbbreviations[i], day.epochDay == selected)
             )
         }
 
         val day = week.days.firstOrNull { it.epochDay == selected } ?: week.days.first()
-        renderDaySection(day)
+        renderDaySection(pane, day)
     }
 
-    private fun buildDayChip(day: HistoryBrowser.Day, abbrText: String, isSelected: Boolean): View {
-        val chip = layoutInflater.inflate(R.layout.item_day_chip, binding.layoutHistWeekDays, false)
+    private fun buildDayChip(
+        pane: ViewHistoryWeekContentBinding,
+        day: HistoryBrowser.Day, abbrText: String, isSelected: Boolean
+    ): View {
+        val chip = layoutInflater.inflate(R.layout.item_day_chip, pane.layoutHistWeekDays, false)
         val abbr = chip.findViewById<TextView>(R.id.tv_day_abbr)
         val type = chip.findViewById<TextView>(R.id.tv_day_type)
         val progress = chip.findViewById<TextView>(R.id.tv_day_progress)
@@ -336,14 +385,14 @@ class HistoryLogFragment : Fragment() {
         return chip
     }
 
-    private fun renderDaySection(day: HistoryBrowser.Day) {
+    private fun renderDaySection(pane: ViewHistoryWeekContentBinding, day: HistoryBrowser.Day) {
         val date = LocalDate.ofEpochDay(day.epochDay)
-        binding.tvHistDayName.text = dayNames[Math.floorMod(day.epochDay + 3, 7L).toInt()]
-        binding.tvHistDayMeta.text = date.format(dayDateFmt)
+        pane.tvHistDayName.text = dayNames[Math.floorMod(day.epochDay + 3, 7L).toInt()]
+        pane.tvHistDayMeta.text = date.format(dayDateFmt)
 
-        binding.layoutHistDaySessions.removeAllViews()
+        pane.layoutHistDaySessions.removeAllViews()
         if (day.state != HistoryBrowser.DayState.WORKOUT) {
-            binding.cardHistDayPlaceholder.isVisible = true
+            pane.cardHistDayPlaceholder.isVisible = true
             val (title, body) = when (day.state) {
                 HistoryBrowser.DayState.REST ->
                     "Rest day" to "Recovery is part of the plan — this day was logged as rest."
@@ -354,24 +403,24 @@ class HistoryLogFragment : Fragment() {
                 else ->
                     "Nothing logged" to "No entries were recorded on this day."
             }
-            binding.tvHistPlaceholderTitle.text = title
-            binding.tvHistPlaceholderBody.text = body
-            binding.tvHistPlaceholderTitle.setTextColor(
+            pane.tvHistPlaceholderTitle.text = title
+            pane.tvHistPlaceholderBody.text = body
+            pane.tvHistPlaceholderTitle.setTextColor(
                 if (day.state == HistoryBrowser.DayState.MISSED) Color.parseColor("#FF9800")
                 else requireContext().getColor(R.color.auros_fog)
             )
             return
         }
 
-        binding.cardHistDayPlaceholder.isVisible = false
+        pane.cardHistDayPlaceholder.isVisible = false
         val inflater = LayoutInflater.from(requireContext())
         day.sessions.forEachIndexed { index, session ->
-            binding.layoutHistDaySessions.addView(
+            pane.layoutHistDaySessions.addView(
                 buildSessionHeader(session, index, day.sessions.size)
             )
             for (exercise in session.exercises) {
-                binding.layoutHistDaySessions.addView(
-                    buildExerciseCard(inflater, session, exercise, date)
+                pane.layoutHistDaySessions.addView(
+                    buildExerciseCard(inflater, pane, session, exercise, date)
                 )
             }
         }
@@ -419,11 +468,12 @@ class HistoryLogFragment : Fragment() {
 
     private fun buildExerciseCard(
         inflater: LayoutInflater,
+        pane: ViewHistoryWeekContentBinding,
         session: HistoryBrowser.SessionSummary,
         exercise: HistoryBrowser.ExerciseSummary,
         date: LocalDate
     ): View {
-        val card = inflater.inflate(R.layout.item_history_exercise, binding.layoutHistDaySessions, false)
+        val card = inflater.inflate(R.layout.item_history_exercise, pane.layoutHistDaySessions, false)
 
         val badge = card.findViewById<TextView>(R.id.tv_muscle_badge)
         val group = MuscleClassifier.displayName(exercise.name)

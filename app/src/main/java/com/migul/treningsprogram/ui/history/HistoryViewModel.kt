@@ -121,6 +121,20 @@ class HistoryViewModel @Inject constructor(
         browserWeekStart.value = dest
     }
 
+    /**
+     * Pure read used by the drag-follow animation: the week a swipe in [direction] would land
+     * on (same resolution as [swipeBrowserWeek]), or null at the range end. Lets the fragment
+     * render the adjacent week into the peeking pager pane BEFORE the swipe commits, without
+     * touching any browser state.
+     */
+    fun peekAdjacentBrowserWeek(direction: Int): com.migul.treningsprogram.domain.HistoryBrowser.Week? {
+        val model = historyBrowser.value ?: return null
+        val current = browserWeekStart.value ?: return null
+        val dest = com.migul.treningsprogram.domain.HistoryBrowser
+            .adjacentWeekStart(model, current, direction) ?: return null
+        return model.weeksByStart[dest]
+    }
+
     fun closeBrowserWeek() {
         browserWeekStart.value = null
         browserSelectedDay.value = null
