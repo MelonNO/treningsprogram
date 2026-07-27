@@ -13,6 +13,14 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 69, versionName = "1.28.0",
+            highlights = listOf(
+                "Week swiping in History now actually works: swipe on the opened week itself to change weeks (right = older, left = newer) — swiping anywhere else still switches between the History tabs",
+                "The Program tab now always shows the current week; past weeks live only in History's week browser",
+                "Removed the grey loading placeholders from History's sessions list and the Progress tab — the Progress one used to sit stuck next to the body-weight chart",
+            ),
+        ),
+        Entry(
             versionCode = 68, versionName = "1.27.0",
             highlights = listOf(
                 "Swipe between weeks right inside History's week view — right for the previous week, left for the next, just like the Program tab. Your selected weekday follows along, and with a search or date filter on, the swipe visits exactly the weeks it shows",
