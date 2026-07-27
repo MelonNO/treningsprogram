@@ -63,21 +63,14 @@ class HistoryProgressFragment : Fragment() {
             val screenEmpty = DataScreenEmptyState.isProgressEmpty(names.size)
             binding.tvProgressEmpty.isVisible = screenEmpty
             binding.cardExerciseSelector.isVisible = !screenEmpty
-            // Stage-3 item 2: with data but no exercise picked yet, hint at the chart/cards to
-            // come with a placeholder skeleton (the true first-run state keeps its copy above).
-            if (!screenEmpty && viewModel.selectedExercise.value.isBlank()) {
-                com.migul.treningsprogram.ui.common.Skeleton.show(binding.skeletonProgress)
-            }
         }
 
         binding.acExercise.setOnItemClickListener { _, _, _, _ ->
-            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonProgress)
             viewModel.selectedExercise.value = binding.acExercise.text.toString()
         }
 
         // Also trigger on text commit
         binding.acExercise.setOnEditorActionListener { _, _, _ ->
-            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonProgress)
             viewModel.selectedExercise.value = binding.acExercise.text.toString()
             false
         }

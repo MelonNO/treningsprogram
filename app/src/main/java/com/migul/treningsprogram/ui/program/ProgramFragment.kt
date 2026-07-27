@@ -80,12 +80,6 @@ class ProgramFragment : Fragment() {
             dayChipViews.add(chip)
         }
 
-        // Week paging: swipe RIGHT on the week card → back one week (read-only view of the logged
-        // week); swipe LEFT → forward again, clamped at the current week. Banner tap jumps home.
-        binding.swipeWeek.onSwipeRight = { viewModel.shiftWeek(-1) }
-        binding.swipeWeek.onSwipeLeft = { viewModel.shiftWeek(+1) }
-        binding.tvWeekBanner.setOnClickListener { viewModel.shiftWeek(-viewModel.weekOffset.value) }
-
         binding.btnGoToSettings.setOnClickListener {
             requireActivity().findViewById<BottomNavigationView>(R.id.bottom_nav)
                 ?.selectedItemId = R.id.profileFragment
@@ -171,22 +165,6 @@ class ProgramFragment : Fragment() {
                     viewModel.selectedDay.collect { day ->
                         updateDayChips(viewModel.weekPlan.value, day)
                         updateDaySection(day, viewModel.selectedDayExercises.value)
-                    }
-                }
-                launch {
-                    // Week paging: title/banner + re-render the (possibly unchanged) day section so
-                    // read-only gating tracks the offset even when both weeks' lists are equal.
-                    viewModel.weekOffset.collect { offset ->
-                        val viewingPast = offset != 0
-                        binding.tvWeekTitle.text = if (viewingPast) {
-                            val fmt = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
-                            "Week of ${fmt.format(java.util.Date(viewModel.viewedWeekStart()))}"
-                        } else "This Week"
-                        binding.tvWeekBanner.visibility = if (viewingPast) View.VISIBLE else View.GONE
-                        binding.tvWeekBanner.text =
-                            if (offset == -1) "Last week — logged, read-only. Swipe left or tap here to return."
-                            else "${-offset} weeks back — read-only. Tap here to return."
-                        updateDaySection(viewModel.selectedDay.value, viewModel.selectedDayExercises.value)
                     }
                 }
                 launch {
@@ -440,14 +418,10 @@ class ProgramFragment : Fragment() {
         val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
         binding.tvSelectedDayName.text = dayNames.getOrElse(day - 1) { "Day $day" }
 
-        // Week paging: any past week is strictly READ-ONLY — every mutating control is hidden so a
-        // stray tap can't write into the CURRENT week (all edit paths are keyed on thisMonday()).
-        val readOnly = viewModel.weekOffset.value != 0
-
         val isRestDay = exercises.isEmpty()
         binding.cardRestDay.visibility = if (isRestDay) View.VISIBLE else View.GONE
         binding.layoutExercises.visibility = if (isRestDay) View.GONE else View.VISIBLE
-        binding.btnStartDayWorkout.visibility = if (isRestDay || readOnly) View.GONE else View.VISIBLE
+        binding.btnStartDayWorkout.visibility = if (isRestDay) View.GONE else View.VISIBLE
 
         if (!isRestDay) {
             val logged = exercises.count { it.isLogged }
@@ -487,24 +461,18 @@ class ProgramFragment : Fragment() {
             binding.tvTotalTime.text = ""
         }
 
-        binding.btnRegenerateDay.visibility = if (readOnly) View.GONE else View.VISIBLE
+        binding.btnRegenerateDay.visibility = View.VISIBLE
         binding.btnRegenerateDay.setOnClickListener { showRegenerateDayDialog(day) }
 
         // E1: "Add exercise" is available on any non-rest day (and we still allow adding to a
         // currently-empty/rest day via the same control once it is shown — it stays hidden only
         // when the whole week has no plan, since the day section itself is hidden then).
-        binding.btnAddExercise.visibility = if (isRestDay || readOnly) View.GONE else View.VISIBLE
+        binding.btnAddExercise.visibility = if (isRestDay) View.GONE else View.VISIBLE
         binding.btnAddExercise.setOnClickListener { showAddExerciseDialog(day) }
 
         binding.layoutExercises.removeAllViews()
         exercises.forEachIndexed { index, ex ->
-            val card = inflateDayOverviewCard(ex, index, exercises.size)
-            if (readOnly) {
-                card.findViewById<View>(R.id.layout_edit_actions)?.visibility = View.GONE
-                card.setOnClickListener(null)
-                card.isClickable = false
-            }
-            binding.layoutExercises.addView(card)
+            binding.layoutExercises.addView(inflateDayOverviewCard(ex, index, exercises.size))
         }
     }
 

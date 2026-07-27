@@ -159,14 +159,14 @@ class HistoryLogFragment : Fragment() {
         val b = _binding ?: return
         val model = viewModel.historyBrowser.value
         if (model == null) {
-            com.migul.treningsprogram.ui.common.Skeleton.showDelayed(b.skeletonLog)
+            // Still loading — show nothing; content simply appears when ready (the skeleton
+            // placeholder was removed by user decision: it kept overlaying loaded content).
             b.tvEmpty.isVisible = false
             b.layoutBrowser.isVisible = false
             b.layoutWeekView.isVisible = false
             backCallback.isEnabled = false
             return
         }
-        com.migul.treningsprogram.ui.common.Skeleton.hide(b.skeletonLog)
 
         val week = viewModel.browserWeekStart.value?.let { model.weeksByStart[it] }
         backCallback.isEnabled = week != null && isResumed

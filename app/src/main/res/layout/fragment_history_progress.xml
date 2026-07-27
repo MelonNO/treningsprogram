@@ -285,21 +285,6 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Stage-3 item 2: chart/card-shaped placeholder skeleton for the "no exercise selected
-             yet" state — hints at what will appear (the true first-run empty state above keeps
-             its copy instead). -->
-        <LinearLayout
-            android:id="@+id/skeleton_progress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-            <View android:layout_width="match_parent" android:layout_height="200dp"
-                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
-            <View android:layout_width="match_parent" android:layout_height="88dp"
-                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
-        </LinearLayout>
-
         <!-- Stage-3 item 1: reps progression card — shown for exercises trained at body weight
              (any all-0-kg session in history). For mixed history the strength card above appears
              in addition, each clearly labelled. -->

@@ -97,25 +97,11 @@ class ProgramViewModel @Inject constructor(
         viewModelScope.launch { workoutRepository.updateProgram(p.copy(isFrozen = frozen)) }
     }
 
-    // ── Week paging: swipe right on the week card → previous (read-only, logged) weeks ──────────
-    private val _weekOffset = MutableStateFlow(0)   // 0 = current week, -1 = last week, …
-    val weekOffset: StateFlow<Int> = _weekOffset.asStateFlow()
-
-    /** The Monday the currently-VIEWED week is keyed on. */
-    fun viewedWeekStart(): Long = com.migul.treningsprogram.data.repository.mondayForOffset(_weekOffset.value)
-
-    /** Shift the viewed week by [delta] whole weeks; clamped to [MIN_WEEK_OFFSET]..0 (now). */
-    fun shiftWeek(delta: Int) {
-        _weekOffset.value = (_weekOffset.value + delta).coerceIn(MIN_WEEK_OFFSET, 0)
-    }
-
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    // The Program tab is CURRENT-WEEK-ONLY (past weeks live exclusively in History's week
+    // browser — the swipe-to-past-weeks paging was removed with its read-only view state).
     val weekPlan: StateFlow<List<PlannedExercise>> =
-        _weekOffset.flatMapLatest { offset ->
-            workoutRepository.getPlannedForWeek(
-                com.migul.treningsprogram.data.repository.mondayForOffset(offset)
-            )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        workoutRepository.getPlannedForWeek(thisMonday())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // B2: the current week's "why did the program change?" rationale. It is stamped onto every
     // row of the week, so the first non-blank row carries it. Blank for old plans (pre-feature)
@@ -468,8 +454,4 @@ class ProgramViewModel @Inject constructor(
         }
     }
 
-    companion object {
-        /** How far back the week card can be swiped (plans older than this are rarely useful). */
-        const val MIN_WEEK_OFFSET = -12
-    }
 }
