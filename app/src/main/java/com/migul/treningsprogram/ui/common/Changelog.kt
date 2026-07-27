@@ -13,6 +13,12 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 70, versionName = "1.29.0",
+            highlights = listOf(
+                "Week swiping in History feels like a real pager now: the week follows your finger and the next one peeks in from the edge — let go to snap over, or it snaps back. At either end it gently rubber-bands instead",
+            ),
+        ),
+        Entry(
             versionCode = 69, versionName = "1.28.0",
             highlights = listOf(
                 "Week swiping in History now actually works: swipe on the opened week itself to change weeks (right = older, left = newer) — swiping anywhere else still switches between the History tabs",
