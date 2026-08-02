@@ -13,6 +13,17 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 71, versionName = "1.30.0",
+            highlights = listOf(
+                "Dumbbell lifts without \"dumbbell\" in the name (Zottman curls, hammer curls, lateral raises…) now get the per-side plate readout on the keypad too",
+                "Tap the calorie chip on a session's Recap to see exactly how that number was calculated — your real duration, sets, and body weight plugged into the math",
+                "Exercise info showing the wrong movement? Flag it right from the info sheet; a new debug list lets you review flags, pick the correct database entry (fixes it everywhere), or copy the list",
+                "The exercise-info sheet now always titles itself with your program's exercise name, with the database entry's own name labelled above its pictures and instructions",
+                "The \"Last time\" line while logging now also shows how hard your final set felt last session",
+                "Removed the last grey loading placeholder — the Recap screen's content now simply appears when ready",
+            ),
+        ),
+        Entry(
             versionCode = 70, versionName = "1.29.0",
             highlights = listOf(
                 "Week swiping in History feels like a real pager now: the week follows your finger and the next one peeks in from the edge — let go to snap over, or it snaps back. At either end it gently rubber-bands instead",
