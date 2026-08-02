@@ -37,7 +37,7 @@ class R2VerboseExerciseRecognitionTest {
     private val ctx = RuntimeEnvironment.getApplication()
     private val resolver: ExerciseDbResolver by lazy {
         ExerciseCatalog.initialize(ctx)
-        ExerciseDbResolver(ExerciseResolutionLog(ctx))
+        ExerciseDbResolver(ExerciseResolutionLog(ctx), com.migul.treningsprogram.data.ExerciseInfoCorrections(ctx))
     }
 
     private fun harvestedNames(): List<String> =

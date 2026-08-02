@@ -85,6 +85,31 @@ object PlateMath {
         return "dumbbell" in n || n.startsWith("db ") || " db " in n
     }
 
+    /**
+     * QoL 2026-08 item 01: equipment words that veto the DB-equipment dumbbell rescue. When the
+     * plan name itself names other equipment, a (possibly loose) dumbbell DB match must NOT force
+     * the lift into dumbbell math.
+     */
+    private val DUMBBELL_RESCUE_VETO = listOf(
+        "barbell", "cable", "machine", "smith", "kettlebell", "band", "bodyweight",
+        "trap bar", "hex bar", "landmine", "ez bar", "ez-bar", "e-z",
+    )
+
+    /**
+     * QoL 2026-08 item 01 — general dumbbell-by-nature recognition. A lift whose plan name lacks
+     * "dumbbell"/"DB" (e.g. "Zottman Curl", "Hammer Curl", "Lateral Raise") still gets the
+     * dumbbell readout when its resolved exercise-DB entry says its equipment IS a dumbbell.
+     * The name-based checks keep precedence (no regressions), and the rescue is vetoed when the
+     * name explicitly mentions other equipment (a loose DB match must not misclassify).
+     */
+    fun isDumbbellByNature(name: String, dbEquipment: String?): Boolean {
+        if (isDumbbellExercise(name)) return true
+        if (isBarbellExercise(name)) return false
+        if (!"dumbbell".equals(dbEquipment?.trim(), ignoreCase = true)) return false
+        val n = name.lowercase()
+        return DUMBBELL_RESCUE_VETO.none { it in n }
+    }
+
     data class Loadout(val perSide: List<Float>, val exact: Boolean, val achievableTotal: Float)
 
     /** Greedy per-side decomposition, or null when the total doesn't reach the bar. */
@@ -109,12 +134,23 @@ object PlateMath {
      * The keypad readout line, or null when it shouldn't be shown (exercise isn't plate-loaded
      * under [profile], or the weight doesn't reach the bar). For dumbbell lifts the entered
      * weight is ONE dumbbell's total, decomposed against the handle weight.
+     *
+     * [dbEquipment] is the resolved exercise-DB entry's equipment string (nullable; callers with
+     * no resolved entry pass null and get the pre-existing name-only behaviour). It lets
+     * dumbbell-by-nature lifts whose plan name lacks "dumbbell"/"DB" (item 01) get the readout.
      */
-    fun display(totalKg: Float, exerciseName: String, profile: PlateProfile = PlateProfile.DEFAULT): String? {
+    fun display(
+        totalKg: Float,
+        exerciseName: String,
+        profile: PlateProfile = PlateProfile.DEFAULT,
+        dbEquipment: String? = null,
+    ): String? {
         val (barKg, suffix) = when {
             isDumbbellExercise(exerciseName) ->
                 if (profile.loadableDumbbells) profile.dumbbellBarKg to " (dumbbell)" else return null
             isBarbellExercise(exerciseName) -> profile.barKg to ""
+            isDumbbellByNature(exerciseName, dbEquipment) ->
+                if (profile.loadableDumbbells) profile.dumbbellBarKg to " (dumbbell)" else return null
             else -> return null
         }
         val l = perSide(totalKg, barKg, profile.plates) ?: return null

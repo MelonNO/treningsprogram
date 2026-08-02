@@ -58,7 +58,13 @@ object PreferencesMerger {
             manualRestAccessorySeconds = pick(current.manualRestAccessorySeconds, backup.manualRestAccessorySeconds, d.manualRestAccessorySeconds),
             // Ambiguous / backup-wins bucket:
             dailyChallengesJson = backup.dailyChallengesJson,
-            selectedGymPresetId = backup.selectedGymPresetId
+            selectedGymPresetId = backup.selectedGymPresetId,
+            // v8 (QoL 2026-08 item 04): correction maps UNION-merge per key (device wins on
+            // collision) — neither side's flags/re-matches should be lost by a restore.
+            exerciseFlagsJson = com.migul.treningsprogram.data.ExerciseInfoCorrections.Codec
+                .union(current.exerciseFlagsJson, backup.exerciseFlagsJson),
+            exerciseOverridesJson = com.migul.treningsprogram.data.ExerciseInfoCorrections.Codec
+                .union(current.exerciseOverridesJson, backup.exerciseOverridesJson)
         )
     }
 

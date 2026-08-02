@@ -16,8 +16,15 @@ import coil.load
 import coil.size.Scale
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.migul.treningsprogram.data.ExerciseCatalog
+import com.migul.treningsprogram.data.ExerciseInfoCorrections
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
+
+    /** QoL 2026-08 item 04: user mismatch flags + re-match overrides. */
+    @Inject lateinit var corrections: ExerciseInfoCorrections
 
     companion object {
         /**
@@ -87,8 +94,12 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
         }
 
         val name    = arguments?.getString("name") ?: ""
-        val dbId    = arguments?.getString("dbId")
+        val passedDbId = arguments?.getString("dbId")
         val aiNote  = arguments?.getString("aiNote")?.trim().orEmpty()
+        // Item 04: a user re-match override wins over the (possibly stale, plan-row-denormalized)
+        // dbId from the caller, so the corrected info shows from EVERY entry point.
+        val dbId = corrections.overrideFor(name)?.takeIf { ExerciseCatalog.byId.containsKey(it) }
+            ?: passedDbId
         val dbEntry = dbId?.let { ExerciseCatalog.getDbEntry(it) }
         val staticEntry = ExerciseCatalog.getEntry(name)
 
@@ -131,9 +142,10 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
             }
         }
 
-        // Title
+        // Title — QoL 2026-08 item 06: ALWAYS the program's exercise name (the name the user
+        // tapped), matched or not. The DB entry's own name appears above the DB content below.
         layout.addView(TextView(requireContext()).apply {
-            text = dbEntry?.name ?: name
+            text = name.ifBlank { dbEntry?.name.orEmpty() }
             textSize = 20f
             setTypeface(null, Typeface.BOLD)
             setPadding(0, 0, 0, smallPad)
@@ -217,6 +229,18 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
 
         when {
             dbEntry != null -> {
+                // Item 06: the DB entry's own name, right above the database-sourced content, so
+                // the user can see which entry the info comes from. Hidden when identical to the
+                // program name (D3 — never show the same string twice).
+                if (!dbEntry.name.trim().equals(name.trim(), ignoreCase = true)) {
+                    layout.addView(TextView(requireContext()).apply {
+                        text = "From database: ${dbEntry.name}"
+                        textSize = 13f
+                        setTypeface(null, Typeface.BOLD)
+                        setTextColor(0xFF7FE9E1.toInt())
+                        setPadding(0, 0, 0, (4 * density).toInt())
+                    })
+                }
                 if (dbEntry.primaryMuscles.isNotEmpty()) {
                     layout.addView(metaLine(
                         "Muscles: ${dbEntry.primaryMuscles.joinToString(", ").replaceFirstChar { it.uppercaseChar() }}",
@@ -268,6 +292,33 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                     setLineSpacing(0f, 1.4f)
                 })
             }
+        }
+
+        // QoL 2026-08 item 04: flag "this database info doesn't match this exercise" — available
+        // from every entry point that opens this sheet. Flagging only records the pair (nothing
+        // else changes); the list lives in Settings → About → Debug.
+        if (name.isNotBlank()) {
+            layout.addView(divider(density, medPad))
+            layout.addView(TextView(requireContext()).apply {
+                fun flaggedState() {
+                    text = "Flagged — manage under Settings → About → Debug → Flagged Matches"
+                    setTextColor(0xFF888888.toInt())
+                    isClickable = false
+                }
+                if (corrections.isFlagged(name)) {
+                    flaggedState()
+                } else {
+                    text = "Wrong pictures or instructions? Flag this match"
+                    setTextColor(0xFF7FE9E1.toInt())
+                    setPadding(0, 0, 0, smallPad)
+                    setOnClickListener {
+                        corrections.addFlag(name, dbId)
+                        flaggedState()
+                    }
+                }
+                textSize = 13f
+                setPadding(0, 0, 0, smallPad)
+            })
         }
 
         scrollView.addView(layout)

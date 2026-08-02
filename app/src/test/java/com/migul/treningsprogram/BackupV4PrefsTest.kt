@@ -20,11 +20,12 @@ class BackupV4PrefsTest {
 
     private val gson = Gson()
 
-    @Test fun `current version is 7`() {
+    @Test fun `current version is 8`() {
         // Bumped 4 → 5 by the rest-UX 2026-07 batch (manual rest-time prefs ride in backups);
         // 5 → 6 by the feature batch 2026-07-03 (N5 lift goals + N7 exercise notes tables);
-        // 6 → 7 by the QoL batch 2026-07-25 (item 02: per-gym avoidExercisesJson on GymPreset).
-        assertEquals(7, CURRENT_BACKUP_VERSION)
+        // 6 → 7 by the QoL batch 2026-07-25 (item 02: per-gym avoidExercisesJson on GymPreset);
+        // 7 → 8 by the QoL batch 2026-08-03 (item 04: exercise-info correction maps).
+        assertEquals(8, CURRENT_BACKUP_VERSION)  // v8: QoL 2026-08 item 04 correction maps
     }
 
     @Test fun `v3 backup migrates to v4 with default new prefs`() {

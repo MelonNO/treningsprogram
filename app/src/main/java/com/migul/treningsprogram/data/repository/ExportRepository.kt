@@ -38,6 +38,7 @@ class ExportRepository @Inject constructor(
     private val exerciseNoteDao: ExerciseNoteDao,
     private val gamificationRepository: GamificationRepository,
     private val prefs: PreferencesManager,
+    private val corrections: com.migul.treningsprogram.data.ExerciseInfoCorrections,
     private val gson: Gson
 ) {
 
@@ -88,7 +89,10 @@ class ExportRepository @Inject constructor(
         dayBoundaryHour = prefs.dayBoundaryHour,
         manualRestEnabled = prefs.manualRestEnabled,
         manualRestHeavySeconds = prefs.manualRestHeavySeconds,
-        manualRestAccessorySeconds = prefs.manualRestAccessorySeconds
+        manualRestAccessorySeconds = prefs.manualRestAccessorySeconds,
+        // v8 (QoL 2026-08 item 04): exercise-info correction maps.
+        exerciseFlagsJson = corrections.exportFlagsJson(),
+        exerciseOverridesJson = corrections.exportOverridesJson()
     )
 
     // ---- Import (MERGE) -------------------------------------------------------------------------
@@ -203,6 +207,9 @@ class ExportRepository @Inject constructor(
         prefs.manualRestEnabled = p.manualRestEnabled
         prefs.manualRestHeavySeconds = p.manualRestHeavySeconds
         prefs.manualRestAccessorySeconds = p.manualRestAccessorySeconds
+        // v8 (QoL 2026-08 item 04): correction maps live in their own prefs file, not
+        // PreferencesManager — the merger already union-merged them.
+        corrections.importJson(p.exerciseFlagsJson, p.exerciseOverridesJson)
         // NOTE: apiKey is never written from a backup.
     }
 }

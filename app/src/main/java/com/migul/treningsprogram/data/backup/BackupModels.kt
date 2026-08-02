@@ -33,11 +33,16 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  *      tables as two new top-level lists. Older backups simply have neither; the migration
  *      step adds empty arrays. See v5 -> v6.
  *
+ * v8 — QoL batch 2026-08-03 (item 04): widens the preferences object with the two
+ *      exercise-info correction maps (exerciseFlagsJson / exerciseOverridesJson — mismatch flags
+ *      and re-match overrides, serialized by ExerciseInfoCorrections.Codec). Absent keys in older
+ *      backups deserialize to "" (no corrections); restore union-merges per key (device wins).
+ *
  * To add a future version, bump [CURRENT_BACKUP_VERSION] and register a step in
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 7
+const val CURRENT_BACKUP_VERSION = 8
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.
@@ -69,7 +74,11 @@ data class BackupPreferences(
     // v5 (rest-UX 2026-07, item 4): manual rest-time mode + the two category times.
     val manualRestEnabled: Boolean = DEFAULT_BOOL,
     val manualRestHeavySeconds: Int = DEFAULT_MANUAL_REST_HEAVY,
-    val manualRestAccessorySeconds: Int = DEFAULT_MANUAL_REST_ACCESSORY
+    val manualRestAccessorySeconds: Int = DEFAULT_MANUAL_REST_ACCESSORY,
+    // v8 (QoL 2026-08 item 04): exercise-info mismatch flags + re-match overrides
+    // (ExerciseInfoCorrections.Codec JSON maps; "" = none). Union-merged on restore.
+    val exerciseFlagsJson: String = DEFAULT_STRING,
+    val exerciseOverridesJson: String = DEFAULT_STRING
 ) {
     companion object {
         const val DEFAULT_DAYS_PER_WEEK = 4

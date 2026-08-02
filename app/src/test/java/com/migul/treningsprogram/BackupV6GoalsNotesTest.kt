@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.migul.treningsprogram.data.backup.BackupEnvelope
 import com.migul.treningsprogram.data.backup.BackupMerger
 import com.migul.treningsprogram.data.backup.BackupMigrations
+import com.migul.treningsprogram.data.backup.CURRENT_BACKUP_VERSION
 import com.migul.treningsprogram.data.db.entity.ExerciseNote
 import com.migul.treningsprogram.data.db.entity.LiftGoal
 import org.junit.Assert.assertEquals
@@ -34,8 +35,9 @@ class BackupV6GoalsNotesTest {
             }
         """.trimIndent()
         val envelope = BackupMigrations.parseAndMigrate(gson, v5)
-        // v7 (QoL 2026-07-25): a parsed envelope now lands on the current version (7).
-        assertEquals(7, envelope.schemaVersion)
+        // A parsed envelope always lands on the CURRENT version (the explicit version pin
+        // lives in BackupV4PrefsTest / E2BackupProgramsTest).
+        assertEquals(CURRENT_BACKUP_VERSION, envelope.schemaVersion)
         assertTrue(envelope.goals.isEmpty())
         assertTrue(envelope.exerciseNotes.isEmpty())
         assertEquals(5, envelope.preferences.daysPerWeek)
@@ -51,8 +53,9 @@ class BackupV6GoalsNotesTest {
             }
         """.trimIndent()
         val envelope = BackupMigrations.parseAndMigrate(gson, v1)
-        // v7 (QoL 2026-07-25): a parsed envelope now lands on the current version (7).
-        assertEquals(7, envelope.schemaVersion)
+        // A parsed envelope always lands on the CURRENT version (the explicit version pin
+        // lives in BackupV4PrefsTest / E2BackupProgramsTest).
+        assertEquals(CURRENT_BACKUP_VERSION, envelope.schemaVersion)
         assertTrue(envelope.goals.isEmpty())
         assertTrue(envelope.exerciseNotes.isEmpty())
     }

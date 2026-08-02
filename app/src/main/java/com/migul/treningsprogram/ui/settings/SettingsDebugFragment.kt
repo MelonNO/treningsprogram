@@ -40,6 +40,11 @@ class SettingsDebugFragment : Fragment() {
             if (findNavController().currentDestination?.id == R.id.settingsDebugFragment)
                 findNavController().navigate(R.id.action_settings_debug_to_crash_log)
         }
+        // QoL 2026-08 item 04: flagged database mismatches.
+        binding.rowFlagged.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.settingsDebugFragment)
+                findNavController().navigate(R.id.action_settings_debug_to_flagged)
+        }
     }
 
     override fun onDestroyView() {

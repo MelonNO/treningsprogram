@@ -70,16 +70,52 @@ object CalorieEstimator {
         val logicalEpochDay: Long,
     )
 
+    /** Where the body-weight term came from — surfaced by the item-03 explanation. */
+    enum class BodyWeightSource {
+        /** Most recent weigh-in at or before the session. */ WEIGH_IN,
+        /** All weigh-ins postdate the session; earliest one used. */ EARLIEST_WEIGH_IN,
+        /** No weigh-ins at all; [DEFAULT_BODY_WEIGHT_KG] used. */ DEFAULT,
+    }
+
+    /**
+     * QoL 2026-08 item 03: every REAL input and intermediate of one session's estimate, so the
+     * tappable explanation can show the actual numbers. [kcal] IS the chip figure —
+     * [estimateSession] delegates here, so the walkthrough and the chip can never disagree.
+     */
+    data class Breakdown(
+        val minutes: Int,                    // duration term actually used (after cap/fallback)
+        val usedPerSetFallback: Boolean,     // true = stored duration was 0; sets × 3 min used
+        val totalSets: Int,
+        val cardioSets: Int,
+        val met: Float,                      // blended intensity
+        val bodyWeightKg: Float,             // clamped weight actually used
+        val bodyWeightSource: BodyWeightSource,
+        val rawKcal: Float,                  // met × weight × hours, before rounding
+        val kcal: Int,                       // the rounded chip figure
+    )
+
     /**
      * The body weight to use for a session dated [sessionDateMs]: the most recent weigh-in at or
      * before that instant; else the earliest weigh-in on record (all postdate the session); else
      * [DEFAULT_BODY_WEIGHT_KG]. The result is clamped to the plausible band.
      */
-    fun bodyWeightFor(sessionDateMs: Long, weighIns: List<BodyMeasurement>): Float {
-        val chosen = weighIns.filter { it.dateMs <= sessionDateMs }.maxByOrNull { it.dateMs }
-            ?: weighIns.minByOrNull { it.dateMs }
-            ?: return DEFAULT_BODY_WEIGHT_KG
-        return chosen.weightKg.coerceIn(MIN_BODY_WEIGHT_KG, MAX_BODY_WEIGHT_KG)
+    fun bodyWeightFor(sessionDateMs: Long, weighIns: List<BodyMeasurement>): Float =
+        bodyWeightWithSource(sessionDateMs, weighIns).first
+
+    /** [bodyWeightFor] plus WHERE the value came from (for the item-03 explanation). */
+    fun bodyWeightWithSource(
+        sessionDateMs: Long,
+        weighIns: List<BodyMeasurement>,
+    ): Pair<Float, BodyWeightSource> {
+        val atOrBefore = weighIns.filter { it.dateMs <= sessionDateMs }.maxByOrNull { it.dateMs }
+        if (atOrBefore != null) {
+            return atOrBefore.weightKg.coerceIn(MIN_BODY_WEIGHT_KG, MAX_BODY_WEIGHT_KG) to
+                BodyWeightSource.WEIGH_IN
+        }
+        val earliest = weighIns.minByOrNull { it.dateMs }
+            ?: return DEFAULT_BODY_WEIGHT_KG to BodyWeightSource.DEFAULT
+        return earliest.weightKg.coerceIn(MIN_BODY_WEIGHT_KG, MAX_BODY_WEIGHT_KG) to
+            BodyWeightSource.EARLIEST_WEIGH_IN
     }
 
     /**
@@ -88,18 +124,41 @@ object CalorieEstimator {
      *
      * @param sets ALL of the session's sets, warm-ups included (they weight the MET blend).
      */
-    fun estimateSession(session: WorkoutSession, sets: List<WorkoutSet>, bodyWeightKg: Float): Int? {
+    fun estimateSession(session: WorkoutSession, sets: List<WorkoutSet>, bodyWeightKg: Float): Int? =
+        breakdown(session, sets, bodyWeightKg)?.kcal
+
+    /**
+     * The full item-03 breakdown for one session, or null exactly when [estimateSession] shows no
+     * figure (placeholder rows, no sets). Identical math — this IS the estimate's code path.
+     */
+    fun breakdown(
+        session: WorkoutSession,
+        sets: List<WorkoutSet>,
+        bodyWeightKg: Float,
+        bodyWeightSource: BodyWeightSource = BodyWeightSource.WEIGH_IN,
+    ): Breakdown? {
         if (session.isPlaceholder) return null
         if (sets.isEmpty()) return null
-        val minutes = (if (session.durationMinutes > 0) session.durationMinutes
+        val usedFallback = session.durationMinutes <= 0
+        val minutes = (if (!usedFallback) session.durationMinutes
                        else sets.size * FALLBACK_MINUTES_PER_SET)
             .coerceAtMost(MAX_DURATION_MINUTES)
-        val cardioShare = sets.count { it.muscleGroup.equals("Cardio", ignoreCase = true) } /
-            sets.size.toFloat()
+        val cardioSets = sets.count { it.muscleGroup.equals("Cardio", ignoreCase = true) }
+        val cardioShare = cardioSets / sets.size.toFloat()
         val met = STRENGTH_MET + (CARDIO_MET - STRENGTH_MET) * cardioShare
         val weight = bodyWeightKg.coerceIn(MIN_BODY_WEIGHT_KG, MAX_BODY_WEIGHT_KG)
         val kcal = met * weight * (minutes / 60f)
-        return ((kcal / 10f).roundToInt() * 10).coerceAtLeast(10)
+        return Breakdown(
+            minutes = minutes,
+            usedPerSetFallback = usedFallback,
+            totalSets = sets.size,
+            cardioSets = cardioSets,
+            met = met,
+            bodyWeightKg = weight,
+            bodyWeightSource = bodyWeightSource,
+            rawKcal = kcal,
+            kcal = ((kcal / 10f).roundToInt() * 10).coerceAtLeast(10),
+        )
     }
 
     /**

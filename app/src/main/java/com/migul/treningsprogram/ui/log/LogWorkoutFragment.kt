@@ -457,8 +457,13 @@ class LogWorkoutFragment : Fragment() {
         if (_binding == null) return
         val name = if (freestyleMode) binding.etFreestyleExercise.text?.toString().orEmpty()
                    else viewModel.currentExercise.value?.exerciseName.orEmpty()
+        // Item 01 (2026-08): the resolved DB entry's equipment lets dumbbell-by-nature lifts
+        // without "dumbbell"/"DB" in the plan name (Zottman Curl, …) get the dumbbell readout.
+        val dbEquipment = if (freestyleMode) null
+            else viewModel.currentExercise.value?.exerciseDbId
+                ?.let { com.migul.treningsprogram.data.ExerciseCatalog.getDbEntry(it)?.equipment }
         val hint = PlateMath.display(
-            WeightCalculator.value(calcState), name, viewModel.plateProfile.value
+            WeightCalculator.value(calcState), name, viewModel.plateProfile.value, dbEquipment
         )
         binding.tvKpPlates.visibility = if (hint == null) View.GONE else View.VISIBLE
         binding.tvKpPlates.text = hint.orEmpty()

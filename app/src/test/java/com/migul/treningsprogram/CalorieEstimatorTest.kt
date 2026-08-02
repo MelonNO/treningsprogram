@@ -127,6 +127,70 @@ class CalorieEstimatorTest {
         assertEquals(250f, CalorieEstimator.bodyWeightFor(600L, listOf(BodyMeasurement(dateMs = 1L, weightKg = 750f))))
     }
 
+    // ── QoL 2026-08 item 03: the tappable explanation's breakdown ────────────────────────────
+
+    @Test fun `breakdown kcal always equals the chip estimate`() {
+        // The chip and the walkthrough must never disagree — estimateSession delegates to
+        // breakdown, and this guards against the two ever diverging again.
+        val cases = listOf(
+            Triple(session(), strengthSets(12), 75f),
+            Triple(session(), strengthSets(6) + cardioSets(6), 82.4f),
+            Triple(session(durationMin = 0), strengthSets(10), 75f),
+            Triple(session(durationMin = 1), strengthSets(1), 75f),
+            Triple(session(durationMin = 10_000), cardioSets(3), 999f),
+        )
+        cases.forEach { (s, sets, w) ->
+            assertEquals(
+                CalorieEstimator.estimateSession(s, sets, w),
+                CalorieEstimator.breakdown(s, sets, w)?.kcal
+            )
+        }
+    }
+
+    @Test fun `breakdown exposes the actual inputs used`() {
+        val b = CalorieEstimator.breakdown(session(durationMin = 45), strengthSets(9) + cardioSets(3), 80f)!!
+        assertEquals(45, b.minutes)
+        assertEquals(false, b.usedPerSetFallback)
+        assertEquals(12, b.totalSets)
+        assertEquals(3, b.cardioSets)
+        assertEquals(4.75f, b.met, 0.001f)          // 4.0 + 3.0 × 0.25
+        assertEquals(80f, b.bodyWeightKg, 0f)
+        assertEquals(4.75f * 80f * 0.75f, b.rawKcal, 0.01f)
+        assertEquals(290, b.kcal)                   // 285 → nearest 10 = 290 (HALF_UP on .5)
+    }
+
+    @Test fun `breakdown reports the per-set duration fallback`() {
+        val b = CalorieEstimator.breakdown(session(durationMin = 0), strengthSets(10), 75f)!!
+        assertEquals(true, b.usedPerSetFallback)
+        assertEquals(30, b.minutes)   // 10 sets × 3 min
+    }
+
+    @Test fun `breakdown is null exactly when the chip shows nothing`() {
+        assertNull(CalorieEstimator.breakdown(session(kind = WorkoutSession.KIND_REST), strengthSets(3), 75f))
+        assertNull(CalorieEstimator.breakdown(session(), emptyList(), 75f))
+    }
+
+    @Test fun `bodyWeightWithSource labels where the weight came from`() {
+        // No weigh-ins → DEFAULT 75.
+        assertEquals(
+            75f to CalorieEstimator.BodyWeightSource.DEFAULT,
+            CalorieEstimator.bodyWeightWithSource(1_000L, emptyList())
+        )
+        // Weigh-in at or before → WEIGH_IN.
+        assertEquals(
+            80f to CalorieEstimator.BodyWeightSource.WEIGH_IN,
+            CalorieEstimator.bodyWeightWithSource(600L, listOf(BodyMeasurement(dateMs = 500L, weightKg = 80f)))
+        )
+        // All weigh-ins postdate → EARLIEST_WEIGH_IN.
+        assertEquals(
+            84f to CalorieEstimator.BodyWeightSource.EARLIEST_WEIGH_IN,
+            CalorieEstimator.bodyWeightWithSource(
+                100L,
+                listOf(BodyMeasurement(dateMs = 900L, weightKg = 88f), BodyMeasurement(dateMs = 700L, weightKg = 84f))
+            )
+        )
+    }
+
     // ── Weekly total (Monday-based logical week, same math as WeekDelta) ─────────────────────
 
     private val MON = 4L   // Monday 1970-01-05 (epoch day 0 = Thursday) — same anchor as WeekDeltaTest

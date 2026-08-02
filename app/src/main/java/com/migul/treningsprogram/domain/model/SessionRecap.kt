@@ -57,5 +57,8 @@ data class SessionRecap(
     val earnedAchievements: List<com.migul.treningsprogram.data.db.entity.Achievement> = emptyList(),
     // QoL item 03: on-the-fly estimated kcal (CalorieEstimator; never persisted). null = no figure
     // (placeholders never reach the recap, but the contract stays "null means show nothing").
-    val estimatedKcal: Int? = null
+    val estimatedKcal: Int? = null,
+    // QoL 2026-08 item 03: the full input/step breakdown behind estimatedKcal, computed by the
+    // SAME estimator call, so the tappable explanation always matches the chip.
+    val kcalBreakdown: com.migul.treningsprogram.domain.CalorieEstimator.Breakdown? = null
 )

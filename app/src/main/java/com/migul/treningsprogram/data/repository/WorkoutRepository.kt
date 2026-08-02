@@ -837,6 +837,14 @@ class WorkoutRepository @Inject constructor(
             }
         }
 
+        // QoL 2026-08 item 03: ONE breakdown call yields both the chip figure and the tappable
+        // explanation's inputs, so the two can never disagree.
+        val (kcalWeight, kcalWeightSource) = com.migul.treningsprogram.domain.CalorieEstimator
+            .bodyWeightWithSource(session.dateMs, bodyMeasurementDao.getAllOnce())
+        val kcalBreakdown = com.migul.treningsprogram.domain.CalorieEstimator.breakdown(
+            session, allSets, kcalWeight, kcalWeightSource
+        )
+
         return SessionRecap(
             session = session,
             focusMuscle = focusMuscle,
@@ -852,12 +860,8 @@ class WorkoutRepository @Inject constructor(
             pacing = pacing,
             earnedAchievements = earnedAchievements,
             // QoL item 03: same estimator as the completion dialog and the Stats weekly total.
-            estimatedKcal = com.migul.treningsprogram.domain.CalorieEstimator.estimateSession(
-                session, allSets,
-                com.migul.treningsprogram.domain.CalorieEstimator.bodyWeightFor(
-                    session.dateMs, bodyMeasurementDao.getAllOnce()
-                )
-            )
+            estimatedKcal = kcalBreakdown?.kcal,
+            kcalBreakdown = kcalBreakdown
         )
     }
 

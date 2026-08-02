@@ -28,10 +28,20 @@ object LastSessionFormat {
         return perSet.joinToString("   ·   ")
     }
 
-    /** Full one-liner including the lead-in label, e.g. "Last time  ·  3 sets  ·  8 × 60 kg". */
+    /**
+     * Full one-liner including the lead-in label, e.g. "Last time  ·  3 sets  ·  8 × 60 kg".
+     *
+     * QoL 2026-08 item 05: when the previous session's FINAL set carries an effort rating
+     * ([WorkoutSet.rpeLabel]), it is appended as a suffix — e.g. "…  ·  last set: Hard" — on both
+     * the uniform-collapse and the per-set form. A blank label (pre-effort sessions, unrated sets)
+     * produces no suffix at all.
+     */
     fun line(sets: List<WorkoutSet>): String {
         val body = summary(sets)
-        return if (body.isEmpty()) "" else "$LABEL  ·  $body"
+        if (body.isEmpty()) return ""
+        val effort = sets.last().rpeLabel.trim()
+        val suffix = if (effort.isNotEmpty()) "  ·  last set: $effort" else ""
+        return "$LABEL  ·  $body$suffix"
     }
 
     private fun setLabel(reps: Int, weightKg: Float): String =

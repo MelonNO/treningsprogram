@@ -128,6 +128,21 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v7 -> v8.
+     *
+     * v8 (QoL 2026-08 item 04) only widens the preferences object with the two exercise-info
+     * correction maps (exerciseFlagsJson / exerciseOverridesJson). Absent keys deserialize to
+     * "" — no corrections — so the step only stamps the new version (same pattern as v3 -> v4).
+     */
+    private val V7_TO_V8 = object : MigrationStep {
+        override val fromVersion = 7
+        override fun migrate(root: JsonObject): JsonObject {
+            root.addProperty("schema_version", 8)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
@@ -135,7 +150,8 @@ object BackupMigrations {
         V3_TO_V4,
         V4_TO_V5,
         V5_TO_V6,
-        V6_TO_V7
+        V6_TO_V7,
+        V7_TO_V8
     ).associateBy { it.fromVersion }
 
     /**

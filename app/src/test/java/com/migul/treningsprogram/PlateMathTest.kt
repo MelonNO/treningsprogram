@@ -48,6 +48,50 @@ class PlateMathTest {
         assertFalse(PlateMath.isDumbbellExercise("Pull-ups"))
     }
 
+    // ── QoL 2026-08 item 01: dumbbell-by-nature via the DB entry's equipment ───────────────
+
+    @Test fun `dumbbell-by-nature names without dumbbell in them are rescued by DB equipment`() {
+        listOf("Zottman Curl", "Hammer Curl", "Lateral Raise", "Concentration Curl").forEach {
+            assertTrue(it, PlateMath.isDumbbellByNature(it, "dumbbell"))
+        }
+    }
+
+    @Test fun `zottman curl gets the dumbbell readout with equipment hint`() {
+        // Default (home) profile has loadable dumbbell handles (2 kg): 12 kg -> 5 per side.
+        assertEquals("5 per side (dumbbell)",
+            PlateMath.display(12f, "Zottman Curl", dbEquipment = "dumbbell"))
+        // Without the hint the name-only behaviour is unchanged: no readout.
+        assertNull(PlateMath.display(12f, "Zottman Curl"))
+    }
+
+    @Test fun `equipment rescue never overrides explicit name classification`() {
+        // Name says barbell (or matches a barbell hint) -> barbell math wins, even with a
+        // (stale/loose) dumbbell DB match.
+        assertFalse(PlateMath.isDumbbellByNature("Romanian Deadlift", "dumbbell"))
+        assertEquals("20 per side", PlateMath.display(47f, "Deadlift", dbEquipment = "dumbbell"))
+        // Explicitly-named dumbbell lifts stay dumbbell regardless of the hint.
+        assertTrue(PlateMath.isDumbbellByNature("Dumbbell Bench Press", null))
+    }
+
+    @Test fun `equipment rescue is vetoed when the name names other equipment`() {
+        // A loose dumbbell DB match must not force cable/machine/etc. lifts into dumbbell math.
+        listOf(
+            "Cable Lateral Raise", "Machine Curl", "Smith Machine Press",
+            "Kettlebell Curl", "Band Pull-Apart", "EZ Bar Curl",
+        ).forEach { assertFalse(it, PlateMath.isDumbbellByNature(it, "dumbbell")) }
+    }
+
+    @Test fun `non-dumbbell equipment never rescues`() {
+        listOf("machine", "cable", "body only", "barbell", null, "").forEach { eq ->
+            assertFalse("$eq", PlateMath.isDumbbellByNature("Leg Extension", eq))
+        }
+    }
+
+    @Test fun `rescued dumbbell lifts still need loadable handles`() {
+        // Fixed-dumbbell gym profile -> no readout, same rule as explicit dumbbell lifts.
+        assertNull(PlateMath.display(12f, "Zottman Curl", gym, dbEquipment = "dumbbell"))
+    }
+
     // ── decomposition (explicit gym profile) ───────────────────────────────────────────────
 
     @Test fun `exact load decomposes greedily per side`() {

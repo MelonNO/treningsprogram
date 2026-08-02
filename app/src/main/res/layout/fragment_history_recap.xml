@@ -41,20 +41,7 @@
                 android:focusable="false" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Stage-3 item 2: hero + card shaped skeleton while sessions/recap load. -->
-        <LinearLayout
-            android:id="@+id/skeleton_recap"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-            <View android:layout_width="match_parent" android:layout_height="120dp"
-                android:layout_marginBottom="16dp" android:background="@drawable/bg_skeleton_block" />
-            <View android:layout_width="match_parent" android:layout_height="140dp"
-                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
-            <View android:layout_width="match_parent" android:layout_height="100dp"
-                android:layout_marginBottom="12dp" android:background="@drawable/bg_skeleton_block" />
-        </LinearLayout>
+        <!-- QoL 2026-08 item 02: skeleton removed — content simply appears when ready. -->
 
         <!-- Empty / first-time state -->
         <TextView

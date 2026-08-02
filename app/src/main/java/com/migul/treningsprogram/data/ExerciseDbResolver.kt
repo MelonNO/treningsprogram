@@ -15,7 +15,8 @@ data class ResolveHints(val muscle: String? = null, val equipment: String? = nul
 
 @Singleton
 class ExerciseDbResolver @Inject constructor(
-    private val resolutionLog: ExerciseResolutionLog
+    private val resolutionLog: ExerciseResolutionLog,
+    private val corrections: ExerciseInfoCorrections
 ) {
 
     // Curated aliases for common exercise names that the fuzzy resolver can't reach.
@@ -293,6 +294,13 @@ class ExerciseDbResolver @Inject constructor(
 
     fun resolve(name: String, hints: ResolveHints = ResolveHints()): ResolveResult? {
         if (ExerciseCatalog.entries.isEmpty()) return null
+
+        // Step 0 (QoL 2026-08 item 04): a user re-match override WINS over every automatic
+        // mapping, so a corrected exercise resolves to the chosen entry from then on, everywhere.
+        val overrideId = corrections.overrideFor(name)
+        if (overrideId != null && ExerciseCatalog.byId.containsKey(overrideId)) {
+            return ResolveResult(overrideId, 1.0f, MatchSource.ALIAS)
+        }
 
         // Step 1: Normalize
         val norm = ExerciseCatalog.normalizeName(name)

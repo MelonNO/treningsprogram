@@ -38,4 +38,45 @@ class LastSessionFormatTest {
         val sets = listOf(set(5, 100f, 1))
         assertEquals("Last time  ·  5 × 100 kg", LastSessionFormat.line(sets))
     }
+
+    // ── QoL 2026-08 item 05: final-set effort suffix ─────────────────────────────
+
+    private fun set(reps: Int, weight: Float, n: Int, rpe: String) =
+        WorkoutSet(sessionId = 1, exerciseName = "Bench Press", setNumber = n, reps = reps,
+            weightKg = weight, rpeLabel = rpe)
+
+    @Test fun effortSuffix_uniformCollapseForm() {
+        val sets = listOf(set(8, 60f, 1, "Easy"), set(8, 60f, 2, "Moderate"), set(8, 60f, 3, "Hard"))
+        assertEquals("Last time  ·  3 sets  ·  8 × 60 kg  ·  last set: Hard",
+            LastSessionFormat.line(sets))
+    }
+
+    @Test fun effortSuffix_perSetForm() {
+        val sets = listOf(set(8, 60f, 1, "Easy"), set(7, 62.5f, 2, "Moderate"))
+        val line = LastSessionFormat.line(sets)
+        assertTrue(line, line.endsWith("  ·  last set: Moderate"))
+        assertTrue(line, line.contains("8 × 60 kg"))
+    }
+
+    @Test fun effortSuffix_onlyFinalSetCounts() {
+        // Earlier sets rated, final set not → no suffix (A2: never invent a rating).
+        val sets = listOf(set(8, 60f, 1, "Hard"), set(8, 60f, 2, ""))
+        val line = LastSessionFormat.line(sets)
+        assertTrue(line, !line.contains("last set:"))
+    }
+
+    @Test fun effortSuffix_absentWhenUnrated_lineUnchanged() {
+        val sets = listOf(set(8, 60f, 1), set(8, 60f, 2), set(8, 60f, 3))
+        assertEquals("Last time  ·  3 sets  ·  8 × 60 kg", LastSessionFormat.line(sets))
+    }
+
+    @Test fun effortSuffix_singleSet() {
+        assertEquals("Last time  ·  5 × 100 kg  ·  last set: Hard",
+            LastSessionFormat.line(listOf(set(5, 100f, 1, "Hard"))))
+    }
+
+    @Test fun effortSuffix_blankPaddedLabelIgnored() {
+        val line = LastSessionFormat.line(listOf(set(5, 100f, 1, "   ")))
+        assertEquals("Last time  ·  5 × 100 kg", line)
+    }
 }

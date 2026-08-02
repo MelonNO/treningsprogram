@@ -206,7 +206,20 @@
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
+        <!-- QoL 2026-08 item 04: flagged database mismatches. -->
+        <action android:id="@+id/action_settings_debug_to_flagged"
+            app:destination="@id/settingsFlaggedFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
+
+    <fragment
+        android:id="@+id/settingsFlaggedFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsFlaggedFragment"
+        android:label="Flagged Matches"
+        tools:layout="@layout/fragment_settings_flagged" />
 
     <fragment
         android:id="@+id/settingsCrashLogFragment"

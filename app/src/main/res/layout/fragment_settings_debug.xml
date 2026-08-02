@@ -194,6 +194,62 @@
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp" />
 
+            <!-- QoL 2026-08 item 04: flagged database mismatches. -->
+            <LinearLayout
+                android:id="@+id/row_flagged"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="16dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Flagged Matches"
+                        android:textAppearance="?attr/textAppearanceBodyLarge"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Exercises flagged as showing the wrong database info"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                </LinearLayout>
+
+                <FrameLayout
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_arrow_link">
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_up_right"
+                            app:tint="@color/auros_fog"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?attr/colorOutlineVariant"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp" />
+
             <LinearLayout
                 android:id="@+id/row_crash_log"
                 android:layout_width="match_parent"

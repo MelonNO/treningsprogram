@@ -25,6 +25,7 @@ import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.databinding.FragmentHistoryRecapBinding
 import com.migul.treningsprogram.domain.AchievementCatalog
+import com.migul.treningsprogram.domain.CalorieEstimator
 import com.migul.treningsprogram.domain.model.ExerciseRecap
 import com.migul.treningsprogram.domain.model.SessionRecap
 import dagger.hilt.android.AndroidEntryPoint
@@ -111,16 +112,14 @@ class HistoryRecapFragment : Fragment() {
     }
 
     private fun loadSessions() {
-        // Stage-3 item 2: skeleton (delayed — no flicker on fast loads) until the first recap
-        // renders or the true empty state takes over.
-        com.migul.treningsprogram.ui.common.Skeleton.showDelayed(binding.skeletonRecap)
+        // QoL 2026-08 item 02: no skeleton loader — content simply appears when ready (same
+        // treatment the History list and Program screens received in v1.28.0).
         viewLifecycleOwner.lifecycleScope.launch {
             sessions = viewModel.getRecentSessions(30)
             if (_binding == null) return@launch
             binding.tvRecapEmpty.isVisible = sessions.isEmpty()
             binding.tilSession.isVisible = sessions.isNotEmpty()
             if (sessions.isEmpty()) {
-                com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonRecap)
                 binding.layoutRecap.removeAllViews()
                 return@launch
             }
@@ -157,7 +156,6 @@ class HistoryRecapFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             val recap = viewModel.buildRecap(sessionId)
             if (_binding == null) return@launch
-            com.migul.treningsprogram.ui.common.Skeleton.hide(binding.skeletonRecap)
             binding.layoutRecap.removeAllViews()
             if (recap == null) {
                 binding.layoutRecap.addView(mutedText("This session has no logged sets."))
@@ -258,9 +256,15 @@ class HistoryRecapFragment : Fragment() {
 
         // QoL item 03: estimated calories as a fourth stat chip on its own row (a 4th chip in the
         // row above would clip on narrow screens). null = no figure, no chip.
+        // QoL 2026-08 item 03: tapping the chip explains the estimate with the session's ACTUAL
+        // numbers (same Breakdown that produced the chip figure, so they always agree).
         r.estimatedKcal?.let { kcal ->
             col.addView(statChip(com.migul.treningsprogram.domain.CalorieEstimator.format(kcal)).apply {
                 (layoutParams as LinearLayout.LayoutParams).topMargin = dp(8)
+                r.kcalBreakdown?.let { b ->
+                    isClickable = true
+                    setOnClickListener { showCalorieExplanation(b) }
+                }
             })
         }
 
@@ -271,6 +275,65 @@ class HistoryRecapFragment : Fragment() {
         })
         binding.layoutRecap.addView(col)
     }
+
+    /**
+     * QoL 2026-08 item 03 — the calorie chip's explanation: the session's actual inputs plugged
+     * into the estimator's arithmetic, step by step, ending in exactly the chip's figure.
+     * Presentation (D1, delegated): a plain dialog, plain language.
+     */
+    private fun showCalorieExplanation(b: CalorieEstimator.Breakdown) {
+        val hours = b.minutes / 60f
+        val met1 = fmt1(CalorieEstimator.STRENGTH_MET)
+        val cardioMet1 = fmt1(CalorieEstimator.CARDIO_MET)
+
+        val timeLine = if (b.usedPerSetFallback)
+            "Time: no duration was recorded for this session, so it is estimated from your " +
+                "${b.totalSets} logged sets at ${CalorieEstimator.FALLBACK_MINUTES_PER_SET} minutes each " +
+                "= ${b.minutes} minutes."
+        else
+            "Time: ${b.minutes} minutes (this session's logged duration)."
+
+        val intensityLine = when {
+            b.cardioSets == 0 ->
+                "Intensity: ${fmt1(b.met)} — the standard level for strength training " +
+                    "(rest periods included)."
+            b.cardioSets == b.totalSets ->
+                "Intensity: ${fmt1(b.met)} — the standard level for cardio."
+            else ->
+                "Intensity: ${b.cardioSets} of your ${b.totalSets} sets were cardio, so the level " +
+                    "blends strength ($met1) and cardio ($cardioMet1) into ${fmt1(b.met)}."
+        }
+
+        val weightLine = when (b.bodyWeightSource) {
+            CalorieEstimator.BodyWeightSource.WEIGH_IN ->
+                "Body weight: ${fmt(b.bodyWeightKg)} kg — your most recent weigh-in before this session."
+            CalorieEstimator.BodyWeightSource.EARLIEST_WEIGH_IN ->
+                "Body weight: ${fmt(b.bodyWeightKg)} kg — your earliest logged weigh-in (none " +
+                    "existed before this session yet)."
+            CalorieEstimator.BodyWeightSource.DEFAULT ->
+                "Body weight: ${fmt(b.bodyWeightKg)} kg — a default value, since no weigh-in has " +
+                    "been logged. Log your weight for a more accurate estimate."
+        }
+
+        val message =
+            "Calories are estimated as intensity × body weight × time:\n\n" +
+                "• $timeLine\n\n" +
+                "• $intensityLine\n\n" +
+                "• $weightLine\n\n" +
+                "Putting it together:\n" +
+                "${fmt1(b.met)} × ${fmt(b.bodyWeightKg)} kg × " +
+                "${String.format(Locale.US, "%.2f", hours)} h = ${b.rawKcal.toInt()} kcal\n\n" +
+                "Rounded to the nearest 10: ${CalorieEstimator.format(b.kcal)}.\n\n" +
+                "This is a rough estimate — actual burn varies with pace, technique, and physiology."
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("How this estimate was made")
+            .setMessage(message)
+            .setPositiveButton("Got it", null)
+            .show()
+    }
+
+    private fun fmt1(v: Float): String = String.format(Locale.US, "%.1f", v)
 
     /** A rounded stat pill: reef fill, luminous cyan number text. */
     private fun statChip(text: String): View = TextView(requireContext()).apply {
