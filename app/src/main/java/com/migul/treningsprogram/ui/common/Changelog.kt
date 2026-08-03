@@ -13,6 +13,14 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 74, versionName = "1.33.0",
+            highlights = listOf(
+                "Generated hypertrophy weeks (4+ training days) now guarantee every major muscle group at least two training days and a minimum of direct sets — no more single leg days that a missed session can zero, or 3-set shoulder weeks",
+                "Miss a day that held your only training for a muscle group? Home now offers to recover it — move that workout to a free day, or add its key exercises to a remaining session. Your choice, never automatic, and only when no other day covers those muscles",
+                "Exercises you keep skipping get noticed: planned week after week with zero logged sets while the rest of those sessions were completed. Home points it out, and your next generated week swaps it for a comparable alternative covering the same muscles — or tap \"Keep in my plan\" to keep trying",
+            ),
+        ),
+        Entry(
             versionCode = 73, versionName = "1.32.0",
             highlights = listOf(
                 "Time estimates are now honest: they were measured about 40% low against real logged sessions and have been corrected to reflect real session length — every \"~Xm\" label rises accordingly",
