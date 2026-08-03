@@ -52,33 +52,33 @@ const val CURRENT_BACKUP_VERSION = 8
  * default -> phone wins) from "still default" (-> backup value is used).
  */
 data class BackupPreferences(
-    val daysPerWeek: Int = DEFAULT_DAYS_PER_WEEK,
-    val fitnessGoal: String = DEFAULT_FITNESS_GOAL,
-    val experienceLevel: String = DEFAULT_EXPERIENCE_LEVEL,
-    val sessionDurationMinutes: Int = DEFAULT_SESSION_DURATION,
-    val separateCardioDays: Boolean = DEFAULT_SEPARATE_CARDIO,
-    val injuries: String = DEFAULT_STRING,
-    val injurySeverity: String = DEFAULT_STRING,
-    val priorityMuscles: String = DEFAULT_STRING,
-    val dislikedExercises: String = DEFAULT_STRING,
-    val onboardingContext: String = DEFAULT_STRING,
-    val wizardEquipment: String = DEFAULT_STRING,
-    val hasCompletedOnboarding: Boolean = DEFAULT_BOOL,
-    val restTimerSeconds: Int = DEFAULT_REST_TIMER,
-    val dailyChallengesJson: String = DEFAULT_STRING,
-    val selectedGymPresetId: Long = DEFAULT_GYM_PRESET_ID,
+    @SerializedName("daysPerWeek") val daysPerWeek: Int = DEFAULT_DAYS_PER_WEEK,
+    @SerializedName("fitnessGoal") val fitnessGoal: String = DEFAULT_FITNESS_GOAL,
+    @SerializedName("experienceLevel") val experienceLevel: String = DEFAULT_EXPERIENCE_LEVEL,
+    @SerializedName("sessionDurationMinutes") val sessionDurationMinutes: Int = DEFAULT_SESSION_DURATION,
+    @SerializedName("separateCardioDays") val separateCardioDays: Boolean = DEFAULT_SEPARATE_CARDIO,
+    @SerializedName("injuries") val injuries: String = DEFAULT_STRING,
+    @SerializedName("injurySeverity") val injurySeverity: String = DEFAULT_STRING,
+    @SerializedName("priorityMuscles") val priorityMuscles: String = DEFAULT_STRING,
+    @SerializedName("dislikedExercises") val dislikedExercises: String = DEFAULT_STRING,
+    @SerializedName("onboardingContext") val onboardingContext: String = DEFAULT_STRING,
+    @SerializedName("wizardEquipment") val wizardEquipment: String = DEFAULT_STRING,
+    @SerializedName("hasCompletedOnboarding") val hasCompletedOnboarding: Boolean = DEFAULT_BOOL,
+    @SerializedName("restTimerSeconds") val restTimerSeconds: Int = DEFAULT_REST_TIMER,
+    @SerializedName("dailyChallengesJson") val dailyChallengesJson: String = DEFAULT_STRING,
+    @SerializedName("selectedGymPresetId") val selectedGymPresetId: Long = DEFAULT_GYM_PRESET_ID,
     // v4: the three training-relevant prefs a restore used to silently lose.
-    val restDaysCsv: String = DEFAULT_STRING,
-    val autoRebalanceEnabled: Boolean = DEFAULT_AUTO_REBALANCE,
-    val dayBoundaryHour: Int = DEFAULT_DAY_BOUNDARY_HOUR,
+    @SerializedName("restDaysCsv") val restDaysCsv: String = DEFAULT_STRING,
+    @SerializedName("autoRebalanceEnabled") val autoRebalanceEnabled: Boolean = DEFAULT_AUTO_REBALANCE,
+    @SerializedName("dayBoundaryHour") val dayBoundaryHour: Int = DEFAULT_DAY_BOUNDARY_HOUR,
     // v5 (rest-UX 2026-07, item 4): manual rest-time mode + the two category times.
-    val manualRestEnabled: Boolean = DEFAULT_BOOL,
-    val manualRestHeavySeconds: Int = DEFAULT_MANUAL_REST_HEAVY,
-    val manualRestAccessorySeconds: Int = DEFAULT_MANUAL_REST_ACCESSORY,
+    @SerializedName("manualRestEnabled") val manualRestEnabled: Boolean = DEFAULT_BOOL,
+    @SerializedName("manualRestHeavySeconds") val manualRestHeavySeconds: Int = DEFAULT_MANUAL_REST_HEAVY,
+    @SerializedName("manualRestAccessorySeconds") val manualRestAccessorySeconds: Int = DEFAULT_MANUAL_REST_ACCESSORY,
     // v8 (QoL 2026-08 item 04): exercise-info mismatch flags + re-match overrides
     // (ExerciseInfoCorrections.Codec JSON maps; "" = none). Union-merged on restore.
-    val exerciseFlagsJson: String = DEFAULT_STRING,
-    val exerciseOverridesJson: String = DEFAULT_STRING
+    @SerializedName("exerciseFlagsJson") val exerciseFlagsJson: String = DEFAULT_STRING,
+    @SerializedName("exerciseOverridesJson") val exerciseOverridesJson: String = DEFAULT_STRING
 ) {
     companion object {
         const val DEFAULT_DAYS_PER_WEEK = 4
@@ -103,19 +103,19 @@ data class BackupPreferences(
 data class BackupEnvelope(
     @SerializedName("schema_version") val schemaVersion: Int = CURRENT_BACKUP_VERSION,
     @SerializedName("exported_at") val exportedAt: String = "",
-    val sessions: List<WorkoutSession> = emptyList(),
-    val sets: List<WorkoutSet> = emptyList(),
-    val achievements: List<Achievement> = emptyList(),
+    @SerializedName("sessions") val sessions: List<WorkoutSession> = emptyList(),
+    @SerializedName("sets") val sets: List<WorkoutSet> = emptyList(),
+    @SerializedName("achievements") val achievements: List<Achievement> = emptyList(),
     @SerializedName("user_stats") val userStats: UserStats? = null,
     @SerializedName("body_measurements") val bodyMeasurements: List<BodyMeasurement> = emptyList(),
     @SerializedName("planned_exercises") val plannedExercises: List<PlannedExercise> = emptyList(),
-    val exercises: List<Exercise> = emptyList(),
+    @SerializedName("exercises") val exercises: List<Exercise> = emptyList(),
     @SerializedName("gym_presets") val gymPresets: List<GymPreset> = emptyList(),
     // E2 (v3): named saved programs. Empty for v1/v2 backups (the migration adds an empty list).
-    val programs: List<Program> = emptyList(),
+    @SerializedName("programs") val programs: List<Program> = emptyList(),
     // v6 (N5): lift goals. Empty for pre-v6 backups (the migration adds an empty list).
-    val goals: List<LiftGoal> = emptyList(),
+    @SerializedName("goals") val goals: List<LiftGoal> = emptyList(),
     // v6 (N7): per-exercise setup notes. Empty for pre-v6 backups.
     @SerializedName("exercise_notes") val exerciseNotes: List<ExerciseNote> = emptyList(),
-    val preferences: BackupPreferences = BackupPreferences()
+    @SerializedName("preferences") val preferences: BackupPreferences = BackupPreferences()
 )

@@ -167,7 +167,14 @@ object BackupMigrations {
 
         var root = parsed
         // schema_version missing -> treat as the oldest known shape (v1) for forward compatibility.
+        // (The key is readable even in the minified format — it was always @SerializedName'd.)
         var version = root.get("schema_version")?.takeIf { it.isJsonPrimitive }?.asInt ?: 1
+
+        // Backup portability (2026-08-03): release builds used to export with R8-minified field
+        // names. Translate such a file to canonical keys FIRST, so the migration steps below and
+        // the final Gson bind (both keyed on canonical names) see the same tree a debug export
+        // produces. Canonical files pass through untouched.
+        root = MinifiedBackupCompat.translateIfMinified(root, version)
 
         if (version > CURRENT_BACKUP_VERSION) {
             throw IllegalArgumentException(

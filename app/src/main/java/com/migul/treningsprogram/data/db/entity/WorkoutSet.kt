@@ -1,6 +1,7 @@
 package com.migul.treningsprogram.data.db.entity
 
 import androidx.room.Entity
+import com.google.gson.annotations.SerializedName
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -18,14 +19,14 @@ import androidx.room.PrimaryKey
     indices = [Index("sessionId")]
 )
 data class WorkoutSet(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val sessionId: Long,
-    val exerciseName: String,
-    val muscleGroup: String = "",
-    val setNumber: Int,
-    val reps: Int,
-    val weightKg: Float,
-    val isWarmup: Boolean = false,
-    val rpeLabel: String = "",
-    val loggedAtMs: Long = 0L   // wall-clock time the set was logged; 0 = legacy/unknown
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("sessionId") val sessionId: Long,
+    @SerializedName("exerciseName") val exerciseName: String,
+    @SerializedName("muscleGroup") val muscleGroup: String = "",
+    @SerializedName("setNumber") val setNumber: Int,
+    @SerializedName("reps") val reps: Int,
+    @SerializedName("weightKg") val weightKg: Float,
+    @SerializedName("isWarmup") val isWarmup: Boolean = false,
+    @SerializedName("rpeLabel") val rpeLabel: String = "",
+    @SerializedName("loggedAtMs") val loggedAtMs: Long = 0L   // wall-clock time the set was logged; 0 = legacy/unknown
 )

@@ -1,6 +1,7 @@
 package com.migul.treningsprogram.data.db.entity
 
 import androidx.room.Entity
+import com.google.gson.annotations.SerializedName
 import androidx.room.PrimaryKey
 
 /**
@@ -23,12 +24,12 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "workout_sessions")
 data class WorkoutSession(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val dateMs: Long,
-    val durationMinutes: Int = 0,
-    val notes: String = "",
-    val isCompleted: Boolean = false,
-    val kind: String? = null
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("dateMs") val dateMs: Long,
+    @SerializedName("durationMinutes") val durationMinutes: Int = 0,
+    @SerializedName("notes") val notes: String = "",
+    @SerializedName("isCompleted") val isCompleted: Boolean = false,
+    @SerializedName("kind") val kind: String? = null
 ) {
     /** True for an auto-logged rest day. */
     val isRestDay: Boolean get() = kind == KIND_REST

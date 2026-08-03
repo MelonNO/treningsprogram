@@ -1,6 +1,7 @@
 package com.migul.treningsprogram.data.db.entity
 
 import androidx.room.Entity
+import com.google.gson.annotations.SerializedName
 import androidx.room.PrimaryKey
 
 /**
@@ -30,19 +31,19 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "programs")
 data class Program(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String,
-    val createdAtMs: Long,
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("name") val name: String,
+    @SerializedName("createdAtMs") val createdAtMs: Long,
     /** Exactly one program has this true at a time (enforced by ProgramDao.setActive). */
-    val isActive: Boolean = false,
+    @SerializedName("isActive") val isActive: Boolean = false,
     /** > 0 ⇒ this program is a periodized mesocycle block of this many weeks. 0 ⇒ plain program. */
-    val mesocycleWeeks: Int = 0,
+    @SerializedName("mesocycleWeeks") val mesocycleWeeks: Int = 0,
     /** Monday-epoch the current mesocycle block started on (0 ⇒ not started / not a block). */
-    val blockStartWeek: Long = 0L,
+    @SerializedName("blockStartWeek") val blockStartWeek: Long = 0L,
     /** True while a stall/fatigue-triggered deload is in effect for this program (M2). */
-    val isDeloadActive: Boolean = false,
+    @SerializedName("isDeloadActive") val isDeloadActive: Boolean = false,
     /** Assumption N: true ⇒ skip automatic weekly AI re-adaptation for this program. */
-    val isFrozen: Boolean = false
+    @SerializedName("isFrozen") val isFrozen: Boolean = false
 ) {
     companion object {
         /**

@@ -1,6 +1,7 @@
 package com.migul.treningsprogram.data.db.entity
 
 import androidx.room.Entity
+import com.google.gson.annotations.SerializedName
 import androidx.room.PrimaryKey
 
 /**
@@ -16,7 +17,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "exercise_notes")
 data class ExerciseNote(
-    @PrimaryKey val exerciseName: String,
-    val note: String,
-    val updatedAtMs: Long = 0L
+    @PrimaryKey @SerializedName("exerciseName") val exerciseName: String,
+    @SerializedName("note") val note: String,
+    @SerializedName("updatedAtMs") val updatedAtMs: Long = 0L
 )
