@@ -13,6 +13,18 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 73, versionName = "1.32.0",
+            highlights = listOf(
+                "Time estimates are now honest: they were measured about 40% low against real logged sessions and have been corrected to reflect real session length — every \"~Xm\" label rises accordingly",
+                "Because estimates are now truthful, a session sized to your target duration contains correspondingly less prescribed work than before — that is your target being honored, not content being removed",
+                "Generated plans no longer contain cardio: Endurance and Weight Loss goals are rewritten as resistance-only programming (high-rep, short-rest, circuit-style) — do your cardio outside the plan",
+                "The generator now remembers last week across the week boundary: a muscle trained Sunday is no longer trained again Monday morning",
+                "No more invented starting weights: with no logged history for a lift, plans start it at 0 instead of a fabricated load",
+                "Exercise classification fixes: bicycle/cable crunches, incline presses, landmine work, pull-throughs and pullovers now count toward the right muscle groups (existing history re-classified automatically)",
+                "Backups are now format-stable across app builds — and every backup you already exported still restores exactly as before",
+            ),
+        ),
+        Entry(
             versionCode = 72, versionName = "1.31.0",
             highlights = listOf(
                 "Flagged an exercise's info as the wrong movement? The info sheet now hides the mismatched pictures, instructions, and details everywhere it opens, showing a short notice instead — until the flag is resolved",
