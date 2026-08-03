@@ -459,8 +459,10 @@ class SetupWizardFragment : Fragment() {
             1 -> {
                 if (binding.chipDurCustom.isChecked) {
                     val custom = binding.etCustomDuration.text?.toString()?.trim()?.toIntOrNull()
-                    if (custom == null || custom < 10 || custom > 300) {
-                        Snackbar.make(binding.root, "Enter a duration between 10 and 300 minutes.", Snackbar.LENGTH_SHORT).show()
+                    // 4.6 (gen-eval 2026-08): 20–120 is the range the generation pipeline supports
+                    // (the prompt's TIME BUDGET is written for it; >120 is a known hard-fail zone).
+                    if (custom == null || custom < 20 || custom > 120) {
+                        Snackbar.make(binding.root, "Enter a duration between 20 and 120 minutes.", Snackbar.LENGTH_SHORT).show()
                         return
                     }
                     selectedDuration = custom

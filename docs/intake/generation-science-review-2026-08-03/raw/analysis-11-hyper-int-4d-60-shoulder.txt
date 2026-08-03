@@ -1,0 +1,43 @@
+CELL 11-hyper-int-4d-60-shoulder
+profile: goal=Hypertrophy exp=Intermediate days=4 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+injury: shoulder pain when pressing overhead (Moderate)
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower ×2
+rationale: New user, no history — this Upper/Lower ×2 block establishes conservative baseline loads via RPE, emphasises hypertrophy rep ranges, and substitutes all overhead pressing with landmine and incline neutral-grip variants to protect your shoulder, with two prehab slots across the week.
+
+DAY 1 — est 51 min (window 50-70: IN)
+  1. Barbell Bench Press [Chest] 4x6-8 @0.0kg rest=180s | RPE 7 (~2-3 RIR); new user — start conservative ~60% est. 1RM; double progression +reps then +2.5 kg
+  2. Barbell Bent-Over Row [Back] 4x6-8 @0.0kg rest=180s | RPE 7 (~2-3 RIR); start conservative ~60% est. 1RM; double progression +reps then +2.5 kg
+  3. Incline Dumbbell Press (Neutral Grip) [] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); neutral grip reduces shoulder stress; double progression +reps then +2 kg per DB
+  4. Cable Seated Row (Close Grip) [Back] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); controlled squeeze at end range; double progression +reps then +5 kg stack
+  5. Cable Lateral Raise [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 9 (~1 RIR); slow eccentric on isolation only; double progression +reps then +2.5 kg stack
+  6. Cable Face Pull (Rope to Forehead) [Shoulders] 2x15-20 @0.0kg rest=60s | RPE 8; shoulder prehab — keep elbows at or below ear height; double progression +reps then +2.5 kg stack
+DAY 3 — est 47 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 4x6-8 @0.0kg rest=210s | RPE 7 (~2-3 RIR); new user — start conservative ~60% est. 1RM; double progression +reps then +5 kg
+  2. Romanian Deadlift [Legs] 3x6-8 @0.0kg rest=180s | RPE 7 (~2 RIR); ≥2 RIR at all times; new user — start light ~50% est. 1RM; double progression +reps then +5 kg
+  3. Leg Press [Legs] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); bilateral; double progression +reps then +10 kg
+  4. Lying Leg Curl [Legs] 3x12-15 @0.0kg rest=90s | RPE 9 (~1 RIR); slow eccentric on isolation; double progression +reps then +5 kg stack
+  5. Farmer's Carry [Core] 3x30 m @0.0kg rest=90s | RPE 7; core-stability carry; new user — start moderate load; progress +2 kg per hand when all 3 carries feel controlled
+DAY 5 — est 48 min (window 50-70: OUT)
+  1. Pull-Up [Back] 4x6-10 @0.0kg rest=180s | RPE 7-8 (~2 RIR); add band assistance if needed; double progression +reps then add load via dumbbell between feet
+  2. Landmine Press [] 4x8-10 @0.0kg rest=150s | RPE 8 (~2 RIR); safe overhead substitute — press along diagonal arc; double progression +reps then +2.5 kg
+  3. Cable Lat Pulldown (Wide Grip) [Back] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); full stretch at top; double progression +reps then +5 kg stack
+  4. Dumbbell Rear Delt Fly [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 9 (~1 RIR); slow eccentric; double progression +reps then +1 kg per DB
+  5. Cable Tricep Pushdown (Rope) [Arms] 3x12-15 @0.0kg rest=60s | RPE 9 (~1 RIR); slow eccentric; double progression +reps then +2.5 kg stack
+  6. Dumbbell Hammer Curl [Arms] 2x12-15 @0.0kg rest=60s | RPE 9 (~1 RIR); slow eccentric; double progression +reps then +1 kg per DB
+DAY 7 — est 49 min (window 50-70: OUT)
+  1. Conventional Deadlift [Back] 4x5-6 @0.0kg rest=240s | RPE 7 (~2-3 RIR); new user — start conservative ~60% est. 1RM; ≥2 RIR always; double progression +reps then +5 kg
+  2. Goblet Squat [Legs] 3x10-12 @0.0kg rest=120s | RPE 7 (~2-3 RIR); bilateral quad top-up; double progression +reps then +2 kg DB
+  3. Barbell Hip Thrust [Legs] 3x12-15 @0.0kg rest=120s | RPE 8 (~2 RIR); exempt from hinge rep cap; new user — start light; double progression +reps then +5 kg
+  4. Leg Press (Feet High) [Legs] 3x12-15 @0.0kg rest=90s | RPE 8 (~2 RIR); feet high to bias glutes/hamstrings; double progression +reps then +10 kg
+  5. Cable Pull-Through [] 3x15-20 @0.0kg rest=90s | RPE 8 (~2 RIR); hip hinge pattern — keep spine neutral; double progression +reps then +5 kg stack
+  6. Band-Free Shoulder External Rotation (DB Side-Lying) [Shoulders] 2x15 @2.0kg rest=60s | RPE 6; shoulder prehab — light 2 kg DB; progress +0.5 kg when all reps feel easy
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 4 sets (1 exercise slots)
+  Back: 18 sets (5 exercise slots)
+  : 10 sets (3 exercise slots)
+  Shoulders: 10 sets (4 exercise slots)
+  Legs: 22 sets (7 exercise slots)
+  Core: 3 sets (1 exercise slots)
+  Arms: 5 sets (2 exercise slots)

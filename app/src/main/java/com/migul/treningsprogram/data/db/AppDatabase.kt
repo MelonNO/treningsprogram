@@ -24,7 +24,7 @@ import com.migul.treningsprogram.data.db.entity.*
         LiftGoal::class,
         ExerciseNote::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -327,6 +327,32 @@ abstract class AppDatabase : RoomDatabase() {
                     "UPDATE gym_presets SET avoidExercisesJson = ? WHERE name = 'Home Gym' AND avoidExercisesJson IS NULL",
                     arrayOf<Any?>(com.migul.treningsprogram.domain.GymExclusions.HOME_GYM_DEFAULT_JSON)
                 )
+            }
+        }
+
+        // 2026-08 classifier additions: re-derives the denormalised muscleGroup on already-logged
+        // sets after MuscleClassifier gained rules for incline/decline presses (→ Chest), landmine
+        // press (→ Shoulders), pull-through (→ Legs), pullover (→ Back), pull-apart (→ Shoulders),
+        // and the "run"-substring fix that had "Cable Crunch"/"Bicycle Crunch" classified as Cardio
+        // (now Core). Historical sets logged under "" or the wrong group re-enter volume/recovery
+        // stats correctly. IDENTICAL shape to MIGRATION_16_17: re-derives ONLY the muscleGroup
+        // column via the shared MuscleGroupResolver, per DISTINCT exerciseName, parameterized,
+        // idempotent; it never references or mutates reps/weightKg/dates/exerciseName/session
+        // data. No schema change.
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val names = mutableListOf<String>()
+                db.query("SELECT DISTINCT exerciseName FROM workout_sets").use { c ->
+                    val idx = c.getColumnIndexOrThrow("exerciseName")
+                    while (c.moveToNext()) names.add(c.getString(idx))
+                }
+                for (name in names) {
+                    val group = com.migul.treningsprogram.data.MuscleGroupResolver.resolve(name)
+                    db.execSQL(
+                        "UPDATE workout_sets SET muscleGroup = ? WHERE exerciseName = ?",
+                        arrayOf<Any?>(group, name)
+                    )
+                }
             }
         }
 

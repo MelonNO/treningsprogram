@@ -542,10 +542,13 @@
                         android:hint="None" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Cardio preference -->
+                <!-- Cardio preference — hidden since the 2026-08-03 cardio removal: generated plans
+                     are resistance-only, so the toggle no longer affects anything (kept in the
+                     layout so the view IDs and pref plumbing stay intact; cheap to restore). -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:visibility="gone"
                     app:cardElevation="0dp"
                     app:cardCornerRadius="16dp"
                     app:strokeWidth="1dp"

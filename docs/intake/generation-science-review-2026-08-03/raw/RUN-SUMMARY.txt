@@ -1,0 +1,14 @@
+mode=live cells=13 ledgerLines=13
+01-strength-int-4d-60: 19 exercises across 4 days
+02-strength-beg-3d-45: 13 exercises across 3 days
+03-strength-adv-5d-75: 23 exercises across 5 days
+04-hyper-int-5d-60: 25 exercises across 5 days
+05-hyper-beg-3d-60: 15 exercises across 3 days
+06-hyper-adv-6d-90: 36 exercises across 6 days
+07-endur-int-4d-60: 26 exercises across 4 days
+08-wloss-beg-3d-45: 15 exercises across 3 days
+09-wloss-int-5d-60: 22 exercises across 5 days
+10-strength-int-4d-60-homegym: 18 exercises across 4 days
+11-hyper-int-4d-60-shoulder: 23 exercises across 4 days
+12-strength-int-4d-60-week2: 18 exercises across 4 days
+13-strength-int-4d-60-week3: 19 exercises across 4 days

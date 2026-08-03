@@ -52,10 +52,10 @@ fun isTransientAiError(t: Throwable): Boolean = when (t) {
  * H1: retry policy for the GENERATION call specifically. Identical to [isTransientAiError] EXCEPT a
  * [SocketTimeoutException] is NOT retryable.
  *
- * A generation request is non-streaming with a large output budget (maxTokens=16384). If a call hits
- * the OkHttp callTimeout (240s) it means the model was still generating a too-large/too-slow response —
- * re-issuing it IMMEDIATELY with no backoff just times out again, burning ~2×240≈480s (~8 min) before
- * any error surfaces (the observed "stuck on Attempt 2 of 3" stall). Treating a SocketTimeout as
+ * A generation request streams with a large output budget (maxTokens=[GENERATION_MAX_TOKENS]). If a
+ * call hits the OkHttp callTimeout (300 s — NetworkModule) it means the model was still generating a
+ * too-large/too-slow response — re-issuing it IMMEDIATELY with no backoff just times out again, burning
+ * ~2×300≈600 s (~10 min) before any error surfaces (the observed "stuck on Attempt 2 of 3" stall). Treating a SocketTimeout as
  * NON-retryable makes that case fail fast at ONE callTimeout with a specific, user-visible "timed out"
  * error. Genuine transient blips (5xx / 429 / a fast-failing IOException like a connection reset) are
  * STILL retried, so reliability for real hiccups is unchanged. Used ONLY by the generation call; every
@@ -111,10 +111,14 @@ suspend fun <T> withAiRetry(
 // ── H1: overall generation wall-clock deadline ───────────────────────────────────────────────────
 //
 // Generation must ALWAYS reach a terminal outcome — never sit on "Attempt N of 3" indefinitely. OkHttp
-// callTimeout (240s) bounds each individual call, but an immediate no-backoff retry of a timed-out
-// generation call could burn ~2×240s, and across attempts the wall-clock could stack much higher. We
-// cap the WHOLE generate flow with a single overall deadline and convert a timeout into a clear,
+// callTimeout (300 s — NetworkModule) bounds each individual call, but an immediate no-backoff retry of
+// a timed-out generation call could burn ~2×300 s, and across attempts the wall-clock could stack much
+// higher. We cap the attempt ladder with a single overall deadline and convert a timeout into a clear,
 // terminal, user-visible error via the existing onFailure path (instead of a frozen progress counter).
+// 2.1 (gen-eval 2026-08): the deadline wraps the ATTEMPT LOOP only — on expiry, a viable OVER-only
+// salvage candidate is still deterministically trimmed (pure, no network) and offered one bounded
+// review call OUTSIDE the deadline (validateProgram is itself callTimeout-bounded and fails open), so
+// a good plan already in memory is saved instead of discarded. Still terminal — never a hang.
 
 /** Friendly, terminal message shown when the overall generation deadline is hit. */
 internal const val GENERATION_TIMEOUT_MESSAGE =
@@ -123,15 +127,18 @@ internal const val GENERATION_TIMEOUT_MESSAGE =
 /**
  * Overall wall-clock budget for one [AiRepository.generateAdaptedProgram] call (all attempts).
  *
- * Arithmetic: a NORMAL run makes 2 sequential API calls (attempt-1 generate + the LLM quality review);
- * a fully-rejected run makes ≤3 generate calls (the verify step is skipped whenever a deterministic
- * check fails) plus at most one verify. Each call is bounded by OkHttp callTimeout=240s, but a
- * SUCCESSFUL call returns far faster than that pathological ceiling — even on a slow link 2–3 successful
- * calls land comfortably inside 360s. The degenerate case (a stalled generate call) is now handled
- * primarily by [isTransientGenerationError] (a timed-out generate is NOT re-issued, so it fails fast at
- * one 240s callTimeout with a specific error); this 360s ceiling is the belt-and-suspenders backstop —
- * well under the previously observed ~8 min (~480s+) stall — for any residual accumulation or non-network
- * hang. 360s leaves margin so a legitimate slow-link multi-attempt run is not falsely cut off.
+ * Arithmetic (re-derived 2026-08 for callTimeout=300 s — NetworkModule): a NORMAL run makes 2
+ * sequential API calls (attempt-1 generate + the LLM quality review); a fully-rejected run makes ≤3
+ * generate calls (the verify step is skipped whenever a deterministic check fails) plus at most one
+ * verify. Each call is bounded by OkHttp callTimeout=300 s, but a SUCCESSFUL call returns far faster
+ * than that pathological ceiling — even on a slow link 2–3 successful calls land comfortably inside
+ * 360 s. The degenerate case (a stalled generate call) is handled primarily by
+ * [isTransientGenerationError] (a timed-out generate is NOT re-issued, so it fails fast at ONE 300 s
+ * callTimeout with a specific error). Be honest about the worst case: one stalled call burns 300 of
+ * the 360 s budget, leaving only 60 s — NOT enough for another attempt plus review; the deadline then
+ * expires and the 2.1 salvage path (trim + one bounded review OUTSIDE the deadline) is what stands
+ * between the user and a total failure. 360 s is kept as the ladder ceiling (raising it would push a
+ * pathological run past ~6 min of visible waiting); the salvage path makes it safe.
  */
 internal const val GENERATION_OVERALL_DEADLINE_MS: Long = 360_000L
 
@@ -139,10 +146,11 @@ internal const val GENERATION_OVERALL_DEADLINE_MS: Long = 360_000L
 //
 // Raised 16384 → 24576 for the generation request ONLY (the ClaudeRequest default stays 16384 for every
 // other, smaller call — onboarding questions, injury check, weekly summary, single-day regen, the quality
-// review). A LONG multi-modal plan (a full strength block PLUS warm-up/conditioning entries, each carrying
-// the full P5 auditable metadata) is the largest legitimate response the app produces; at 16384 a 4–5-day
-// plan of 8 strength slots + 2 cardio slots × full metadata could clip mid-JSON → isLikelyTruncated →
-// rejected (the confirmed "mode-2 truncation" failure at long targets). 24576 gives clean headroom.
+// review). A LONG plan (a full strength complement plus warm-up entries, each carrying the full P5
+// auditable metadata) is the largest legitimate response the app produces; at 16384 a 4–5-day plan of
+// 8+ slots × full metadata could clip mid-JSON → isLikelyTruncated → rejected (the confirmed "mode-2
+// truncation" failure at long targets). 24576 gives clean headroom. (2026-08: cardio entries are gone
+// from generated plans; the headroom is kept — long resistance-only days carry MORE strength slots.)
 //
 // SAFE with streaming: max_tokens is only an UPPER BOUND — it never forces more output (the JSON-first
 // efficiency prompt keeps a normal response at ~2–8k tokens), and generation STREAMS (H4), so the OkHttp
@@ -153,17 +161,18 @@ internal const val GENERATION_OVERALL_DEADLINE_MS: Long = 360_000L
 // stays scoped to the one call that needs the headroom.
 internal const val GENERATION_MAX_TOKENS: Int = 24576
 
-// ── Layer-2 (long-session fix 2026-07): LONG-session threshold ─────────────────────────────────────
+// ── Layer-2 (long-session fix 2026-07; rewritten 2026-08 for the cardio removal): LONG threshold ──
 //
-// A pure strength/hypertrophy session is bounded ~55–70 min by the app's own soundness rules (≤8
-// exercises, per-muscle ~8–10 hard-set cap, junk-volume rejection) even when every set/rep/rest is maxed
-// within the goal bands. So a target whose FLOOR (target−10) sits above that ceiling cannot be reached by
-// lifting volume alone — it must be built MULTI-MODAL (sound strength block + a duration-sized warm-up and/
-// or conditioning finisher). 90 min (floor 80) is the first target the strength block genuinely cannot
-// fill; 100 and 120 clearly need it. Short/mid sessions (≤80 min, incl. the verified-lean 50-min case)
-// are BELOW this threshold and get NO multi-modal steering, so their behaviour is byte-for-byte unchanged
-// — the #1 regression guard. Pure + internal so it is unit-testable and shared by buildPrompt +
-// dayDurationFeedback (they must agree on what "long" means).
+// A lean strength/hypertrophy session tops out ~55–70 min under the app's soundness rules (≤8
+// exercises, per-muscle ~8–10 hard-set cap, junk-volume rejection) at MID-band rests. Targets at/above
+// 90 min therefore need DELIBERATE sizing. Since the 2026-08 cardio removal the levers are
+// resistance-only: rest at the TOP of the goal band (strength ~300 s / hypertrophy compounds ~240 s —
+// this alone moves a day by 15–25 min), fuller rep ranges, a structured warm-up block (strength-shape
+// entries, cap-exempt), and a fuller exercise complement within the caps. Short-rest goals
+// (endurance/weight-loss) have far less headroom — long targets there remain at risk (flagged for the
+// product decision on the supported ceiling). Short/mid sessions (< 90) get NO long-session steering,
+// so their behaviour is unchanged — the #1 regression guard. Pure + internal so it is unit-testable
+// and shared by buildPrompt + dayDurationFeedback (they must agree on what "long" means).
 internal const val LONG_SESSION_THRESHOLD_MIN: Int = 90
 internal fun isLongSession(targetMinutes: Int): Boolean = targetMinutes >= LONG_SESSION_THRESHOLD_MIN
 
@@ -496,32 +505,38 @@ internal fun dayDurationFeedback(
     val low = targetMinutes - 10
     val high = targetMinutes + 10
     return when {
-        // Layer-2 (long-session fix 2026-07): for a LONG target, sound strength/hypertrophy volume alone
-        // cannot fill the session, so the under-fill lever is NOT "add a set/accessory" (that fights the
-        // ≤N exercise cap + truncates) — it is a DURATION-SIZED conditioning/warm-up block. Steer the model
-        // to build it MULTI-MODAL. The reject CONDITION is unchanged (still est < low); only the wording
-        // differs. Short/mid targets keep the original rest→reps→sets→accessory wording (no regression).
+        // Cardio removal (2026-08-03 product decision): generated plans are RESISTANCE-ONLY, so the old
+        // long-session lever (a duration-sized cardio finisher) is gone. A LONG under-time day is now
+        // steered through resistance-only levers in a quality-preserving order: rest toward the top of
+        // the goal band first (reclaims the most minutes with ZERO added volume), then reps, then a
+        // structured warm-up block (strength-shape entries, exempt from the strength cap), and only
+        // LAST extra sets/accessories inside the volume caps — never junk volume, never cardio. The
+        // reject CONDITION is unchanged (still est < low); only the wording differs.
         estimateMinutes < low && isLongSession(targetMinutes) ->
             "Day $day estimates ~$estimateMinutes min — that is ${targetMinutes - estimateMinutes} min " +
-                "UNDER the aim of $targetMinutes (window $low–$high). This is a LONG session: sound " +
-                "strength/hypertrophy volume alone will NOT fill $targetMinutes min, and you must NOT force " +
-                "extra strength exercises/sets or junk volume to pad it. Build it MULTI-MODAL — keep the " +
-                "strength block, then ADD or EXTEND a DURATION-SIZED conditioning finisher (and/or an easy " +
-                "warm-up) so the day lands in the UPPER HALF of the window ($targetMinutes–$high, NOT merely " +
-                "the $low floor). You are ${targetMinutes - estimateMinutes} min short of the aim: ADD ABOUT " +
-                "${durationAimMinutes(targetMinutes) - estimateMinutes} MORE MINUTES of conditioning DURATION on top of what " +
-                "this day already has — EXTEND the finisher (a longer stationary bike / incline treadmill " +
-                "walk / easy jog), do NOT under-size or trim it. ERR HIGH — aim this day at about " +
-                "${durationAimMinutes(targetMinutes)} min; a day a few minutes OVER is auto-trimmed to fit, but a day UNDER " +
-                "the $low floor is rejected and wastes the whole plan. Give EVERY long day the SAME " +
-                "generous finisher so none is left short. " +
-                "Long-session conditioning is large by design (a 30–60 min finisher is expected, " +
-                "NOT junk). Use only cardio-classified, duration-timed entries the app can count: stationary " +
-                "bike / cycling, incline treadmill walk, easy jog / run intervals, jump rope (low-impact bike " +
-                "or incline walk for any lower-limb injury), with sets=1, targetReps = the DURATION " +
-                "(e.g. \"45 min\"), targetWeightKg=0, rest=60. Do NOT use rowing, carries, sled, or elliptical " +
-                "as the timed entry — the app cannot time those by duration. Do NOT shorten the day — it is " +
-                "already too short."
+                "UNDER the aim of $targetMinutes (window $low–$high). This is a LONG session and the plan " +
+                "must reach the target with RESISTANCE-ONLY content — cardio/conditioning entries are NOT " +
+                "allowed in generated plans. Apply these levers IN ORDER until YOUR OWN sizing reaches " +
+                "about ${durationAimMinutes(targetMinutes)} min: " +
+                (if (restIsLever)
+                    "(1) raise inter-set REST on the primary compounds to the TOP of THIS goal's rest band " +
+                        "(the #1 long-day lever — long rests on heavy work are correct training, not padding); " +
+                        "(2) raise reps toward the TOP of each exercise's role range; " +
+                        "(3) add a structured WARM-UP block (ramp/mobility entries with sets × reps, " +
+                        "role \"warmup\" — exempt from the strength exercise cap); " +
+                        "(4) only then add a working set to an accessory or one more accessory, staying " +
+                        "inside the goal's per-muscle volume caps. "
+                else
+                    "the user takes FIXED rest times, so rest is NOT a lever: " +
+                        "(1) raise reps toward the TOP of each exercise's role range; " +
+                        "(2) add a structured WARM-UP block (ramp/mobility entries with sets × reps, " +
+                        "role \"warmup\" — exempt from the strength exercise cap); " +
+                        "(3) only then add a working set to an accessory or one more accessory, staying " +
+                        "inside the goal's per-muscle volume caps. ") +
+                "NEVER pad with junk volume or a duplicated movement pattern, and NEVER add a cardio " +
+                "entry. ERR HIGH — aim this day at about ${durationAimMinutes(targetMinutes)} min; a day " +
+                "a few minutes OVER is auto-trimmed to fit, but a day UNDER the $low floor is rejected " +
+                "and wastes the whole plan. Do NOT shorten the day — it is already too short."
         estimateMinutes < low && restIsLever ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it CLEARS the $low-min " +
@@ -560,8 +575,9 @@ internal fun dayDurationFeedback(
 // the app should deterministically TRIM those days back into [target-10, target+10] and SAVE, instead of
 // looping to a no-save failure. This is layered STRICTLY AFTER the gate's estimate — it NEVER alters
 // [WorkoutTimeEstimator], the ±10-min window, or any threshold (the gate math stays byte-for-byte). It
-// only ever (1) lowers recommendedRestSeconds DOWNWARD toward a 60 s floor (never below 60, never above the
-// original), (2) drops whole SETS, and (3) removes whole trailing exercises; it NEVER edits reps / weight /
+// only ever (1) lowers recommendedRestSeconds DOWNWARD toward a goal-aware floor ([salvageRestFloorSeconds];
+// never below the floor, never above the original), (2) drops whole SETS, and (3) removes whole trailing
+// exercises; it NEVER edits reps / weight /
 // notes, so it cannot introduce a rep-range-by-role or notes violation. UNDER-time days are left untouched
 // (under-fill stays the model's job — we never auto-add volume); locked (already-logged) days are skipped.
 //
@@ -569,8 +585,8 @@ internal fun dayDurationFeedback(
 // est <= high. REST goes FIRST because it reclaims the most minutes with ZERO loss of exercises/sets/muscle
 // coverage, and validateProgram never penalises low rest (60 s is the hypertrophy/weight-loss band minimum)
 // — live-verified as the most reliable salvage (4/4 vs 3/4 for sets+removal alone):
-//   (1) lower recommendedRestSeconds of the exercise with the CURRENT highest rest by 15 s (floor 60),
-//       repeating until no exercise is above 60 s.
+//   (1) lower recommendedRestSeconds of the exercise with the CURRENT highest rest by 15 s (goal-aware
+//       floor — P6), repeating until no exercise is above the floor.
 //   (2) drop ONE set from the trailing exercise (highest orderInDay) that still has sets > 2 and is NOT
 //       the day's primary (lowest orderInDay); re-pick the trailing eligible exercise each pass.
 //   (3) if still over and no safe set-drop remains, remove a whole trailing non-primary exercise ONLY IF
@@ -583,6 +599,26 @@ internal fun dayDurationFeedback(
 // unit-testable without an [AiRepository] instance (mirrors [dayDurationFeedback]).
 private const val TRIM_REST_FLOOR_SECONDS = 60
 private const val TRIM_REST_STEP_SECONDS = 15
+
+/**
+ * P6 (science review 2026-08, fixes S7): the salvage trim's rest floor is GOAL-AWARE instead of a flat
+ * 60 s. A salvaged Strength day must not end up prescribing 60 s rests between heavy compound sets —
+ * directly against the 3–5-min band the prompt itself enforces and poor strength programming. Floors
+ * are each goal's band MINIMUM (so the trim can still reclaim real minutes without leaving the band):
+ * strength 180 s, hypertrophy 90 s (compound band min; isolation may legitimately sit lower, but a
+ * uniform per-goal floor is the conservative choice without per-exercise roles), everything else keeps
+ * the historical 60 s. Trade-off (accepted in the proposal): less trim headroom ⇒ slightly more
+ * unsalvageable strength days — quality over salvage rate.
+ */
+internal fun salvageRestFloorSeconds(goal: String): Int {
+    val g = goal.lowercase()
+    return when {
+        g.contains("strength") -> 180
+        g.contains("hypertrophy") -> 90
+        else -> TRIM_REST_FLOOR_SECONDS
+    }
+}
+
 internal fun trimOverflowToWindow(
     exercises: List<PlannedExercise>,
     targetMinutes: Int,
@@ -591,7 +627,10 @@ internal fun trimOverflowToWindow(
     // counts THOSE — and lever (1) is skipped entirely, because lowering recommendedRestSeconds
     // cannot change the time the user actually rests (it would only corrupt the stored AI
     // suggestion for zero minutes reclaimed). Null = AI mode = pre-existing behaviour.
-    manualRest: ManualRestTimes? = null
+    manualRest: ManualRestTimes? = null,
+    // P6: goal-band minimum rest the trim may cut DOWN to (see [salvageRestFloorSeconds]). Default
+    // keeps the historical flat 60 s for callers/tests that don't care about the goal.
+    restFloorSeconds: Int = TRIM_REST_FLOOR_SECONDS
 ): List<PlannedExercise>? {
     val low = targetMinutes - 10
     val high = targetMinutes + 10
@@ -617,17 +656,18 @@ internal fun trimOverflowToWindow(
 
         var removedAny = false
 
-        // (1) REST DOWN to the 60 s floor — lower the CURRENT highest-rest exercise by 15 s each pass,
-        // until no exercise is above 60 s. Reclaims the most minutes with ZERO loss of sets/exercises/
-        // coverage; rest only ever DECREASES (never < 60, never above its original value). A single 15 s
-        // step is far smaller than the 20-min window, so this lever never undershoots the floor.
+        // (1) REST DOWN to the goal's band-minimum floor (P6 — flat 60 s before) — lower the CURRENT
+        // highest-rest exercise by 15 s each pass, until no exercise is above the floor. Reclaims the
+        // most minutes with ZERO loss of sets/exercises/coverage; rest only ever DECREASES (never below
+        // the floor, never above its original value). A single 15 s step is far smaller than the 20-min
+        // window, so this lever never undershoots the floor.
         // Item 4: SKIPPED in manual mode — the user's fixed rest times make this lever a no-op.
         while (manualRest == null && est > high) {
             val restTarget = working
-                .filter { it.recommendedRestSeconds > TRIM_REST_FLOOR_SECONDS }
+                .filter { it.recommendedRestSeconds > restFloorSeconds }
                 .maxByOrNull { it.recommendedRestSeconds }
                 ?: break
-            val newRest = maxOf(TRIM_REST_FLOOR_SECONDS, restTarget.recommendedRestSeconds - TRIM_REST_STEP_SECONDS)
+            val newRest = maxOf(restFloorSeconds, restTarget.recommendedRestSeconds - TRIM_REST_STEP_SECONDS)
             working = working.map { if (it === restTarget) it.copy(recommendedRestSeconds = newRest) else it }
             est = WorkoutTimeEstimator.estimateDayMinutes(working)
         }
@@ -679,6 +719,137 @@ internal fun trimOverflowToWindow(
     if (!allInWindow) return null
 
     return resultByDay.values.flatten()
+}
+
+// ── NO-CARDIO gate (2026-08-03 product decision: generated plans are RESISTANCE-ONLY) ─────────────
+//
+// The user removed cardio from GENERATED plans entirely (logging/stats/history/classification of
+// manually-logged cardio are untouched). The prompt forbids cardio entries, but prompt rules are
+// advisory — this deterministic check is the guarantee: any parsed entry whose name classifies as
+// Cardio rejects the attempt (retryable, with targeted feedback), so a cardio entry can never reach a
+// saved generated plan. Locked (already-logged) days are exempt — they echo real history, which may
+// legitimately contain a logged run. Pure + package-level so it is unit-testable without an instance.
+internal fun cardioEntriesViolation(
+    exercises: List<PlannedExercise>,
+    lockedDays: Set<Int> = emptySet()
+): String? {
+    val offenders = exercises
+        .filter { it.dayOfWeek !in lockedDays }
+        .filter { MuscleClassifier.displayName(it.exerciseName) == "Cardio" }
+        .map { it.exerciseName }
+        .distinct()
+    if (offenders.isEmpty()) return null
+    return "The plan contains cardio/conditioning entries (${offenders.joinToString(", ")}). " +
+        "This app generates RESISTANCE-ONLY plans — remove every cardio/conditioning entry and reach " +
+        "the session duration with resistance-training levers (rest toward the top of the goal band, " +
+        "fuller rep ranges, a structured warm-up block, goal-appropriate volume) per the TIME BUDGET rules."
+}
+
+// ── P2 (science review 2026-08, fixes S3): deterministic weight-sanity gate ───────────────────────
+//
+// The "never fabricate weights" prompt rule is obeyed only stochastically — live-verified: 4 of 11
+// no-history cells emitted invented absolute loads (including a 130 kg deadlift for an unknown
+// "Advanced" user — a genuine injury vector). This makes the rule enforceable: after parsing,
+//  - if the user has NO logged loaded set at all (new user, or degenerate all-0 kg history), EVERY
+//    positive targetWeightKg is coerced to 0 (the notes keep their RPE/RIR guidance, which is exactly
+//    the prescribed no-history behaviour);
+//  - otherwise a positive weight is kept only when the user has loaded history in the SAME broad
+//    muscle group ([MuscleClassifier.fromName]) — the coarse family check: bench history cannot
+//    anchor a fabricated 130 kg deadlift, but logged squats DO anchor a goblet-squat estimate
+//    (related-lift estimation is legitimate and live-verified good). Unclassifiable names ("") are
+//    left alone rather than risk zeroing a legitimate related-lift estimate.
+// Locked (already-logged) days are exempt (their rows echo real history and are not re-planned).
+// Coerce (not reject) so no attempt is burned: a 0 kg + RPE-note prescription is safe and correct.
+internal fun sanitizeUnanchoredWeights(
+    exercises: List<PlannedExercise>,
+    loadedHistoryGroups: Set<String>,
+    hasAnyLoadedHistory: Boolean,
+    lockedDays: Set<Int> = emptySet()
+): List<PlannedExercise> = exercises.map { ex ->
+    if (ex.targetWeightKg <= 0f || ex.dayOfWeek in lockedDays) return@map ex
+    if (!hasAnyLoadedHistory) return@map ex.copy(targetWeightKg = 0f)
+    val group = MuscleClassifier.fromName(ex.exerciseName)
+    if (group.isNotEmpty() && group !in loadedHistoryGroups) ex.copy(targetWeightKg = 0f) else ex
+}
+
+// ── P1 (science review 2026-08, fixes S1): cross-week recovery context ────────────────────────────
+//
+// The user's own reported failure: DB bench press Sunday → a new week generated with barbell bench
+// press Monday (~0 h recovery across the week boundary). Structural cause: the prompt never stated
+// today's date or the plan's start date, every recovery rule was scoped to the week being built, and
+// the previous plan was framed purely as a VARIETY input. This block gives the model (a) a real date
+// anchor, (b) the most recent sessions with their primary muscles and their distance from the plan's
+// Monday, and (c) an explicit instruction that the recovery rules span the boundary. Pure +
+// package-level (date arithmetic on epoch millis) so it is unit-testable without an instance.
+// Sessions ON/AFTER the plan's Monday are excluded — those are the locked-days block's job.
+internal fun buildCrossWeekRecoveryBlock(
+    todayMs: Long,
+    weekStartMs: Long,
+    // (session dateMs, primary muscle groups trained) — most recent first, real workouts only.
+    recentSessions: List<Pair<Long, List<String>>>
+): String {
+    val relevant = recentSessions.filter { it.first < weekStartMs }.take(3)
+    if (relevant.isEmpty()) return ""
+    val dayFmt = SimpleDateFormat("EEEE yyyy-MM-dd", Locale.ENGLISH)
+    val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+    val dayMs = 24L * 60 * 60 * 1000
+    fun epochDay(ms: Long): Long {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = ms
+        cal.set(Calendar.HOUR_OF_DAY, 12); cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis / dayMs
+    }
+    val mondayDay = epochDay(weekStartMs)
+    val sessionLines = relevant.joinToString("\n") { (dateMs, muscles) ->
+        val daysBefore = (mondayDay - epochDay(dateMs)).coerceAtLeast(0)
+        val gap = when (daysBefore) {
+            0L -> "the SAME day as this plan's Monday"
+            1L -> "1 day before this plan's Monday — i.e. the day directly before day 1"
+            else -> "$daysBefore days before this plan's Monday"
+        }
+        val muscleStr = if (muscles.isEmpty()) "(no classified muscle groups)" else muscles.joinToString(", ")
+        "  - ${dayFmt.format(Date(dateMs))} ($gap): $muscleStr"
+    }
+    return """
+══════════════════════════════════════════
+CROSS-WEEK RECOVERY — THE WEEK BOUNDARY IS NOT A RESET
+══════════════════════════════════════════
+Today is ${dayFmt.format(Date(todayMs))}. The plan you are writing covers Monday ${dateFmt.format(Date(weekStartMs))} to Sunday ${dateFmt.format(Date(weekStartMs + 6 * dayMs))}.
+The user's MOST RECENT sessions (recovery from these carries INTO this plan):
+$sessionLines
+EVERY recovery rule in this prompt applies ACROSS this boundary exactly as it does inside the week — day 1 of this plan is a real calendar day immediately after the sessions above, NOT a fresh start:
+- Do NOT schedule a primary muscle group on this plan's FIRST training day if it was trained 0–1 days before this plan's Monday (e.g. chest pressed on Sunday ⇒ NO chest pressing on Monday, including any pressing variation of the same muscle).
+- Heavy leg / heavy hinge days still need ~48 h from the most recent heavy leg/hinge session listed above, counting real calendar days across the boundary.
+- The previous plan elsewhere in this prompt is a VARIETY reference; the sessions listed HERE are a RECOVERY constraint — both apply.
+"""
+}
+
+// ── P5 (science review 2026-08, fixes S4): pull-day → deadlift-day adjacency warning ──────────────
+//
+// Every live 5–6-day plan placed the deadlift day directly after the dedicated pull day (lats, spinal
+// erectors and grip loaded back-to-back). The prompt now states the rule explicitly; this pure check
+// backs it deterministically in the accept path as a WARNING (logged for observability, never a
+// rejection — per the proposal, a warn-only guard avoids burning attempts on a quality nuance the
+// review may legitimately wave through). Detects: a day whose plan contains a heavy barbell hinge
+// (deadlift / RDL / good morning) directly adjacent (±1 day) to a day with ≥2 Back-classified
+// pulling exercises.
+internal fun pullHingeAdjacencyWarning(exercises: List<PlannedExercise>): String? {
+    val byDay = exercises.groupBy { it.dayOfWeek }
+    fun isHeavyHinge(name: String): Boolean {
+        val n = name.lowercase()
+        return n.contains("deadlift") || n.contains("rdl") || n.contains("romanian") || n.contains("good morning")
+    }
+    val hingeDays = byDay.filterValues { day -> day.any { isHeavyHinge(it.exerciseName) } }.keys
+    val pullDays = byDay.filterValues { day ->
+        day.count { MuscleClassifier.fromName(it.exerciseName) == "Back" && !isHeavyHinge(it.exerciseName) } >= 2
+    }.keys
+    val clashes = hingeDays.flatMap { h ->
+        pullDays.filter { p -> p != h && kotlin.math.abs(p - h) == 1 }.map { p -> p to h }
+    }
+    if (clashes.isEmpty()) return null
+    val desc = clashes.joinToString("; ") { (p, h) -> "pull day $p adjacent to hinge day $h" }
+    return "Pull/hinge adjacency: $desc — lats, spinal erectors and grip are loaded on consecutive days."
 }
 
 // ── H2: build the generation EXERCISE BLACKLIST from STRUCTURED names ─────────────────────────────
@@ -909,7 +1080,8 @@ class AiRepository @Inject constructor(
         equipment: List<String>
     ): Result<List<OnboardingQuestion>> = runCatching {
         val equipStr = if (equipment.isEmpty()) "Bodyweight only" else equipment.joinToString(", ")
-        val cardioStr = if (separateCardioDays) "Yes — cardio on its own dedicated day" else "No — cardio can be combined"
+        // Cardio removal (2026-08): generated plans are resistance-only, so cardio preference is no
+        // longer surfaced to the interview (the parameter is kept so call sites are unchanged).
         val prompt = """
 You are a personal trainer conducting a brief onboarding interview for a new client.
 
@@ -918,12 +1090,11 @@ ALREADY KNOWN — do NOT ask about any of these:
 - Experience: $experience
 - Training days per week: $daysPerWeek
 - Session duration: $sessionDurationMinutes minutes
-- Separate cardio days: $cardioStr
 - Available equipment: $equipStr
 
 Generate exactly 4 SHORT, FOCUSED questions that dig into information NOT covered above.
 Good topics: specific body-part focus, injury or movement restrictions, exercise dislikes, sleep/recovery habits, nutrition basics, sport or activity outside the gym.
-BAD topics (already answered): how many days, how long, goal, experience, cardio preference, equipment.
+BAD topics (already answered or not applicable — the program is resistance-only): how many days, how long, goal, experience, cardio preference, equipment.
 
 Return ONLY valid JSON — no prose, no markdown fences:
 {
@@ -1070,17 +1241,22 @@ $qa
         lockedExercises: List<PlannedExercise> = emptyList(),
         onProgress: (String) -> Unit = {}
     ): Result<GenerationResult> = runCatching {
-        // H1: bound the WHOLE generate flow (all attempts) with one overall wall-clock deadline so it
-        // ALWAYS reaches a terminal outcome — a timeout becomes a clear thrown error (→ Result.failure
-        // → the existing onFailure message), never a frozen "Attempt N of 3". See GENERATION_OVERALL_
-        // DEADLINE_MS for the arithmetic. Body indentation is left as-is to keep this a minimal diff.
-        withGenerationDeadline {
+        // Setup (DB reads + prompt-input assembly) runs OUTSIDE the deadline — it is fast, local and
+        // not hang-prone; the deadline exists for the network-bound attempt ladder (2.1 restructure).
         val lockedDays = lockedExercises.map { it.dayOfWeek }.toSet()
         // Item 4: read the rest-time mode ONCE per generation so the prompt, the deterministic
         // gate, and any salvage trim all use the same setting. Null = AI mode (existing behaviour).
         val manualRest = preferencesManager.manualRestTimes
         val sessions = workoutRepository.getRecentSessions(12)
-        val (history, recentExercises) = buildSessionHistory(sessions)
+        val historyCtx = buildSessionHistory(sessions)
+        val history = historyCtx.text
+        val recentExercises = historyCtx.recentExercises
+        // P1 (science review 2026-08): cross-week recovery context — a real date anchor plus the most
+        // recent sessions' primary muscles, with the recovery rules explicitly spanning the boundary.
+        // "" for a new user (no sessions before the plan's Monday) ⇒ prompt unchanged.
+        val crossWeekRecoveryBlock = buildCrossWeekRecoveryBlock(
+            System.currentTimeMillis(), thisMonday(), historyCtx.recentSessionMuscles
+        )
         // R3: current body weight + smoothed trend as prompt context ("" when no data → the
         // prompt stays byte-identical to the pre-R3 shape; see WeightTrend.promptLine).
         val bodyWeightLine = com.migul.treningsprogram.domain.WeightTrend
@@ -1095,14 +1271,25 @@ $qa
         // Phase-2 SALVAGE: best OVER-only duration-rejected candidate across attempts (smallest overshoot).
         var salvageCandidate: SalvageCandidate? = null
 
-        // Terminal handler shared by both MAX-attempt rejection paths. The model's own clean plan is still
-        // preferred (it returns earlier in the loop); ONLY here, after every attempt failed, do we attempt
-        // deterministic auto-trim on the best OVER-only candidate. We never alter the estimate/window/
-        // thresholds — the trim is layered strictly after the gate — and the trimmed plan must still pass
-        // peer review (the overshoot attempt was never LLM-reviewed because the gate short-circuits it).
-        suspend fun finalizeOrSalvage(rejections: List<String>, candidate: SalvageCandidate?): GenerationResult {
+        // Terminal handler for every no-accept ending: MAX attempts exhausted OR (2.1) the overall
+        // deadline expired mid-ladder. The model's own clean plan is still preferred (it returns from
+        // the loop); ONLY here, after no attempt was accepted, do we attempt deterministic auto-trim on
+        // the best OVER-only candidate. We never alter the estimate/window/thresholds — the trim is
+        // layered strictly after the gate (goal-aware rest floor, P6) — and the trimmed plan must still
+        // pass peer review (the overshoot attempt was never LLM-reviewed because the gate short-circuits
+        // it). 2.1: this runs OUTSIDE the deadline — the trim is pure (no network) and validateProgram
+        // is itself OkHttp-callTimeout-bounded and fails open, so the flow stays terminal (never a hang)
+        // while a viable plan already in memory is no longer discarded on deadline expiry.
+        suspend fun finalizeOrSalvage(
+            rejections: List<String>,
+            candidate: SalvageCandidate?,
+            timedOut: Boolean
+        ): GenerationResult {
             if (candidate != null) {
-                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, lockedDays, manualRest)
+                val trimmed = trimOverflowToWindow(
+                    candidate.exercises, sessionDurationMinutes, lockedDays, manualRest,
+                    salvageRestFloorSeconds(goal)
+                )
                 if (trimmed != null) {
                     onProgress("Trimming an over-target day to fit your $sessionDurationMinutes-min target…")
                     val trimmedJson = buildProgramJsonForValidation(trimmed, candidate.rationale)
@@ -1110,13 +1297,14 @@ $qa
                         trimmedJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity
                     )
                     if (validation.accepted) {
+                        val salvageNote = if (timedOut)
+                            "Generation deadline expired; auto-trimmed the best over-target candidate into " +
+                                "the ±10-min window; trimmed plan passed review and was saved."
+                        else
+                            "Auto-trimmed an over-target day into the ±10-min window; trimmed plan passed review and was saved."
                         val salvageAttempts = rejections.mapIndexed { i, r ->
                             RejectionLog.Attempt(i + 1, r, finalFailure = false)
-                        } + RejectionLog.Attempt(
-                            rejections.size + 1,
-                            "Auto-trimmed an over-target day into the ±10-min window; trimmed plan passed review and was saved.",
-                            finalFailure = false
-                        )
+                        } + RejectionLog.Attempt(rejections.size + 1, salvageNote, finalFailure = false)
                         rejectionLog.addSession(salvageAttempts, succeeded = true)
                         promptLog.add(
                             "auto_trim_salvage", trimmedJson,
@@ -1134,10 +1322,17 @@ $qa
                 RejectionLog.Attempt(i + 1, r, i == rejections.lastIndex)
             }
             rejectionLog.addSession(logAttempts, succeeded = false)
+            if (timedOut) throw IllegalStateException(GENERATION_TIMEOUT_MESSAGE)
             val reasons = rejections.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
             throw IllegalStateException("Program rejected after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
         }
 
+        // H1: the network-bound attempt ladder runs under ONE overall wall-clock deadline so it always
+        // reaches a terminal outcome — never a frozen "Attempt N of 3". 2.1: a deadline expiry no longer
+        // discards a viable salvage candidate — it falls through to finalizeOrSalvage below.
+        var timedOut = false
+        val accepted: GenerationResult? = try {
+            withGenerationDeadline {
         for (attempt in 1..MAX_GENERATION_ATTEMPTS) {
             if (attempt == 1) {
                 onProgress("Generating your plan…")
@@ -1150,7 +1345,7 @@ $qa
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, gymAvoidExercises, onboardingContext,
                 previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
-                restDays, lockedExercises, manualRest, bodyWeightLine
+                restDays, lockedExercises, manualRest, bodyWeightLine, crossWeekRecoveryBlock
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
             // (it would just time out again, burning a second callTimeout). Real transient blips (5xx/429,
@@ -1168,7 +1363,7 @@ $qa
                         // starved the JSON: 0/3 saves, ~522 s/gen over the 360 s deadline, the full budget
                         // burned on thinking with NO JSON emitted, ~10× cost vs the proven path). NO thinking
                         // field is sent. Layer-2 (long-session fix): max_tokens is lifted to
-                        // GENERATION_MAX_TOKENS (24576, this call only) so a LONG multi-modal plan with full
+                        // GENERATION_MAX_TOKENS (24576, this call only) so a LONG plan with full
                         // P5 metadata cannot clip mid-JSON; still just an upper bound (normal output stays
                         // ~2–8k tokens), safe under streaming — see the const's note.
                         ClaudeRequest(
@@ -1204,6 +1399,15 @@ $qa
                     com.migul.treningsprogram.domain.GymExclusions
                         .filter(parsed, gymAvoidExercises) { ex -> ex.exerciseName }
                 }
+                // P2 (fixes S3): deterministic weight-sanity gate — coerce fabricated absolute loads
+                // (no logged loaded history at all, or none in the lift's broad muscle group) to 0 kg,
+                // BEFORE the gates run, so the plan the gates approve is the plan that gets saved. The
+                // estimator ignores weight, so this cannot change any duration verdict.
+                ?.let { parsed ->
+                    sanitizeUnanchoredWeights(
+                        parsed, historyCtx.loadedHistoryGroups, historyCtx.hasAnyLoadedHistory, lockedDays
+                    )
+                }
             if (cleanJson == null || exercises == null) {
                 val truncated = isLikelyTruncated(responseText, response.stopReason)
                 val parseRejectionReason = when {
@@ -1220,7 +1424,8 @@ $qa
                 rejectionReasons.add(parseRejectionReason)
                 onProgress("Attempt $attempt rejected: $parseRejectionReason")
                 if (attempt == MAX_GENERATION_ATTEMPTS) {
-                    return@withGenerationDeadline finalizeOrSalvage(rejectionReasons, salvageCandidate)
+                    // Exhausted — fall through to finalizeOrSalvage OUTSIDE the deadline (2.1).
+                    return@withGenerationDeadline null
                 }
                 continue
             }
@@ -1242,6 +1447,11 @@ $qa
             val restDayReason = com.migul.treningsprogram.domain.TrainingDaySelection.scheduleViolation(
                 exercises.map { it.dayOfWeek }.toSet(), restDays, lockedDays
             ) ?: ""
+
+            // ── NO-CARDIO check (HARD — 2026-08 product decision) ─────────────────
+            // Generated plans are resistance-only; any Cardio-classified entry rejects the attempt
+            // (retryable, targeted feedback). Locked (logged-history) days are exempt.
+            val cardioReason = cardioEntriesViolation(exercises, lockedDays) ?: ""
 
             // ── Deterministic ±10 min duration check (AUTHORITATIVE) ──────────────
             // Each training day must estimate within ±10 min of the session target,
@@ -1278,7 +1488,7 @@ $qa
                     .mapValues { (_, dayEx) -> WorkoutTimeEstimator.estimateDayMinutes(dayEx, manualRest) }
                 val anyUnderWindow = nonLockedDayMinutes.values.any { it < low }
                 val isOverOnlyDurationMiss = emptyPlanReason.isEmpty() && restDayReason.isEmpty() &&
-                    durationReason.isNotEmpty() && !anyUnderWindow
+                    cardioReason.isEmpty() && durationReason.isNotEmpty() && !anyUnderWindow
                 if (isOverOnlyDurationMiss) {
                     val overshoot = nonLockedDayMinutes.values.sumOf { maxOf(0, it - high) }
                     val best = salvageCandidate
@@ -1289,11 +1499,14 @@ $qa
             }
 
             // Deterministic (Kotlin) rejections, in priority order: empty plan, B08 rest-day violation,
-            // then the ±10-min duration miss. Any of these makes the plan un-acceptable regardless of
-            // the LLM review, so we surface the most critical one AND skip the costly review when set.
+            // the no-cardio rule, then the ±10-min duration miss. Any of these makes the plan
+            // un-acceptable regardless of the LLM review, so we surface the most critical one AND skip
+            // the costly review when set. (Cardio ranks above duration: a cardio entry also corrupts
+            // the duration estimate, so its feedback must win.)
             val deterministicReason = when {
                 emptyPlanReason.isNotEmpty() -> emptyPlanReason
                 restDayReason.isNotEmpty() -> restDayReason
+                cardioReason.isNotEmpty() -> cardioReason
                 durationReason.isNotEmpty() -> durationReason
                 else -> ""
             }
@@ -1301,7 +1514,15 @@ $qa
             // be accepted anyway.
             val validation = if (deterministicReason.isEmpty()) {
                 onProgress("Reviewing plan for quality…")
-                validateProgram(cleanJson, daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
+                // 4.1 / 3.3 (gen-eval 2026-08): review the LEAN re-serialization of the STRIPPED,
+                // sanitized plan — the exact rows that will be saved — instead of the model's raw
+                // cleanJson. Restores the "reviewed plan == saved plan" invariant for the LLM review
+                // (the deterministic gates already ran on the stripped rows) and stops paying review
+                // input tokens for P5 metadata the validator is told not to use.
+                validateProgram(
+                    buildProgramJsonForValidation(exercises, parseRationale(cleanJson)),
+                    daysPerWeek, sessionDurationMinutes, goal, experience, injuries, injurySeverity
+                )
             } else ValidationResult(accepted = false, reason = deterministicReason)
             // A plan is accepted only when every deterministic check AND the LLM review pass.
             if (deterministicReason.isEmpty() && validation.accepted) {
@@ -1309,6 +1530,11 @@ $qa
                     RejectionLog.Attempt(i + 1, r, false)
                 }
                 rejectionLog.addSession(logAttempts, succeeded = true)
+                // P5 (fixes S4): warn-only pull→hinge adjacency guard — logged for observability,
+                // never a rejection.
+                pullHingeAdjacencyWarning(exercises)?.let { warning ->
+                    promptLog.add("adjacency_warning", warning, "accepted plan (warn-only, P5)")
+                }
                 // B2: extract the model's own rationale from the SAME accepted response.
                 val rationale = parseRationale(cleanJson)
                 return@withGenerationDeadline GenerationResult(exercises, attempt, rejectionReasons.toList(), rationale)
@@ -1318,11 +1544,20 @@ $qa
             rejectionReasons.add(rejectionReason)
             onProgress("Attempt $attempt rejected: $rejectionReason")
             if (attempt == MAX_GENERATION_ATTEMPTS) {
-                return@withGenerationDeadline finalizeOrSalvage(rejectionReasons, salvageCandidate)
+                // Exhausted — fall through to finalizeOrSalvage OUTSIDE the deadline (2.1).
+                return@withGenerationDeadline null
             }
         }
-        throw IllegalStateException("Unexpected state")
-        } // withGenerationDeadline
+        null // unreachable (the MAX attempt always returns above); satisfies the expression type
+            }
+        } catch (e: IllegalStateException) {
+            // 2.1: a deadline expiry no longer aborts the whole flow — a viable salvage candidate is
+            // still trimmed + reviewed below. Any OTHER IllegalStateException propagates unchanged.
+            if (e.message != GENERATION_TIMEOUT_MESSAGE) throw e
+            timedOut = true
+            null
+        }
+        accepted ?: finalizeOrSalvage(rejectionReasons, salvageCandidate, timedOut)
     }.also {
         // P3: terminal outcome of a full program generation (success OR terminal failure after all
         // attempts/timeout) → a backgrounded-only system notification.
@@ -1347,7 +1582,7 @@ $qa
         daysPerWeek: Int
     ): Result<String> = runCatching {
         val sessions = workoutRepository.getRecentSessions(12)
-        val (history, _) = buildSessionHistory(sessions)
+        val history = buildSessionHistory(sessions).text
         val prompt = """
 You are the user's personal strength coach writing their WEEKLY check-in. You have looked at their actual logged training below. Write a short, warm, plain-language summary (about 4–7 sentences, no markdown, no bullet lists, no headings) of how their PAST WEEK of training went.
 
@@ -1398,7 +1633,7 @@ Respond with ONLY the summary text — no JSON, no markdown fences, no preamble 
         val sev = injurySeverity.ifBlank { "Moderate" }
         val injuryCheck = if (injuries.isNotBlank())
             "10. INJURY GATING (HARD — reject only real contraindications), severity = $sev for \"$injuries\". Judge against THIS severity:\n" +
-            "   • SEVERE → the aggravating category must be EXCLUDED outright. REJECT if any genuinely contraindicated movement is present, e.g. jogging / high-impact cardio or a loaded single-leg balance movement (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-up) for a bad ankle; deep loaded knee flexion or high-impact plyo for a bad knee; overhead or behind-neck pressing for a bad shoulder. Bilateral / low-impact substitutes only.\n" +
+            "   • SEVERE → the aggravating category must be EXCLUDED outright. REJECT if any genuinely contraindicated movement is present, e.g. high-impact/jumping work or a loaded single-leg balance movement (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-up) for a bad ankle; deep loaded knee flexion or high-impact plyo for a bad knee; overhead or behind-neck pressing for a bad shoulder. Bilateral / low-impact substitutes only.\n" +
             "   • MODERATE → the worst aggravators must be SUBSTITUTED with a safer same-muscle variant AND 1–2 rehab/prehab moves for the area should be present. REJECT if a clear aggravator is left in unmodified; do NOT reject a sensible substitution.\n" +
             "   • MILD → light touch. A MILD plan is NOT required to change exercise selection or add rehab unless the injury text names a clear aggravator. Do NOT reject a MILD plan for keeping normal training, for adding at most one optional prehab slot, OR for adding no rehab. Only reject if it leaves a CLEARLY contraindicated movement given a NAMED aggravator, or prescribes an obviously reckless load on the injured area.\n" +
             "   Apply the appropriate tier PER injury if several are listed with differing severity (the stated level is the overall/worst). ALWAYS reject INCOHERENT injury handling regardless of tier: a single-leg / rear-foot-elevated / Bulgarian split squat carrying \"both feet down\" / \"bilateral contact at all times\" cues is physically impossible — the fix is to SUBSTITUTE a genuinely bilateral movement (goblet/sumo squat, leg press, hand-supported split squat), not to keep the single-leg exercise with contradictory cues. Goal: reject real contraindications, do NOT over-reject appropriate light rehab or a light-touch MILD plan."
@@ -1422,15 +1657,15 @@ SOFT-BAND GUARD (read first): the rep/rest/volume numbers below are WIDE GUIDELI
 4. ROLE-BASED REP RANGES (HARD only if MONOTONE): reject a session that applies ONE identical rep range to every exercise (no primary→accessory→isolation spread). Otherwise the ranges are WIDE GUIDELINES per goal — reject only if the bias is clearly WRONG for the goal (e.g. a "strength" plan built entirely on 15-rep sets, or an "endurance" plan of heavy 3-rep singles). Do NOT reject for being inside a wider band:
    - Strength: heavy low-rep compounds (~1–6), accessories ~5–8, isolation ~8–12; LONG rests (up to ~300 s) are correct — never reject strength for rest >120 s.
    - Hypertrophy: compounds ~5–10, accessories ~8–15, isolation ~10–20(+); rest hypertrophy compounds up to ~240 s, isolation ~45–150 s. There is NO 120 s ceiling — do NOT reject for rest >120 s.
-   - Endurance: higher-rep (~12–30) / shorter rest (~15–90 s) + 2–3 cardio sessions.
-   - Weight Loss: ~10–20 reps, short rest (~45–90 s), density/circuits + ≥2 cardio sessions, plus enough resistance to preserve muscle.
+   - Endurance: higher-rep (~12–30) muscular-endurance resistance work / shorter rest (~30–90 s), circuit/superset structure. (This app prescribes NO cardio — never require or reward cardio sessions.)
+   - Weight Loss: ~10–20 reps, short rest (~45–90 s), density/circuit resistance work with enough straight-set work to preserve muscle. (NO cardio — never require or reward cardio sessions.)
 5. ORDER & HIERARCHY: Within each session, compounds appear before isolation for the same muscle group, and the session leads with a primary compound rather than a flat list of identical-volume exercises.
 6. EFFORT & PROGRESSION (HARD): Every exercise's notes must state a target effort (RIR or RPE) AND a progression rule. Reject if exercises only say "establish baseline" or carry no effort target.
 7. VOLUME (scaled to duration): Every major muscle group the plan targets is trained at least once (not zero). No single muscle is absurdly over-volumed in one session. Per-session and weekly volume should FIT the chosen session duration and goal — do NOT reject for a set count that is appropriate to a long session, and do NOT reject a short/low-frequency plan for having less volume than a long one. Reject only for junk-padded volume or a genuinely unbalanced brutal session.
-8. DE-DUPLICATION: No two near-identical movement patterns within one session (e.g. RDL + single-leg stiff-leg deadlift). No obvious structural errors (all-chest sessions, cardio the day before heavy legs).
+8. DE-DUPLICATION: No two near-identical movement patterns within one session (e.g. RDL + single-leg stiff-leg deadlift). No obvious structural errors (e.g. all-chest sessions, or a heavy deadlift day placed directly after a dedicated pulling/back day — a deadlift day counts as back for the consecutive-day rule).
 9. WEEKLY BALANCE (COVERAGE SCALES WITH days × duration): a full week with enough days/time should broadly cover push/pull/squat/hinge and include direct lateral + rear-delt and a knee-dominant quad movement, and not stack only posterior-chain hinges with no quad. But a SHORT or LOW-FREQUENCY week CANNOT fit every pattern — do NOT reject it for missing a pattern it has no room for; on few/short days, multi-pattern compounds are the correct choice. Reject only a clearly lopsided full-capacity week.
 $injuryCheck
-11. EXERCISE COUNT (HARD upper cap): Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session. COUNT ONLY resistance/strength exercises (roles: primary compound, accessory, isolation) toward this cap — do NOT count warm-up, mobility, conditioning/cardio, or rehab/prehab entries (a long session legitimately adds a duration-sized warm-up/conditioning block ON TOP of a full strength complement to reach its target). Fewer is fine (short sessions).
+11. EXERCISE COUNT (HARD upper cap): Beginner ≤5/session, Intermediate ≤7/session, Advanced ≤8/session. COUNT ONLY resistance/strength exercises (roles: primary compound, accessory, isolation) toward this cap — do NOT count warm-up, mobility, or rehab/prehab entries (a long session legitimately adds a warm-up block ON TOP of a full strength complement). Fewer is fine (short sessions).
 12. NOTES: Notes assert no incorrect mechanisms (e.g. "calf raises strengthen ankle stabilisers", "targets the inner chest"). Reject any use of "peak" as a NOUN for muscle shape ("bicep peak", "peak stretch", "increases bicep peak"). "Peak contraction" as a squeeze cue (hold the shortened position) is allowed.
 13. TIME BUDGET — DO NOT EVALUATE THIS. Per-day session length is ALREADY enforced by an authoritative deterministic check that has PASSED before this review runs, so every training day is guaranteed to be within the allowed ±10-min window. Do NOT estimate or calculate session duration, and NEVER reject on time-budget, session-length, "too long", "too short", or any duration grounds. Disregard session length entirely when deciding accepted true/false.
 
@@ -1458,8 +1693,28 @@ OR
         }
     }
 
-    private suspend fun buildSessionHistory(sessions: List<WorkoutSession>): Pair<String, Set<String>> {
-        if (sessions.isEmpty()) return Pair("No previous workout history — this is a new user.", emptySet())
+    /**
+     * Everything the generation paths derive from the recent-session window in ONE pass over the sets:
+     * the rendered history text, the recent-exercise names (blacklist input), and — added 2026-08 —
+     * the per-session primary-muscle summaries (P1 cross-week recovery block) and the loaded-history
+     * groups (P2 weight-sanity gate). One data class so no call site double-fetches sets.
+     */
+    private data class HistoryContext(
+        val text: String,
+        val recentExercises: Set<String>,
+        /** (session dateMs, primary muscle groups by working-set count) — most recent first. */
+        val recentSessionMuscles: List<Pair<Long, List<String>>>,
+        /** Broad muscle groups in which the user has logged at least one loaded (weight > 0) set. */
+        val loadedHistoryGroups: Set<String>,
+        /** True when ANY logged working set carries a weight > 0 (false for new/all-0 kg users). */
+        val hasAnyLoadedHistory: Boolean
+    )
+
+    private suspend fun buildSessionHistory(sessions: List<WorkoutSession>): HistoryContext {
+        if (sessions.isEmpty()) return HistoryContext(
+            "No previous workout history — this is a new user.",
+            emptySet(), emptyList(), emptySet(), false
+        )
         val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val twoWeeksAgo = System.currentTimeMillis() - 14L * 24 * 60 * 60 * 1000
 
@@ -1469,11 +1724,18 @@ OR
         // N4: per-lift labelled WORKING sets over the SAME session window as the trends block
         // (A-E2 — no new lookback). Warm-ups are already filtered out above this collection point.
         val effortSets = mutableMapOf<String, MutableList<com.migul.treningsprogram.domain.EffortTrend.LabelledSet>>()
+        // P1: per-session primary-muscle summary (ordered by working-set count). "Cardio" is excluded —
+        // a logged run needs no lifting recovery, and the block is a recovery constraint.
+        val sessionMuscles = mutableListOf<Pair<Long, List<String>>>()
+        // P2: broad groups with at least one loaded (weight > 0) working set anywhere in the window.
+        val loadedGroups = mutableSetOf<String>()
+        var anyLoaded = false
 
         val sessionDetails = buildString {
             sessions.forEach { session ->
                 val sets = workoutRepository.getSetsForSessionOnce(session.id).filter { !it.isWarmup }
                 appendLine("Session ${fmt.format(Date(com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs)))} (${session.durationMinutes} min):")
+                val groupSetCounts = mutableMapOf<String, Int>()
                 sets.groupBy { it.exerciseName }.forEach { (exercise, exerciseSets) ->
                     val detail = exerciseSets.joinToString(", ") { "${it.reps}×${it.weightKg}kg" }
                     appendLine("  $exercise: $detail")
@@ -1486,7 +1748,21 @@ OR
                         )
                     }
                     if (session.dateMs >= twoWeeksAgo) recentExercises.add(exercise)
+                    // P1/P2 collection: prefer the STORED muscleGroup (set-write-time resolution),
+                    // fall back to the name classifier for legacy rows.
+                    val group = exerciseSets.firstOrNull()?.muscleGroup?.ifBlank { null }
+                        ?: MuscleClassifier.fromName(exercise)
+                    if (group.isNotEmpty() && group != "Cardio") {
+                        groupSetCounts.merge(group, exerciseSets.size, Int::plus)
+                    }
+                    if (exerciseSets.any { it.weightKg > 0f }) {
+                        anyLoaded = true
+                        if (group.isNotEmpty()) loadedGroups.add(group)
+                    }
                 }
+                sessionMuscles.add(
+                    session.dateMs to groupSetCounts.entries.sortedByDescending { it.value }.map { it.key }
+                )
             }
         }
 
@@ -1535,7 +1811,13 @@ OR
         // the pre-N4 prompt, so users with old (label-free) data see zero change.
         val effortBlock = com.migul.treningsprogram.domain.EffortTrend.promptBlock(effortSets)
 
-        return Pair("$sessionDetails\n$trends$effortBlock$stallBlock", recentExercises)
+        return HistoryContext(
+            text = "$sessionDetails\n$trends$effortBlock$stallBlock",
+            recentExercises = recentExercises,
+            recentSessionMuscles = sessionMuscles,
+            loadedHistoryGroups = loadedGroups,
+            hasAnyLoadedHistory = anyLoaded
+        )
     }
 
     // H2: returns BOTH the rendered reference text AND the clean set of whole exercise names from the
@@ -1596,7 +1878,10 @@ OR
         manualRest: ManualRestTimes? = null,
         // R3: "Body weight: 78.4 kg — trending down ~0.6 kg over the last 4 weeks" or "" (no
         // data). Empty keeps the emitted prompt BYTE-IDENTICAL to the pre-R3 prompt.
-        bodyWeightLine: String = ""
+        bodyWeightLine: String = "",
+        // P1 (science review 2026-08): the CROSS-WEEK RECOVERY block ([buildCrossWeekRecoveryBlock]);
+        // "" for a new user keeps the prompt unchanged.
+        crossWeekRecoveryBlock: String = ""
     ): String {
         val goalLower = goal.lowercase()
         // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
@@ -1646,40 +1931,24 @@ OR
             "\n\nIMPORTANT: The user has a barbell but NO squat rack. Exercises requiring a rack (back squat, front squat, rack pull, box squat, overhead squat) are STRICTLY FORBIDDEN. Barbell exercises that don't need a rack (deadlift, row, bench press on floor/low bench, hip thrust, curl, overhead press from floor) are allowed."
         else ""
 
-        val cardioInstruction = if (separateCardioDays)
-            "Cardio must be on its OWN dedicated day — never combined with strength work."
-        else
-            "Cardio may follow an upper-body session. Never schedule it the day before or after heavy legs."
-
-        // Layer-2 (long-session fix 2026-07): LONG targets only. A sound strength/hypertrophy block tops
-        // out ~55–70 min under the app's soundness caps (≤ experience exercise cap, per-muscle ~8–10 hard
-        // sets, junk-volume rejection), so a long session that must land in [target−10, target+10] cannot be
-        // reached by lifting volume alone — it is built MULTI-MODAL (sound strength block + a DURATION-sized
-        // warm-up / conditioning finisher the deterministic estimator can time). Empty for short/mid
-        // sessions (< LONG_SESSION_THRESHOLD_MIN), so their prompt — including the verified-lean 50-min case
-        // — is byte-for-byte unchanged (the #1 regression guard).
-        //
-        // CRITICAL: the estimator only times an entry by its DURATION when MuscleClassifier maps the NAME to
-        // "Cardio" (bike/cycling, treadmill/walk, run/jog/sprint, jump rope, HIIT, burpee). "Rowing" maps to
-        // Back and "carries" to Core, so those are NOT timed by duration — they are explicitly excluded from
-        // the timed warm-up/conditioning entry below.
+        // Cardio removal (2026-08-03 product decision): generated plans are RESISTANCE-ONLY. The old
+        // separateCardioDays instruction and the multi-modal cardio-finisher long-session structure are
+        // gone; a LONG session is now reached with resistance-only levers (rest at the top of the goal
+        // band, fuller rep ranges, a structured warm-up block, a fuller exercise complement within the
+        // caps). Empty for short/mid sessions (< LONG_SESSION_THRESHOLD_MIN) so their prompt stays lean.
         val longSessionBlock = if (isLongSession(sessionDurationMinutes)) """
 ══════════════════════════════════════════
-LONG SESSION STRUCTURE (target $sessionDurationMinutes min ≥ $LONG_SESSION_THRESHOLD_MIN min — build the day MULTI-MODAL)
+LONG SESSION STRUCTURE (target $sessionDurationMinutes min ≥ $LONG_SESSION_THRESHOLD_MIN min — resistance-only, sized deliberately)
 ══════════════════════════════════════════
-A sound strength/hypertrophy block is bounded to roughly 55–70 min by the rules above (the experience exercise cap on strength slots, per-muscle ~8–10 hard sets, no junk volume). At this LONG target that block ALONE will NOT reach $sessionDurationMinutes min — and you must NOT pad it with junk lifting volume, a duplicated movement pattern, or an extra strength exercise beyond what the goal warrants just to hit the number. A real long session is MULTI-MODAL. Build EACH long training day in this order:
-1. Build the sound strength/hypertrophy work FIRST — obey every rule above (exercise cap on STRENGTH slots, per-muscle volume, goal rep/rest bands, history-anchored weights, recovery).
-2. THEN fill the remaining minutes with genuinely useful, NON-junk content:
-   • an easy WARM-UP block (about 5–15 min), and/or
-   • a CONDITIONING / cardio FINISHER sized by DURATION — this is the main long-session time filler.
-3. Size the warm-up + conditioning DURATION so YOUR OWN estimate of EVERY training day totals about ${durationAimMinutes(sessionDurationMinutes)} min — a few minutes ABOVE the ${sessionDurationMinutes + 10}-min ceiling, NOT the ${sessionDurationMinutes - 10}-min floor and NOT merely the centre. First estimate your strength block's minutes with the TIME BUDGET formula; then set the TOTAL conditioning + warm-up duration so the day totals ~${durationAimMinutes(sessionDurationMinutes)} min — i.e. conditioning ≈ ${durationAimMinutes(sessionDurationMinutes)} − (your strength block's minutes). ERR ON THE HIGH SIDE, never low: the app RE-COUNTS every day with the exact formula and its recount lands SEVERAL MINUTES BELOW your own sizing, so a day you size right at $sessionDurationMinutes recounts UNDER the ${sessionDurationMinutes - 10}-min floor and is rejected. A day that recounts a few minutes OVER is automatically trimmed back to fit, but a day that recounts UNDER the ${sessionDurationMinutes - 10}-min floor is REJECTED and wastes the ENTIRE week's plan — under-sizing the conditioning (or leaving one day lighter than the rest) is the #1 reason a long plan fails. Give EVERY day a consistently-sized finisher; do not leave any single day short.
-4. Long-session conditioning is LARGE BY DESIGN: a 30–60 min finisher (optionally split into a short warm-up + a longer finisher) is EXPECTED and is NOT junk — do NOT trim it down. The app times a cardio entry as its duration (targetReps) + ~60 s, so this adds clean minutes with ZERO junk lifting volume.
-   WORKED EXAMPLE for this $sessionDurationMinutes-min target: ~60 min of strength work leaves the rest to fill → e.g. a 10-min warm-up walk + a ${durationAimMinutes(sessionDurationMinutes) - 70}-min bike / easy-jog finisher sizes the day to about ${durationAimMinutes(sessionDurationMinutes)} min, which the app recounts down into the window. Scale the finisher up or down so YOUR day's total sizes to about ${durationAimMinutes(sessionDurationMinutes)} min.
-DURATION-TIMED ENTRIES — USE ONLY MODALITIES THE APP CAN TIME:
-- ALLOWED (the app counts these by their duration): stationary bike / cycling, incline treadmill walk / incline walk, easy jog / outdoor run / interval run / tempo run, jump rope, HIIT (bike- or run-based). For ANY lower-limb injury use LOW-IMPACT only (stationary bike, incline walk) — never jogging / high-impact.
-- Each such entry: sets=1, targetReps = the DURATION or distance ONLY (e.g. "30 min", "5 km"), targetWeightKg=0, recommendedRestSeconds=60, role="cardio" (or "warmup" for the warm-up).
-- DO NOT use rowing, farmer's carries, sled pushes, or the elliptical as the duration-timed warm-up/conditioning entry — the app classifies those as strength/core and will NOT count them by duration, so the day would silently fall under the time budget. (They are fine as ordinary strength accessories inside the strength block, just never as the timed conditioning entry.)
-COUNTING: the warm-up and conditioning/cardio entries do NOT count toward the strength exercise cap (they are not strength volume) — a long day may carry a FULL strength complement PLUS these. Keep the strength portion within its normal cap and per-muscle volume; only the conditioning DURATION grows to reach the long target. This warm-up + conditioning is the session's OWN component (part of this workout) — include it on the training day even if cardio is otherwise kept to separate days.
+This is a LONG session and the plan is RESISTANCE-ONLY (see NO CARDIO — conditioning/cardio entries are forbidden). Reaching $sessionDurationMinutes min without junk volume takes DELIBERATE sizing. Build EACH long training day in this order:
+1. Build the sound strength work FIRST — obey every rule above (exercise cap on strength slots, per-muscle volume, goal rep/rest bands, history-anchored weights, recovery).
+2. THEN size the day UP to the target with these levers IN ORDER:
+   • REST at the TOP of THIS goal's band on the primary compounds — on a long day, long rests between heavy sets are correct training, not padding (strength up to ~300 s; hypertrophy compounds up to ~240 s).
+   • Reps toward the TOP of each exercise's role range.
+   • A structured WARM-UP block (about 5–15 min): ramp/mobility entries written as ordinary strength-shape entries (sets × reps, light or bodyweight, role "warmup") — these do NOT count toward the strength exercise cap.
+   • A fuller exercise complement toward the experience cap, and sets at the top of the guideline — ONLY while every per-muscle volume cap still holds.
+3. Do NOT pad with junk volume, a duplicated movement pattern, or a cardio/conditioning entry. If the target genuinely cannot be reached inside the volume caps and rest bands, prefer the top of every band over breaking a cap.
+4. Size EVERY day with the TIME BUDGET formula so YOUR OWN estimate totals about ${durationAimMinutes(sessionDurationMinutes)} min — a few minutes ABOVE the target, never the ${sessionDurationMinutes - 10}-min floor. The app RE-COUNTS each day and its recount lands LOWER than your sizing; a day that recounts a few minutes OVER is automatically trimmed back, but a day UNDER the ${sessionDurationMinutes - 10}-min floor is REJECTED and wastes the ENTIRE plan. Give EVERY day the same deliberate sizing; do not leave any single day short.
 """ else ""
 
         val rejectionBlock = if (previousRejectionReason.isNotBlank()) """
@@ -1759,29 +2028,29 @@ Reported injuries/limitations: "$injuries". This drives exercise SELECTION (not 
 ${when (sev) {
     "Severe" -> """
 SEVERE → EXCLUDE the aggravating category ENTIRELY (do not merely substitute — leave it out):
-- Bad ankle ⇒ NO jogging / high-impact cardio (use stationary bike, rowing, incline walk) AND NO loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups). Use BILATERAL substitutes only (goblet/sumo squat, leg press, hand-supported split squat).
+- Bad ankle ⇒ NO high-impact / jumping / plyometric work AND NO loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups). Use BILATERAL substitutes only (goblet/sumo squat, leg press, hand-supported split squat).
 - Bad knee ⇒ NO deep loaded knee flexion and NO high-impact plyo; substitute leg press at partial ROM and box squat to a comfortable depth.
 - Bad shoulder ⇒ NO overhead pressing and NO behind-neck work; substitute landmine press, incline press, neutral-grip variants."""
     "Mild" -> """
 MILD → light touch only. Add at most ONE optional prehab slot for the WHOLE WEEK (not a rehab slot every session) plus a brief note. Do NOT force a per-session exercise-selection change UNLESS the injury text names a clear aggravator — if it does, train around that specific aggravator. Otherwise keep the normal plan:
-- Bad ankle ⇒ keep bilateral work primary; prefer low-impact cardio (bike, row, incline walk) over jogging; ONE optional light calf/ankle stability slot for the week is enough.
+- Bad ankle ⇒ keep bilateral work primary; avoid high-impact/jumping movements; ONE optional light calf/ankle stability slot for the week is enough.
 - Bad knee ⇒ keep knee-friendly ROM; ONE optional light controlled-leg / terminal-knee-extension slot for the week is enough.
 - Bad shoulder ⇒ keep pressing in pain-free ranges; ONE optional light external-rotation / scapular slot for the week is enough. Do NOT stack rehab into every session or exclude the area's normal training."""
     else -> """
 MODERATE → SUBSTITUTE the safer same-muscle variant for the worst aggravators, AND include 1–2 rehab/prehab moves for the area:
-- Bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups); prefer low-impact cardio over jogging.
+- Bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian / rear-foot-elevated split squat, single-leg RDL, step-ups); avoid high-impact/jumping movements.
 - Bad knee ⇒ substitute leg press / box squat to comfortable depth for deep loaded knee flexion; avoid high-impact plyo.
 - Bad shoulder ⇒ substitute landmine / incline / neutral-grip pressing for overhead and behind-neck work.
 Include light rehab/prehab for the injured area, staged as progression."""
 }}
-CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilateral where bilateral is intended — a rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION, so NEVER keep it and append "both feet down" / "bilateral contact at all times" cues (physically incoherent); if a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) staged as light rehab. Always prefer low-impact cardio (bike, row, incline walk) over jogging for any lower-limb injury.
+CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilateral where bilateral is intended — a rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION, so NEVER keep it and append "both feet down" / "bilateral contact at all times" cues (physically incoherent); if a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) staged as light rehab.
 """ else ""
 
         return """
 You are an expert strength & conditioning coach. Design a $daysPerWeek-day weekly training program tailored to the user below.
 
 CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic — weekday placement may shift week to week as long as the recovery rules hold. A good coach KEEPS the main/anchor lifts stable and progressively overloads them from the logged history, and finds variety in accessories, grip/angle, order, and theme — NOT by swapping the trackable main lifts out every week.
-$safetyBlock$injuryHardBlock$restDayBlock$lockedDaysBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock
+$safetyBlock$injuryHardBlock$restDayBlock$lockedDaysBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock$crossWeekRecoveryBlock
 ══════════════════════════════════════════
 WORKOUT HISTORY
 ══════════════════════════════════════════
@@ -1829,19 +2098,18 @@ Goal: HYPERTROPHY — maximise muscle growth across a broad load spectrum.
 - Progression: double progression — add reps toward the top of the range across all sets, then +load and reset to the bottom.""".trimIndent()
 
     goalLower.contains("endurance") -> """
-Goal: ENDURANCE — muscular and cardiovascular conditioning. This is CONDITIONING-LED, not mislabeled hypertrophy.
-- Rep ranges by role: compounds 12–20 (barbell hinges still ≤8) / isolation 15–30 or time-based holds. Light loads, 2–3 sets.
-- Rest: SHORT — 15–90 s (circuit/superset pacing).
-- Cardio is the PRIORITY: include 2–3 dedicated cardio sessions per week; circuits, supersets, bodyweight work welcome.
-- Weekly resistance volume per muscle: LOWER (6–12 hard sets) — cardio takes the majority of the week.
-- Progression: add reps/rounds/duration before load.""".trimIndent()
+Goal: ENDURANCE — MUSCULAR ENDURANCE through resistance training (this app prescribes NO cardio — see NO CARDIO below). Not mislabeled hypertrophy: light loads, high reps, short rests, circuit flavour.
+- Rep ranges by role: compounds 12–20 (barbell hinges still ≤8 — route high-rep posterior-chain work to the exempt hip-extension list) / isolation 15–30 or time-based holds (planks, wall sits, carries). Light loads, 2–4 sets.
+- Rest: SHORT — 30–90 s (circuit/superset pacing; up to ~120 s between full circuit rounds).
+- Structure: circuits/supersets of non-competing movement patterns; bodyweight and time-under-tension work welcome.
+- Weekly resistance volume per muscle: 6–14 hard sets — endurance quality comes from density and rep ranges, not from stacking sets.
+- Progression: add reps/rounds/hold time before load.""".trimIndent()
 
     goalLower.contains("weight") || goalLower.contains("loss") -> """
-Goal: WEIGHT LOSS — calorie expenditure + muscle retention. NOT a relabeled hypertrophy plan.
-- Structure: density work / circuits / supersets of non-competing muscle groups + cardio for calorie burn, PLUS enough straight-set resistance work to PRESERVE muscle.
+Goal: WEIGHT LOSS — calorie expenditure + muscle retention through resistance training ONLY (this app prescribes NO cardio — see NO CARDIO below). NOT a relabeled hypertrophy plan.
+- Structure: DENSITY work — circuits / supersets of non-competing muscle groups for high energy cost, PLUS enough straight-set resistance work to PRESERVE muscle.
 - Rep ranges: 10–20 reps (barbell hinges ≤8). Rest: SHORT — 45–90 s (keep heart rate elevated).
-- Prioritise compound multi-joint movements (highest burn + retention).
-- Include ≥2 cardio sessions per week — mix HIIT and steady-state; prefer injury-safe low-impact options where needed.
+- Prioritise compound multi-joint movements (highest energy cost + retention).
 - Effort: ~1–2 RIR. Progression: add reps/density, then load. Avoid extremely heavy low-rep work.""".trimIndent()
 
     else -> """
@@ -1861,8 +2129,9 @@ Organise $daysPerWeek days to distribute muscle group stimulus optimally for the
 - FREQUENCY: train a muscle ~2×/week WHERE the training-day count allows it — do NOT force 2×/week on a low day count; on few days, prioritise the biggest compounds.
 - Never train the same primary muscle group on consecutive days.
 - Heavy leg sessions (squat, deadlift) need at least ~48 h before the next heavy leg session. A LIGHT second hinge in the week (e.g. an RDL a few days after a deadlift) is fine — only a second HEAVY/near-max barbell hinge is limited.
+- A heavy deadlift / barbell-hinge day counts as BACK (lats, spinal erectors, grip) for the consecutive-day rule — do NOT place it the day immediately after (or before) a dedicated pulling/back day.
 - WEEKLY PATTERN BALANCE (scaled to days×duration): across the week aim to include horizontal + vertical push, horizontal + vertical pull, a knee-dominant (squat/quad) and a hip-dominant (hinge) lower movement, and direct lateral-delt + rear-delt work. Do not stack only posterior-chain hinges with NO knee-dominant quad movement.
-- $cardioInstruction (Cardio matters most for weight-loss and endurance; it is largely irrelevant for a pure strength or hypertrophy block — do not add junk cardio to those.${if (isLongSession(sessionDurationMinutes)) " EXCEPTION: a LONG session — see LONG SESSION STRUCTURE below — uses a duration-sized warm-up/conditioning finisher as the sound way to reach a target that strength volume alone cannot fill; that is NOT junk cardio." else ""})
+- NO CARDIO: this app's generated plans are RESISTANCE-ONLY — never schedule a cardio/conditioning entry or a "cardio day" for ANY goal (the user does any cardio outside the plan; see NO CARDIO below).
 - Weekday placement may shift week to week as long as the recovery rules hold; space the days evenly where possible.
 $splitBlock$previousPlanBlock
 
@@ -1870,8 +2139,7 @@ $splitBlock$previousPlanBlock
 TIME BUDGET (applies PER training day — DERIVED FROM THE SESSION DURATION, STRICT both directions)
 ══════════════════════════════════════════
 The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — target $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. This applies across the FULL range the user might pick (20–120 min): a SHORT session must be lean with NO junk padding, and a LONG session must actually REACH its target. Volume, rest, exercise count, and per-day time are DERIVED from goal × experience × days/week × THIS session duration — there is NO fixed set count, NO fixed minute target, and NO blanket rest ceiling driving the size. A day UNDER ${sessionDurationMinutes - 10} min is rejected just as hard as one OVER ${sessionDurationMinutes + 10} min. Self-size EVERY day using this EXACT estimate (it is the formula the app enforces — match it, do not approximate):
-- Per strength exercise ≈ sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N. (4 s/rep reflects a realistic controlled tempo.)
-- Per cardio exercise ≈ its duration (the targetReps minutes/distance) + ~60 s.
+- Per exercise ≈ sets × reps × ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N. (${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s/rep reflects a realistic controlled tempo.)
 - A day's estimate = the sum of its exercises.
 ${if (manualRest != null) """
 THE USER TAKES FIXED REST TIMES — CRITICAL FOR THE FORMULA ABOVE: this user overrides rest with their own timer settings, so in the formula "rest seconds" is ALWAYS ${manualRest.heavyCompoundSeconds} s for a HEAVY COMPOUND strength exercise (any squat / deadlift / RDL / bench / press / row / lunge / hip-thrust / clean / snatch / good-morning / pull-up / chin-up / dip type lift — NOT pallof press, calf work, pressdowns, wrist work, or the rowing/erg machine) and ${manualRest.accessorySeconds} s for EVERY OTHER strength exercise. Your recommendedRestSeconds values are still recorded as suggestions but DO NOT affect the enforced duration math — REST IS NOT A TIME LEVER for you; size every day with reps, sets, and exercise count instead.
@@ -1888,7 +2156,7 @@ ${if (manualRest == null) """  1. Raise inter-set rest toward this goal's band M
   4. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume).""" else """  1. RAISE reps toward the TOP of each exercise's role range.
   2. ADD 1 set to an accessory/isolation exercise.
   3. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume)."""}
-OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory${if (manualRest == null) ", reduce sets, or shorten rest" else " or reduce sets (rest is fixed)"} until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, add a USEFUL warm-up / duration-sized conditioning finisher (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the ${sessionDurationMinutes - 10}-min low edge — the app recounts each day LOWER than you size it, so a low-edge day tips back under the floor. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
+OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory${if (manualRest == null) ", reduce sets, or shorten rest" else " or reduce sets (rest is fixed)"} until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, use rest at the top of the goal band and a structured warm-up block (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the ${sessionDurationMinutes - 10}-min low edge — the app recounts each day LOWER than you size it, so a low-edge day tips back under the floor. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
 $longSessionBlock
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -1897,7 +2165,7 @@ SESSION DESIGN RULES
 - DE-DUPLICATE movement patterns: no two near-identical patterns in one session (e.g. do not pair RDL with single-leg stiff-leg deadlift, or barbell bench with dumbbell bench as two separate slots).
 - Order: compound exercises before isolation for the same muscle group.
 - Start each session with the most demanding movement.
-- Exercise count per session (scaled to duration; upper cap is hard): Beginner 3–5, Intermediate 4–7, Advanced 4–8. Short sessions sit at the LOW end, long sessions toward the HIGH end. This cap counts STRENGTH/RESISTANCE exercises ONLY (roles: primary compound, accessory, isolation). Warm-up, mobility, conditioning/cardio, and rehab/prehab entries do NOT count toward it — a long session may carry a full strength complement PLUS a warm-up/conditioning block on top${if (isLongSession(sessionDurationMinutes)) " (see LONG SESSION STRUCTURE below)" else ""}. Short/mid sessions normally carry no such extra entries, so their count is unchanged.
+- Exercise count per session (scaled to duration; upper cap is hard): Beginner 3–5, Intermediate 4–7, Advanced 4–8. Short sessions sit at the LOW end, long sessions toward the HIGH end. This cap counts STRENGTH/RESISTANCE exercises ONLY (roles: primary compound, accessory, isolation). Warm-up, mobility, and rehab/prehab entries do NOT count toward it — a long session may carry a full strength complement PLUS a warm-up block on top${if (isLongSession(sessionDurationMinutes)) " (see LONG SESSION STRUCTURE below)" else ""}. Short/mid sessions normally carry no such extra entries, so their count is unchanged.
 - Sets per exercise (guideline): Beginner 1–3, Intermediate 2–4, Advanced 2–5.
 ${when {
     experience.lowercase().contains("beginner") -> "- Stick to fundamental, easy-to-learn movements. Avoid complex or high-skill exercises."
@@ -1906,7 +2174,7 @@ ${when {
 }}
 ${if (injuries.isNotBlank()) """
 - INJURY GATING (severity: $sev for "$injuries"): apply the INJURY HARD-CONSTRAINTS block above. At SEVERE, EXCLUDE the aggravating category outright; at MODERATE, REPLACE the worst aggravators with safer same-muscle variants AND include 1–2 rehab/prehab moves. At MILD, do NOT force a per-session selection change unless the text names a clear aggravator — just add at most ONE optional prehab slot for the WEEK plus a note.
-  • e.g. ankle instability (MODERATE/SEVERE) → down-rank/exclude loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups). When you down-rank these, SUBSTITUTE a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) — do NOT keep the single-leg exercise and bolt on contradictory cues. A rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION; NEVER append "both feet down" / "bilateral contact at all times" to it (physically incoherent). If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench). For cardio prefer low-impact (bike, row, incline walk) over jogging.
+  • e.g. ankle instability (MODERATE/SEVERE) → down-rank/exclude loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups). When you down-rank these, SUBSTITUTE a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) — do NOT keep the single-leg exercise and bolt on contradictory cues. A rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION; NEVER append "both feet down" / "bilateral contact at all times" to it (physically incoherent). If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench).
 - Rehab/prehab (REQUIRED only at MODERATE/SEVERE): 1–2 low-load moves for the injured area, staged as light progression — NOT counted as primary strength/hypertrophy volume.""" else ""}
 ${if (priorityMuscles.isNotBlank()) """
 - Priority muscles ($priorityMuscles): allocate at least 2 extra sets compared to non-priority groups. Train them twice per week.""" else ""}
@@ -1927,10 +2195,9 @@ Increment rules against the logged base:
 - Regressing: reduce weight 5–10% and note "deload — rebuild form".
 
 ══════════════════════════════════════════
-CARDIO
+NO CARDIO — HARD RULE (resistance training only)
 ══════════════════════════════════════════
-For cardio exercises, use these name conventions so the app can identify them: Easy Jog, Outdoor Run, Tempo Run, Interval Run.
-Cardio JSON fields: sets=1, targetReps = duration or distance only (e.g. "30 min", "5 km", "6×400m"), targetWeightKg=0, recommendedRestSeconds=60.
+This app's generated plans contain RESISTANCE TRAINING ONLY. Do NOT prescribe any cardio or conditioning entry — no running, jogging, sprints, cycling/bike, treadmill or incline walks, jump rope, HIIT, burpees, mountain climbers, "finishers", or timed conditioning of any kind, for ANY goal. The app deterministically REJECTS a plan containing a cardio entry. The user does any cardio on their own, outside this plan. Every entry must be a strength/resistance exercise (or a warm-up/mobility/rehab entry) written as sets × reps.
 
 ══════════════════════════════════════════
 NOTES FIELD — ONE short clause per exercise
@@ -1956,7 +2223,7 @@ OUTPUT — valid JSON only, no prose, no markdown fences
 ══════════════════════════════════════════
 Output ONLY the JSON object — nothing before it, nothing after it. Your VERY FIRST output character MUST be the opening "{" and the VERY LAST MUST be its closing "}". Do NOT write any visible planning preamble, step-by-step reasoning, per-day time-budget arithmetic, set-by-set or recently-used cross-checking, or self-check narration before, around, or after the JSON. Do NOT open with lines like "I'll plan silently" or "Let me compute the days" — just emit the JSON. Apply every rule above internally as you build the plan; the ONLY place any prose belongs is the short "rationale" field. Narrating your planning burns the output budget and makes the response run out of room before the JSON closes — a truncated, unclosed JSON object cannot be used.
 Include a top-level "rationale" string (sibling of "days"): AT MOST 2 short sentences — plain-language note on WHAT changed vs the user's recent training / last week and WHY, referencing ACTUAL exercises (e.g. "Kept your barbell bench and squat and progressed the loads, swapped the accessory rows for a different grip, and added a hamstring isolation for your lagging posterior chain."). Speak directly to the user, no jargon, no essay. New user with no history: one short sentence on how the plan fits their goal.
-ALSO declare AUDITABLE METADATA so the numbers are checkable. Keep every metadata field TERSE (short scalars / short strings / short arrays — no prose): they exist so the plan declares its own numbers, NOT so you narrate. Per exercise add: role ("primary compound"|"accessory"|"isolation"|"cardio"|"warmup"|"mobility"|"rehab"), movementPattern (e.g. "horizontal push"), primaryMuscles (array), secondaryMuscles (array), countsAsHardSets (int), workSeconds (int), restSeconds (int, = recommendedRestSeconds), setupSeconds (int, ~60), estimatedMinutes (number, = the TIME BUDGET formula for this exercise), injuryModification (short string, "" if none). Per day add: dayEstimateMinutes (number), withinDurationWindow (bool). Add a top-level "week" object: weeklyVolumeSummary (object of muscle→hard sets), movementPatternSummary (array of patterns covered), durationSummary (short string), blockState ("continue"|"new"), constraintNotes (short string). These declared numbers are auditable — the app STILL enforces duration with its own deterministic estimate, so the declared minutes must MATCH the formula, not replace it.
+ALSO declare AUDITABLE METADATA so the numbers are checkable. Keep every metadata field TERSE (short scalars / short strings / short arrays — no prose): they exist so the plan declares its own numbers, NOT so you narrate. Per exercise add: role ("primary compound"|"accessory"|"isolation"|"warmup"|"mobility"|"rehab"), movementPattern (e.g. "horizontal push"), primaryMuscles (array), secondaryMuscles (array), countsAsHardSets (int), workSeconds (int), restSeconds (int, = recommendedRestSeconds), setupSeconds (int, ~60), estimatedMinutes (number, = the TIME BUDGET formula for this exercise), injuryModification (short string, "" if none). Per day add: dayEstimateMinutes (number), withinDurationWindow (bool). Add a top-level "week" object: weeklyVolumeSummary (object of muscle→hard sets), movementPatternSummary (array of patterns covered), durationSummary (short string), blockState ("continue"|"new"), constraintNotes (short string). These declared numbers are auditable — the app STILL enforces duration with its own deterministic estimate, so the declared minutes must MATCH the formula, not replace it.
 {
   "rationale": "Short plain-language explanation of what changed in this plan and why.",
   "days": [
@@ -2071,9 +2338,9 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         muscleFocus: String = "",
         onProgress: (String) -> Unit = {}
     ): Result<List<PlannedExercise>> = runCatching {
-        // P4: bound the whole single-day flow with the same overall deadline as the weekly path so it
-        // always reaches a terminal outcome (never a frozen progress line).
-        withGenerationDeadline {
+        // 2.1 parity with the weekly path: setup (DB reads + prompt assembly) runs OUTSIDE the
+        // deadline; only the network-bound attempt ladder is deadline-bounded, and a deadline expiry
+        // falls through to the salvage handler instead of discarding a viable candidate.
         val weekStart = thisMonday()
         // Item 4: same manual rest-time awareness as the weekly path (prompt + gate + salvage trim).
         val manualRest = preferencesManager.manualRestTimes
@@ -2086,7 +2353,9 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         // progressed. (Bug fix: the old single-day prompt sent NO history and the return-shape example
         // hard-coded targetWeightKg:0, so the model echoed 0 for every exercise → all-bodyweight.)
         val sessions = workoutRepository.getRecentSessions(12)
-        val (history, recentExercises) = buildSessionHistory(sessions)
+        val historyCtx = buildSessionHistory(sessions)
+        val history = historyCtx.text
+        val recentExercises = historyCtx.recentExercises
         // R3: weekly-parity body-weight context ("" with no data → prompt unchanged).
         val bodyWeightLine = com.migul.treningsprogram.domain.WeightTrend
             .promptLine(bodyMeasurementDao.getAllOnce())
@@ -2135,7 +2404,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("EXPERIENCE: $experience")
             if (bodyWeightLine.isNotBlank()) appendLine(bodyWeightLine.replaceFirst("Body weight:", "BODY WEIGHT:"))
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per strength exercise: sets × reps × 4 s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; 4 s/rep = realistic controlled tempo); per cardio exercise: its duration + ~60 s. " +
+            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per exercise: sets × reps × ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s/rep = realistic controlled tempo). " +
                 (if (manualRest == null)
                     "REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward THIS goal's band max (strength up to ~300 s, hypertrophy compounds up to ~240 s, endurance/weight-loss stay short), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. "
                 else
@@ -2163,13 +2432,13 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 appendLine("INJURIES AND LIMITATIONS — severity: $sev (HARD CONSTRAINTS — change SELECTION, not just notes) for: $injuries")
                 when (sev) {
                     "Severe" -> {
-                        appendLine("- SEVERE → EXCLUDE the aggravating category ENTIRELY (do not merely substitute): bad ankle ⇒ NO jogging/high-impact cardio (use bike, rowing, incline walk) AND NO loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups) — bilateral substitutes only (goblet/sumo squat, leg press, hand-supported split squat); bad knee ⇒ NO deep loaded knee flexion / high-impact plyo (sub leg press partial ROM, box squat to comfortable depth); bad shoulder ⇒ NO overhead/behind-neck pressing (sub landmine/incline press, neutral-grip).")
+                        appendLine("- SEVERE → EXCLUDE the aggravating category ENTIRELY (do not merely substitute): bad ankle ⇒ NO high-impact/jumping work AND NO loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups) — bilateral substitutes only (goblet/sumo squat, leg press, hand-supported split squat); bad knee ⇒ NO deep loaded knee flexion / high-impact plyo (sub leg press partial ROM, box squat to comfortable depth); bad shoulder ⇒ NO overhead/behind-neck pressing (sub landmine/incline press, neutral-grip).")
                     }
                     "Mild" -> {
-                        appendLine("- MILD → you MAY train AROUND the worst aggravators, but you MUST still include light rehabilitation/strengthening on the injured area, staged as progression (do NOT omit the area). Keep bilateral/pain-free work primary; prefer low-impact cardio over jogging for any lower-limb injury.")
+                        appendLine("- MILD → you MAY train AROUND the worst aggravators, but you MUST still include light rehabilitation/strengthening on the injured area, staged as progression (do NOT omit the area). Keep bilateral/pain-free work primary.")
                     }
                     else -> {
-                        appendLine("- MODERATE → SUBSTITUTE the safer same-muscle variant for the worst aggravators AND include 1–2 rehab/prehab moves: bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups); bad knee ⇒ sub leg press/box squat to comfortable depth for deep loaded knee flexion; bad shoulder ⇒ sub landmine/incline/neutral-grip for overhead/behind-neck pressing. Prefer low-impact cardio over jogging.")
+                        appendLine("- MODERATE → SUBSTITUTE the safer same-muscle variant for the worst aggravators AND include 1–2 rehab/prehab moves: bad ankle ⇒ substitute a genuinely BILATERAL movement (goblet/sumo squat, leg press, hand-supported split squat) for loaded single-leg balance work (Bulgarian/rear-foot-elevated split squat, single-leg RDL, step-ups); bad knee ⇒ sub leg press/box squat to comfortable depth for deep loaded knee flexion; bad shoulder ⇒ sub landmine/incline/neutral-grip for overhead/behind-neck pressing.")
                     }
                 }
                 appendLine("- ALWAYS (every tier): a rear-foot-elevated / Bulgarian split squat is single-leg BY DEFINITION — never keep it and append \"both feet down\" / \"bilateral contact at all times\" cues (physically incoherent); SUBSTITUTE a genuinely bilateral movement instead. If a single-leg movement is genuinely wanted, allow FIXED external support (hand on wall/bench) staged as light rehab.")
@@ -2209,7 +2478,8 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("- No duplicate movement patterns in the session (e.g. don't pair RDL with single-leg stiff-leg deadlift)")
             appendLine("- Start with compound movements, finish with isolation")
             appendLine("- Check the rest of week context and avoid muscle group conflicts on adjacent days")
-            appendLine("- Set/rep targets must match the role-based rep ranges above; cap any single muscle at ~10 hard sets, and keep total working sets for the session ≤ ~18–20 (cardio/prehab excluded)")
+            appendLine("- NO CARDIO — HARD RULE: this app's generated plans are RESISTANCE-ONLY. Never include a cardio/conditioning entry (no running, jogging, bike, treadmill/incline walk, jump rope, HIIT, burpees, mountain climbers, finishers, or timed conditioning); the app deterministically rejects a day containing one. Every entry is a strength/resistance exercise written as sets × reps.")
+            appendLine("- Set/rep targets must match the role-based rep ranges above; cap any single muscle at ~10 hard sets, and keep total working sets for the session ≤ ~18–20 (warm-up/prehab excluded)")
             appendLine("- Every exercise's notes MUST include a target effort (RIR/RPE) AND a progression rule (default: double progression). Notes may use common exercise names but must not assert incorrect mechanisms, and must NOT use \"peak\" as a noun for muscle shape (\"bicep peak\", \"peak stretch\"); \"peak contraction\" as a squeeze cue is allowed.")
             appendLine()
             append("Return ONLY valid JSON, no prose, no markdown fences (use REAL history-based weights, not the example's number):")
@@ -2221,13 +2491,18 @@ Rebalance the remaining days against this already-trained work: manage recovery 
         // Phase-2 SALVAGE parity: best OVER-only duration-rejected candidate (smallest overshoot).
         var salvageCandidate: SalvageCandidate? = null
 
-        // Terminal handler: after every attempt failed, attempt the same deterministic auto-trim the
-        // weekly path uses on the best OVER-only candidate (strict gate untouched — trim is layered
-        // strictly after it), then peer-review the trimmed day in full-week context; else throw.
-        suspend fun finalizeSingleDay(): List<PlannedExercise> {
+        // Terminal handler: after every attempt failed OR (2.1) the deadline expired, attempt the same
+        // deterministic auto-trim the weekly path uses on the best OVER-only candidate (strict gate
+        // untouched — trim is layered strictly after it, with the P6 goal-aware rest floor), then
+        // peer-review the trimmed day in full-week context; else throw. Runs OUTSIDE the deadline —
+        // the trim is pure and validateProgram is callTimeout-bounded + fail-open, so still terminal.
+        suspend fun finalizeSingleDay(timedOut: Boolean): List<PlannedExercise> {
             val candidate = salvageCandidate
             if (candidate != null) {
-                val trimmed = trimOverflowToWindow(candidate.exercises, sessionDurationMinutes, emptySet(), manualRest)
+                val trimmed = trimOverflowToWindow(
+                    candidate.exercises, sessionDurationMinutes, emptySet(), manualRest,
+                    salvageRestFloorSeconds(goal)
+                )
                 if (trimmed != null) {
                     onProgress("Trimming $dayName to fit your $sessionDurationMinutes-min target…")
                     val fullWeekJson = buildProgramJsonForValidation(otherDays + trimmed, candidate.rationale)
@@ -2250,10 +2525,16 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 rejectionReasons.mapIndexed { i, r -> RejectionLog.Attempt(i + 1, r, i == rejectionReasons.lastIndex) },
                 succeeded = false
             )
+            if (timedOut) throw IllegalStateException(GENERATION_TIMEOUT_MESSAGE)
             val reasons = rejectionReasons.mapIndexed { i, r -> "Attempt ${i + 1}: $r" }.joinToString("\n")
             throw IllegalStateException("Couldn't generate $dayName after $MAX_GENERATION_ATTEMPTS attempts.\n$reasons")
         }
 
+        // P4/H1: the network-bound attempt ladder runs under the overall deadline; 2.1: expiry falls
+        // through to finalizeSingleDay below instead of discarding a viable salvage candidate.
+        var timedOut = false
+        val accepted: List<PlannedExercise>? = try {
+            withGenerationDeadline {
         for (attempt in 1..MAX_GENERATION_ATTEMPTS) {
             if (attempt == 1) onProgress("Generating $dayName exercises…")
             else onProgress("Attempt $attempt of $MAX_GENERATION_ATTEMPTS: refining $dayName…")
@@ -2293,9 +2574,13 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 }
                 rejectionReasons.add(reason)
                 onProgress("Attempt $attempt rejected: $reason")
-                if (attempt == MAX_GENERATION_ATTEMPTS) return@withGenerationDeadline finalizeSingleDay()
+                if (attempt == MAX_GENERATION_ATTEMPTS) return@withGenerationDeadline null
                 continue
             }
+
+            // NO-CARDIO check (HARD — 2026-08 product decision): resistance-only generated plans,
+            // same deterministic guarantee as the weekly path.
+            val cardioReason = cardioEntriesViolation(exercises) ?: ""
 
             // Strict ±10-min per-day duration gate (same formula/window as the weekly path).
             // Item 4: in manual mode the estimate counts the USER's category rest times.
@@ -2304,7 +2589,7 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 dayDurationFeedback(dayOfWeek, est, sessionDurationMinutes, restIsLever = manualRest == null) ?: ""
 
             // Salvage candidate: an OVER-only duration miss (est > high) that is otherwise valid.
-            if (durationReason.isNotEmpty() && est > sessionDurationMinutes + 10) {
+            if (cardioReason.isEmpty() && durationReason.isNotEmpty() && est > sessionDurationMinutes + 10) {
                 val overshoot = est - (sessionDurationMinutes + 10)
                 val best = salvageCandidate
                 if (best == null || overshoot < best.totalOvershoot) {
@@ -2312,14 +2597,16 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 }
             }
 
-            // Peer review in FULL-WEEK context (skip the costly LLM call when the gate already failed).
-            val validation = if (durationReason.isEmpty()) {
+            // Deterministic rejections first (cardio outranks duration — a cardio entry also corrupts
+            // the duration estimate); peer review in FULL-WEEK context only when both pass.
+            val deterministicReason = cardioReason.ifEmpty { durationReason }
+            val validation = if (deterministicReason.isEmpty()) {
                 onProgress("Reviewing $dayName for quality…")
                 val fullWeekJson = buildProgramJsonForValidation(otherDays + exercises, parseRationale(cleanJson))
                 validateProgram(fullWeekJson, resultingDayCount, sessionDurationMinutes, goal, experience, injuries, injurySeverity)
-            } else ValidationResult(accepted = false, reason = durationReason)
+            } else ValidationResult(accepted = false, reason = deterministicReason)
 
-            if (durationReason.isEmpty() && validation.accepted) {
+            if (deterministicReason.isEmpty() && validation.accepted) {
                 rejectionLog.addSession(
                     rejectionReasons.mapIndexed { i, r -> RejectionLog.Attempt(i + 1, r, false) },
                     succeeded = true
@@ -2327,13 +2614,19 @@ Rebalance the remaining days against this already-trained work: manage recovery 
                 // Re-stamp weekStart (parseProgram calls thisMonday() internally).
                 return@withGenerationDeadline exercises.map { it.copy(weekStart = weekStart) }
             }
-            val rejectionReason = durationReason.ifEmpty { validation.reason }
+            val rejectionReason = deterministicReason.ifEmpty { validation.reason }
             rejectionReasons.add(rejectionReason)
             onProgress("Attempt $attempt rejected: $rejectionReason")
-            if (attempt == MAX_GENERATION_ATTEMPTS) return@withGenerationDeadline finalizeSingleDay()
+            if (attempt == MAX_GENERATION_ATTEMPTS) return@withGenerationDeadline null
         }
-        throw IllegalStateException("Unexpected state")
-        } // withGenerationDeadline
+        null // unreachable (the MAX attempt always returns above); satisfies the expression type
+            }
+        } catch (e: IllegalStateException) {
+            if (e.message != GENERATION_TIMEOUT_MESSAGE) throw e
+            timedOut = true
+            null
+        }
+        accepted ?: finalizeSingleDay(timedOut)
     }.also {
         // P3: terminal outcome of a single-day regeneration → backgrounded-only notification.
         generationNotifier.notifyProgramGenerationComplete(it.isSuccess)

@@ -1,0 +1,45 @@
+CELL 04-hyper-int-5d-60
+profile: goal=Hypertrophy exp=Intermediate days=5 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower/Push/Pull/Full Body
+rationale: Brand-new plan built from scratch for hypertrophy across 5 days using an Upper/Lower/Push/Pull/Full-Body split — anchor lifts are set at conservative RPE-anchored starting loads since there is no logged history, and every session is sized to hit ~60 min.
+
+DAY 1 — est 45 min (window 50-70: OUT)
+  1. Barbell Bench Press [Chest] 4x6-8 @60.0kg rest=180s | RPE 7-8 (~2 RIR); double progression +reps then +2.5 kg
+  2. Barbell Bent-Over Row [Back] 4x6-8 @55.0kg rest=180s | RPE 7-8 (~2 RIR); double progression +reps then +2.5 kg
+  3. Dumbbell Lateral Raise [Shoulders] 3x12-15 @8.0kg rest=90s | RPE 8-9 (~1-2 RIR); double progression +reps then +2 kg
+  4. Cable Face Pull [Shoulders] 3x15-20 @15.0kg rest=75s | RPE 8 (~1-2 RIR); double progression +reps then +2.5 kg
+  5. Cable Triceps Pushdown [Arms] 3x12-15 @20.0kg rest=75s | RPE 8-9 (~1-2 RIR); double progression +reps then +2.5 kg
+DAY 2 — est 44 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 4x6-8 @70.0kg rest=210s | RPE 7-8 (~2 RIR); double progression +reps then +2.5 kg
+  2. Romanian Deadlift [Legs] 3x6-8 @60.0kg rest=180s | RPE 7 (~2+ RIR); double progression +reps then +2.5 kg; leave ≥2 RIR
+  3. Leg Press [Legs] 3x10-12 @100.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then +5 kg
+  4. Lying Leg Curl [Legs] 3x12-15 @30.0kg rest=90s | RPE 8-9 (~1-2 RIR); double progression +reps then +2.5 kg
+  5. Standing Calf Raise [Legs] 3x15-20 @40.0kg rest=60s | RPE 8-9 (~1-2 RIR); double progression +reps then +2.5 kg
+DAY 3 — est 40 min (window 50-70: OUT)
+  1. Overhead Barbell Press [Shoulders] 4x6-8 @40.0kg rest=180s | RPE 7-8 (~2 RIR); double progression +reps then +1.25 kg
+  2. Incline Dumbbell Press [] 3x10-12 @22.0kg rest=150s | RPE 8 (~2 RIR); double progression +reps then +2 kg
+  3. Dumbbell Lateral Raise [Shoulders] 3x12-15 @8.0kg rest=75s | RPE 8-9 (~1-2 RIR); double progression +reps then +2 kg
+  4. Cable Triceps Overhead Extension [Arms] 3x12-15 @15.0kg rest=75s | RPE 8-9 (~1-2 RIR); double progression +reps then +2.5 kg
+  5. Dumbbell Chest Fly [Chest] 3x13-15 @14.0kg rest=60s | RPE 8-9 (~1-2 RIR); double progression +reps then +2 kg
+DAY 5 — est 40 min (window 50-70: OUT)
+  1. Weighted Pull-Up [Back] 4x5-8 @0.0kg rest=180s | RPE 7-8 (~2 RIR); once all sets hit 8 reps bodyweight, add 2.5 kg belt
+  2. Cable Seated Row (Close Grip) [Back] 3x10-12 @55.0kg rest=150s | RPE 8 (~2 RIR); double progression +reps then +2.5 kg
+  3. Dumbbell Rear Delt Row [Shoulders] 3x13-15 @14.0kg rest=90s | RPE 8-9 (~1-2 RIR); double progression +reps then +2 kg
+  4. Dumbbell Hammer Curl [Arms] 3x12-15 @14.0kg rest=75s | RPE 8-9 (~1-2 RIR); double progression +reps then +2 kg
+  5. Cable Biceps Curl [Arms] 3x12-15 @15.0kg rest=60s | RPE 9 (~1 RIR); double progression +reps then +2.5 kg
+DAY 6 — est 69 min (window 50-70: IN)
+  1. Barbell Deadlift [Back] 4x5-6 @80.0kg rest=210s | RPE 7-8 (~2 RIR); double progression +reps then +2.5 kg; leave ≥2 RIR
+  2. Goblet Squat [Legs] 3x10-12 @24.0kg rest=120s | RPE 7-8 (~2 RIR); double progression +reps then +2 kg
+  3. Dumbbell Walking Lunge [Legs] 3x10-12 @16.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then +2 kg per dumbbell
+  4. Dumbbell Farmer's Carry [Core] 3x30 m @24.0kg rest=90s | RPE 7-8 (~2 RIR); once 30 m feels easy, add 2 kg per hand
+  5. Cable Crunch [Cardio] 3x15-20 @20.0kg rest=60s | RPE 8-9 (~1-2 RIR); double progression +reps then +2.5 kg
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 7 sets (2 exercise slots)
+  Back: 15 sets (4 exercise slots)
+  Shoulders: 16 sets (5 exercise slots)
+  Arms: 12 sets (4 exercise slots)
+  Legs: 22 sets (7 exercise slots)
+  : 3 sets (1 exercise slots)
+  Core: 3 sets (1 exercise slots)

@@ -1,0 +1,38 @@
+CELL 13-strength-int-4d-60-week3
+profile: goal=Strength exp=Intermediate days=4 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower ×2
+rationale: Kept all your anchor lifts (bench, pull-up, squat, deadlift, row, overhead press) and progressed them — all weights are showing as 0 kg in your history so I've set conservative but realistic starting loads based on typical intermediate baselines; once you log real numbers the app will progress from those. Varied accessories this week: swapped incline dumbbell press for a cable fly to hit the theme's pattern variety, rotated the carry to a suitcase carry for unilateral core-stability, and added a back extension to cover the exempt hip-hinge/posterior chain pattern without touching the barbell hinge rep cap.
+
+DAY 1 — est 53 min (window 50-70: IN)
+  1. Barbell Bench Press [Chest] 4x4-6 @80.0kg rest=240s | RPE 7–8 (~2–3 RIR); double progression +reps then +2.5 kg
+  2. Weighted Pull-Up [Back] 4x4-6 @10.0kg rest=240s | RPE 7–8 (~2–3 RIR); double progression +reps then +2.5 kg added
+  3. Seated Dumbbell Overhead Press [Shoulders] 3x6-8 @22.0kg rest=180s | RPE 8 (~2 RIR); double progression +reps then +2 kg each DB
+  4. Cable Face Pull [Shoulders] 3x10-12 @15.0kg rest=120s | RPE 8 (~1–2 RIR); double progression +reps then +2.5 kg
+  5. Cable Lateral Raise [Shoulders] 3x10-12 @7.5kg rest=120s | RPE 8 (~1–2 RIR); double progression +reps then +2.5 kg
+DAY 3 — est 48 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 4x4-6 @100.0kg rest=300s | RPE 7–8 (~2–3 RIR); double progression +reps then +5 kg
+  2. Barbell Romanian Deadlift [Legs] 3x5-6 @90.0kg rest=240s | RPE 7 (~2–3 RIR), ≥2 RIR always; double progression +reps then +5 kg
+  3. Leg Press [Legs] 3x6-8 @140.0kg rest=180s | RPE 8 (~2 RIR); double progression +reps then +10 kg
+  4. Hip Thrust (Barbell) [Legs] 3x10-12 @80.0kg rest=120s | RPE 8 (~1–2 RIR); double progression +reps then +5 kg
+  5. Seated Leg Curl [Legs] 2x10-12 @45.0kg rest=120s | RPE 8 (~1–2 RIR); double progression +reps then +5 kg
+DAY 5 — est 51 min (window 50-70: IN)
+  1. Barbell Row (Overhand / Pronated) [Back] 4x4-6 @80.0kg rest=240s | RPE 7–8 (~2–3 RIR); double progression +reps then +2.5 kg
+  2. Incline Barbell Press [] 4x4-6 @67.5kg rest=240s | RPE 7–8 (~2–3 RIR); double progression +reps then +2.5 kg
+  3. Cable Seated Row (Close Grip) [Back] 3x6-8 @60.0kg rest=180s | RPE 8 (~2 RIR); double progression +reps then +5 kg
+  4. Cable Tricep Pushdown (Straight Bar) [Arms] 3x8-10 @25.0kg rest=120s | RPE 8 (~1–2 RIR); double progression +reps then +2.5 kg
+  5. Dumbbell Lateral Raise [Shoulders] 3x10-12 @12.0kg rest=90s | RPE 8 (~1–2 RIR); double progression +reps then +2 kg each DB
+DAY 7 — est 49 min (window 50-70: OUT)
+  1. Barbell Conventional Deadlift [Back] 4x3-5 @120.0kg rest=300s | RPE 7–8 (~2–3 RIR), ≥2 RIR always; double progression +reps then +5 kg
+  2. Barbell Front Squat [Legs] 4x4-6 @70.0kg rest=240s | RPE 7–8 (~2–3 RIR); double progression +reps then +5 kg
+  3. Back Extension [Back] 3x10-12 @0.0kg rest=120s | RPE 7 (~2 RIR); add plate when 3×12 feels easy (+5 kg)
+  4. Dumbbell Suitcase Carry [Core] 3x30 m @30.0kg rest=90s | RPE 7 (~2 RIR); increase DB by 2 kg when 3×30 m feels controlled
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 4 sets (1 exercise slots)
+  Back: 18 sets (5 exercise slots)
+  Shoulders: 12 sets (4 exercise slots)
+  Legs: 19 sets (6 exercise slots)
+  : 4 sets (1 exercise slots)
+  Arms: 3 sets (1 exercise slots)
+  Core: 3 sets (1 exercise slots)

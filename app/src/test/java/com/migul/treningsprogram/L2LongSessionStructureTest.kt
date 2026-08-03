@@ -66,22 +66,25 @@ class L2LongSessionStructureTest {
 
     // ── 2. Direction-aware feedback — LONG under-fill steers MULTI-MODAL ────────────────────────────
 
-    @Test fun longUnderTimeDay_steersMultiModalConditioning_notAddASet() {
+    // Cardio removal (2026-08-03): the long-session under-fill steer is now RESISTANCE-ONLY —
+    // rest at the top of the goal band, fuller reps, a warm-up block, capped extra volume — and it
+    // must explicitly FORBID cardio/conditioning entries (assertions updated from the old
+    // multi-modal cardio-finisher wording this test used to pin).
+    @Test fun longUnderTimeDay_steersResistanceOnlyLevers_neverCardio() {
         // 120-min target, a day the model built at ~70 min (the observed model ceiling).
         val msg = dayDurationFeedback(day = 2, estimateMinutes = 70, targetMinutes = 120)
         assertNotNull(msg); msg!!
         assertTrue("must say UNDER: $msg", msg.contains("UNDER"))
-        assertTrue("must still instruct ADD: $msg", msg.contains("ADD"))
         assertFalse("under-time must NOT issue a TRIM instruction: $msg", msg.contains("TRIM"))
-        assertTrue("must steer MULTI-MODAL: $msg", msg.contains("MULTI-MODAL"))
-        assertTrue("must name a conditioning finisher: $msg", msg.contains("conditioning", ignoreCase = true))
-        assertTrue("must size by DURATION: $msg", msg.contains("DURATION"))
+        assertTrue("must declare resistance-only: $msg", msg.contains("RESISTANCE-ONLY"))
+        assertTrue("must forbid cardio entries: $msg", msg.contains("cardio", ignoreCase = true))
+        assertTrue("rest is the #1 long-day lever: $msg", msg.contains("REST"))
+        assertTrue("must offer a warm-up block lever: $msg", msg.contains("WARM-UP"))
         assertTrue("must name the day and estimate: $msg", msg.contains("Day 2") && msg.contains("70"))
-        // Must exclude the estimator TRAPS (rowing/carries) as the timed entry.
-        assertTrue("must forbid rowing as the timed entry: $msg", msg.contains("rowing", ignoreCase = true))
-        // Must NOT tell a long day to grow strength volume the way a short day does.
-        assertFalse("long under-fill must not tell it to add an accessory exercise: $msg",
-            msg.contains("add one more accessory"))
+        assertFalse("must NOT steer the dead multi-modal path: $msg", msg.contains("MULTI-MODAL"))
+        assertFalse("must NOT suggest a finisher: $msg", msg.contains("finisher", ignoreCase = true))
+        assertFalse("must NOT suggest a bike: $msg", msg.contains("bike", ignoreCase = true))
+        assertTrue("volume stays capped: $msg", msg.contains("volume caps", ignoreCase = true))
     }
 
     @Test fun shortUnderTimeDay_keepsOriginalWording_noConditioningSteer() {
@@ -114,7 +117,8 @@ class L2LongSessionStructureTest {
         assertNull("ceiling (130) accepted", dayDurationFeedback(1, 130, target))
         assertNotNull("109 (one under) rejected", dayDurationFeedback(1, 109, target))
         assertNotNull("131 (one over) rejected", dayDurationFeedback(1, 131, target))
-        assertTrue("under → multi-modal ADD", dayDurationFeedback(1, 109, target)!!.contains("ADD"))
+        // Cardio removal (2026-08-03): the under-message is now the resistance-only steer.
+        assertTrue("under → resistance-only levers", dayDurationFeedback(1, 109, target)!!.contains("RESISTANCE-ONLY"))
         assertTrue("over → TRIM", dayDurationFeedback(1, 131, target)!!.contains("TRIM"))
     }
 

@@ -1,0 +1,31 @@
+CELL 08-wloss-beg-3d-45
+profile: goal=Weight Loss exp=Beginner days=3 duration=45min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Full Body A/B/C
+rationale: Brand-new plan built around full-body compound lifts three times a week to maximise calorie burn and muscle retention — each session pairs a heavy compound with higher-rep accessories and finishes with a short cardio burst.
+
+DAY 1 — est 37 min (window 35-55: IN)
+  1. Barbell Back Squat [Legs] 3x10-12 @0.0kg rest=90s | RPE 7 (~3 RIR); double progression — add reps across sets then +2.5 kg
+  2. Barbell Bench Press [Chest] 3x10-12 @0.0kg rest=90s | RPE 7 (~3 RIR); double progression — add reps then +2.5 kg
+  3. Cable Seated Row [Back] 3x12-15 @0.0kg rest=75s | RPE 7 (~2 RIR); double progression — add reps then +2.5 kg
+  4. Dumbbell Lateral Raise [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 8 (~2 RIR); double progression — add reps then +1 kg each
+  5. Easy Jog [Cardio] 1x10 min @0.0kg rest=60s | Steady pace, conversational effort; maintain or extend by 1 min each week
+DAY 3 — est 35 min (window 35-55: IN)
+  1. Barbell Deadlift [Back] 3x5-8 @0.0kg rest=90s | RPE 7 (~3 RIR, ≥2 RIR hard rule); double progression — add reps then +5 kg
+  2. Dumbbell Shoulder Press [Shoulders] 3x10-12 @0.0kg rest=90s | RPE 7 (~3 RIR); double progression — add reps then +1 kg each
+  3. Lat Pulldown [Back] 3x12-15 @0.0kg rest=75s | RPE 7 (~2 RIR); double progression — add reps then +2.5 kg
+  4. Hip Thrust (Bodyweight) [Legs] 3x15-20 @0.0kg rest=60s | RPE 7 (~2 RIR); add reps each week, then progress to barbell-loaded version
+  5. Interval Run [Cardio] 1x8 min @0.0kg rest=60s | 30 s hard / 30 s walk alternating; add 1 interval per week
+DAY 5 — est 42 min (window 35-55: IN)
+  1. Leg Press [Legs] 3x12-15 @0.0kg rest=90s | RPE 7 (~3 RIR); double progression — add reps then +5 kg
+  2. Dumbbell Romanian Deadlift [Legs] 3x10-12 @0.0kg rest=90s | RPE 7 (~3 RIR, ≥2 RIR hard rule); double progression — add reps then +2 kg each
+  3. Cable Face Pull [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 8 (~2 RIR); double progression — add reps then +2.5 kg
+  4. Dumbbell Farmer Carry [Core] 3x30 m @0.0kg rest=60s | RPE 7 (~2 RIR); add 5 m or +1 kg each per hand each week
+  5. Easy Jog [Cardio] 1x12 min @0.0kg rest=60s | Conversational pace; add 1 min per week as fitness improves
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Legs: 12 sets (4 exercise slots)
+  Chest: 3 sets (1 exercise slots)
+  Back: 9 sets (3 exercise slots)
+  Shoulders: 9 sets (3 exercise slots)
+  Core: 3 sets (1 exercise slots)

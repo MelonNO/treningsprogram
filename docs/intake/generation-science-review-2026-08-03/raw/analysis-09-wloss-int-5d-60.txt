@@ -1,0 +1,42 @@
+CELL 09-wloss-int-5d-60
+profile: goal=Weight Loss exp=Intermediate days=5 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower/Push/Pull/Full Body
+rationale: Brand-new plan built from scratch for weight loss: five compound-heavy sessions using short rest and supersets to keep heart rate elevated, with enough straight-set resistance work to preserve muscle across the week.
+
+DAY 1 — est 42 min (window 50-70: OUT)
+  1. Barbell Bench Press [Chest] 4x10-12 @0.0kg rest=75s | RPE 7 (~2-3 RIR); conservative start — double progression +reps then +2.5 kg
+  2. Barbell Bent-Over Row [Back] 4x10-12 @0.0kg rest=75s | RPE 7 (~2-3 RIR); conservative start — double progression +reps then +2.5 kg
+  3. Dumbbell Lateral Raise [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +1 kg each
+  4. Cable Face Pull [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +2.5 kg stack
+  5. Cable Tricep Pushdown [Arms] 3x12-15 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +2.5 kg stack
+  6. Cable Bicep Curl [Arms] 3x12-15 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +2.5 kg stack
+DAY 2 — est 37 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 4x10-12 @0.0kg rest=90s | RPE 7 (~2-3 RIR); conservative start — double progression +reps then +2.5 kg
+  2. Romanian Deadlift [Legs] 3x6-8 @0.0kg rest=90s | RPE 7 (~2-3 RIR); conservative start — ≥2 RIR always; double progression +reps then +2.5 kg
+  3. Leg Press [Legs] 3x12-15 @0.0kg rest=75s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +10 kg
+  4. Hip Thrust [Legs] 3x15-20 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +5 kg
+  5. Farmer's Carry [Core] 3x30 m @0.0kg rest=60s | RPE 7 (~2 RIR); conservative start — double progression +distance then +2 kg each
+DAY 3 — est 31 min (window 50-70: OUT)
+  1. Interval Run [Cardio] 1x6×400m @0.0kg rest=60s | RPE 8 per interval (~85–90% max HR); rest 90 s walk between intervals — add 1 rep per session until 10×400m, then shorten rest
+DAY 5 — est 42 min (window 50-70: OUT)
+  1. Overhead Press [Shoulders] 4x10-12 @0.0kg rest=75s | RPE 7 (~2-3 RIR); conservative start — double progression +reps then +2.5 kg
+  2. Pull-up [Back] 4x8-12 @0.0kg rest=75s | RPE 8 (~1-2 RIR); add reps per session — once 4×12, add load via dumbbell between legs
+  3. Dumbbell Incline Press [] 3x12-15 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +2 kg each
+  4. Cable Seated Row [Back] 3x12-15 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +2.5 kg stack
+  5. Dumbbell Lateral Raise [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 8 (~1-2 RIR); double progression +reps then +1 kg each
+  6. Cable Rear Delt Fly [Shoulders] 3x15-20 @0.0kg rest=60s | RPE 8 (~1-2 RIR); double progression +reps then +2.5 kg stack
+DAY 6 — est 46 min (window 50-70: OUT)
+  1. Barbell Deadlift [Back] 4x5-6 @0.0kg rest=90s | RPE 7 (~2-3 RIR); conservative start — ≥2 RIR always; double progression +reps then +5 kg
+  2. Goblet Squat [Legs] 3x12-15 @0.0kg rest=75s | RPE 7 (~2-3 RIR); conservative start — double progression +reps then +2 kg each
+  3. Lying Leg Curl [Legs] 3x12-15 @0.0kg rest=60s | RPE 8 (~1-2 RIR); conservative start — double progression +reps then +2.5 kg stack
+  4. Easy Jog [Cardio] 1x25 min @0.0kg rest=60s | RPE 5 (~65% max HR); maintain consistent pace — add 2 min per session toward 40 min
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 4 sets (1 exercise slots)
+  Back: 15 sets (4 exercise slots)
+  Shoulders: 16 sets (5 exercise slots)
+  Arms: 6 sets (2 exercise slots)
+  Legs: 19 sets (6 exercise slots)
+  Core: 3 sets (1 exercise slots)
+  : 3 sets (1 exercise slots)

@@ -1,0 +1,45 @@
+CELL 07-endur-int-4d-60
+profile: goal=Endurance exp=Intermediate days=4 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower ×2
+rationale: Brand-new endurance-focused plan built from scratch: Upper/Lower ×2 split with short rest periods, circuit-friendly supersets, and 2 dedicated cardio sessions woven into the week to prioritise cardiovascular conditioning alongside resistance work.
+
+DAY 1 — est 50 min (window 50-70: IN)
+  1. Barbell Bench Press [Chest] 3x12-15 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start conservative ~60% est 1RM; double progression +reps then +2.5 kg
+  2. Cable Seated Row [Back] 3x12-15 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start conservative; double progression +reps then +2.5 kg
+  3. Dumbbell Lateral Raise [Shoulders] 3x15-20 @0.0kg rest=45s | RPE 8 (~2 RIR); new user — start light; double progression +reps then +1 kg
+  4. Cable Face Pull [Shoulders] 3x15-20 @0.0kg rest=45s | RPE 7 (~3 RIR); new user — start light; double progression +reps then +2.5 kg
+  5. Cable Tricep Pushdown [Arms] 2x15-20 @0.0kg rest=45s | RPE 8 (~2 RIR); new user — start conservative; double progression +reps then +2.5 kg
+  6. Cable Bicep Curl [Arms] 2x15-20 @0.0kg rest=45s | RPE 8 (~2 RIR); new user — start conservative; double progression +reps then +2.5 kg
+  7. Easy Jog [Cardio] 1x15 min @0.0kg rest=60s | Steady conversational pace; progress by +1–2 min/week
+DAY 3 — est 50 min (window 50-70: IN)
+  1. Barbell Back Squat [Legs] 3x12-15 @0.0kg rest=75s | RPE 7 (~3 RIR); new user — start ~60% est 1RM; double progression +reps then +2.5 kg
+  2. Barbell Romanian Deadlift [Legs] 3x6-8 @0.0kg rest=75s | RPE 7 (~3 RIR, ≥2 RIR mandatory); new user — start conservative; double progression +reps then +2.5 kg
+  3. Leg Press [Legs] 3x15-20 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start conservative; double progression +reps then +5 kg
+  4. Hip Thrust [Legs] 3x15-20 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start with bodyweight or light load; double progression +reps then +2.5 kg
+  5. Cable Pull-Through [] 2x15-20 @0.0kg rest=45s | RPE 7 (~3 RIR); new user — start light; double progression +reps then +2.5 kg
+  6. Farmer's Carry [Core] 3x30 s @0.0kg rest=45s | RPE 7; new user — start with moderate dumbbells; progress by +5 s or +2 kg per side
+  7. Easy Jog [Cardio] 1x10 min @0.0kg rest=60s | Light cool-down pace; progress by +1 min/week
+DAY 5 — est 50 min (window 50-70: IN)
+  1. Pull-Up [Back] 3x8-12 @0.0kg rest=75s | RPE 8 (~2 RIR); new user — use assisted if needed; double progression +reps then add load via belt
+  2. Barbell Overhead Press [Shoulders] 3x12-15 @0.0kg rest=75s | RPE 7 (~3 RIR); new user — start ~60% est 1RM; double progression +reps then +2.5 kg
+  3. Cable Lat Pulldown [Back] 3x12-15 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start conservative; double progression +reps then +2.5 kg
+  4. Dumbbell Rear Delt Fly [Shoulders] 3x15-20 @0.0kg rest=45s | RPE 8 (~2 RIR); new user — start very light; double progression +reps then +1 kg
+  5. Dumbbell Lateral Raise [Shoulders] 2x15-20 @0.0kg rest=45s | RPE 8 (~2 RIR); new user — start light; double progression +reps then +1 kg
+  6. Tempo Run [Cardio] 1x20 min @0.0kg rest=60s | Comfortably hard pace (RPE 7); progress by +2 min or slightly increase pace per week
+DAY 7 — est 62 min (window 50-70: IN)
+  1. Barbell Deadlift [Back] 3x6-8 @0.0kg rest=90s | RPE 7 (~3 RIR, ≥2 RIR mandatory); new user — start ~60% est 1RM; double progression +reps then +2.5 kg
+  2. Leg Press [Legs] 3x15-20 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start conservative; double progression +reps then +5 kg
+  3. Dumbbell Romanian Deadlift [Legs] 2x10-12 @0.0kg rest=60s | RPE 7 (~3 RIR); new user — start light; double progression +reps then +2 kg per dumbbell
+  4. Back Extension [Back] 3x15-20 @0.0kg rest=45s | RPE 7 (~3 RIR); new user — bodyweight first; progress +reps then hold light plate
+  5. Plank [Core] 3x30 s @0.0kg rest=45s | RPE 7; new user — progress by +5 s per week
+  6. Interval Run [Cardio] 1x6×400m @0.0kg rest=60s | RPE 8 per interval; 90 s walk recovery between reps; progress by adding one interval per week
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 3 sets (1 exercise slots)
+  Back: 15 sets (5 exercise slots)
+  Shoulders: 14 sets (5 exercise slots)
+  Arms: 4 sets (2 exercise slots)
+  Legs: 17 sets (6 exercise slots)
+  : 2 sets (1 exercise slots)
+  Core: 6 sets (2 exercise slots)

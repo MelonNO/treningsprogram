@@ -84,12 +84,13 @@ class DurationCalibrationTest {
     }
 
     @Test fun longUnderFeedback_referencesTheBufferedAim() {
-        // 100-min target, a day the model built at 80 min. The multi-modal retry must steer toward the
-        // buffered aim (112), closing the documented v1.17.0 residual (100-min landed ~88-89, under floor 90).
+        // 100-min target, a day the model built at 80 min. The retry must steer toward the buffered
+        // aim (112), closing the documented v1.17.0 residual (100-min landed ~88-89, under floor 90).
+        // Cardio removal (2026-08-03): the steer is now resistance-only (was multi-modal cardio).
         val msg = dayDurationFeedback(day = 2, estimateMinutes = 80, targetMinutes = 100)!!
         assertTrue("long under-fill must reference the buffered aim 112: $msg", msg.contains("112"))
-        assertTrue("still an ADD instruction", msg.contains("ADD"))
-        assertTrue("still steers MULTI-MODAL", msg.contains("MULTI-MODAL"))
+        assertTrue("steers resistance-only levers", msg.contains("RESISTANCE-ONLY"))
+        assertTrue("rest lever named first", msg.contains("REST"))
         assertFalse("under-fill must not issue a TRIM instruction", msg.contains("TRIM"))
     }
 }

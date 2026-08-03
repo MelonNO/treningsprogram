@@ -33,7 +33,14 @@ object WorkoutTimeEstimator {
      * are unaffected). `null` = AI mode = the pre-existing formula byte-for-byte.
      */
     fun estimateExerciseSeconds(ex: PlannedExercise, manualRest: ManualRestTimes? = null): Int {
-        return if (isCardio(ex.exerciseName)) {
+        // 2026-08 fix: a Cardio-classified entry whose target is a PURE rep count or rep range
+        // ("20", "15-20" — e.g. Mountain Climbers programmed as 3×20, or a mis-classified
+        // "Cable Crunch") must be timed with the strength formula, NOT parseCardioSeconds —
+        // the latter's 1800 s fallback counted such an entry as ~31 minutes, corrupting the
+        // duration gate in both directions. Duration/distance targets ("30 min", "5 km") and
+        // genuinely unparseable interval strings ("6×400m", which keeps the 1800 s fallback)
+        // still take the cardio branch.
+        return if (isCardio(ex.exerciseName) && !isPureRepScheme(ex.targetReps)) {
             parseCardioSeconds(ex.targetReps) + ADMIN_TIME_PER_EXERCISE_SECONDS
         } else {
             val maxReps = Regex("\\d+").findAll(ex.targetReps).lastOrNull()?.value?.toIntOrNull() ?: 10
@@ -48,6 +55,15 @@ object WorkoutTimeEstimator {
 
     private fun isCardio(name: String): Boolean =
         MuscleClassifier.displayName(name) == "Cardio"
+
+    /**
+     * True when [targetReps] is a bare rep count ("20") or rep range ("15-20") with no units —
+     * such a target describes SETS×REPS work regardless of the exercise's cardio classification,
+     * so it is timed with the strength formula (see [estimateExerciseSeconds]).
+     */
+    private val PURE_REP_SCHEME = Regex("^\\d+(\\s*-\\s*\\d+)?$")
+    private fun isPureRepScheme(targetReps: String): Boolean =
+        PURE_REP_SCHEME.matches(targetReps.trim())
 
     private fun parseCardioSeconds(targetReps: String): Int {
         // "30 min" → 1800, "5km" → 1500 (@ 5min/km), "6×400m" → fallback 30 min

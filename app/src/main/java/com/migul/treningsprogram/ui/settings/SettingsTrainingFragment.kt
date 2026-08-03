@@ -324,7 +324,10 @@ class SettingsTrainingFragment : Fragment() {
             prefs.restDaysCsv = ""
             days = binding.etDaysPerWeek.text.toString().toIntOrNull()?.coerceIn(1, 7) ?: 4
         }
-        val duration = binding.etSessionDuration.text.toString().toIntOrNull()?.coerceIn(15, 180) ?: 60
+        // 4.6 (gen-eval 2026-08): clamp to the range the generation pipeline actually supports. The
+        // prompt's TIME BUDGET is written for 20–120 min and >120 is a known hard-fail zone; the old
+        // 15–180 clamp let users pick targets the pipeline is known to fail at.
+        val duration = binding.etSessionDuration.text.toString().toIntOrNull()?.coerceIn(20, 120) ?: 60
         // Item 4: manual rest-time mode. Forgiving parse — blank/garbage falls back to the saved
         // value's default; the fields are re-rendered normalized (m:ss) after save via prefs.
         prefs.manualRestEnabled = binding.switchManualRest.isChecked

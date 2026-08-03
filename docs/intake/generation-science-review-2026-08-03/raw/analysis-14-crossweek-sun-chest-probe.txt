@@ -1,0 +1,33 @@
+CELL 14-crossweek-sun-chest-probe
+profile: goal=Hypertrophy exp=Intermediate days=3 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: 
+rationale: Kept your barbell squat, RDL, barbell row, dumbbell bench, and all other anchors — progressing loads on the squat (now 90 kg) and holding plateaued lifts at top-of-range rep targets before bumping weight. Swapped last week's pure upper-back day accessories (lat pulldown + curl) for a neutral-grip pulldown and hammer curl to add variety, and rotated in a farmer's carry (core stability, this week's theme) plus a lateral raise and leg curl to round out pattern balance.
+
+DAY 1 — est 45 min (window 50-70: OUT)
+  1. Barbell Squat [Legs] 4x8 @90.0kg rest=210s | RPE 7–8 (~2 RIR); progressing — up from 87.5 kg; double progression +reps then +2.5 kg
+  2. Romanian Deadlift [Legs] 3x8 @82.5kg rest=210s | RPE 7 (~2 RIR); plateaued — push all 3 sets to full 8 clean reps before adding 2.5 kg; ≤8 reps hard cap
+  3. Leg Press [Legs] 3x12 @167.5kg rest=150s | RPE 8 (~2 RIR); progressing — up from 165 kg; double progression +reps then +5 kg
+  4. Lying Leg Curl [Legs] 3x12–15 @0.0kg rest=90s | RPE 8–9 (~1–2 RIR); start at a conservative load — double progression +reps then +load
+  5. Standing Calf Raise [Legs] 3x15 @65.0kg rest=75s | RPE 8 (~1–2 RIR); progressing — up from 62.5 kg; double progression +reps then +2.5 kg
+DAY 3 — est 43 min (window 50-70: OUT)
+  1. Dumbbell Bench Press [Chest] 4x10 @32.0kg rest=210s | RPE 8 (~2 RIR); plateaued — complete all 4 sets at 10 clean reps before adding 2 kg; double progression
+  2. Incline Dumbbell Press [] 3x12 @26.0kg rest=150s | RPE 8 (~2 RIR); plateaued — push all sets to 12 before adding 2 kg; double progression
+  3. Dumbbell Lateral Raise [Shoulders] 3x15 @0.0kg rest=90s | RPE 8–9 (~1–2 RIR); start conservative — double progression +reps then +load
+  4. Cable Fly [Chest] 3x15 @20.0kg rest=90s | RPE 9 (~1 RIR); plateaued — complete all 3 sets at 15 before adding 2.5 kg; double progression
+  5. Overhead Tricep Extension [Arms] 3x12 @17.5kg rest=90s | RPE 8–9 (~1–2 RIR); plateaued — push all sets to 12 before adding 2.5 kg; double progression
+DAY 6 — est 46 min (window 50-70: OUT)
+  1. Barbell Row [Back] 4x10 @65.0kg rest=210s | RPE 8 (~2 RIR); plateaued — push all 4 sets to 10 clean reps before adding 2.5 kg; double progression
+  2. Neutral-Grip Lat Pulldown [Back] 3x12 @57.5kg rest=150s | RPE 8 (~2 RIR); estimated from pronated pulldown at 60 kg — double progression +reps then +2.5 kg
+  3. Face Pull [Shoulders] 3x15 @27.5kg rest=90s | RPE 8 (~2 RIR); progressing — up from 27.5 kg; push to 15 reps then add 2.5 kg
+  4. Hammer Curl [Arms] 3x12 @16.0kg rest=90s | RPE 8–9 (~1–2 RIR); estimated from barbell curl at 32.5 kg — double progression +reps then +2 kg
+  5. Farmer's Carry [Core] 3x30 m @0.0kg rest=90s | RPE 7 (~3 RIR); start with a moderate dumbbell load — progress by increasing load or distance each week
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Legs: 16 sets (5 exercise slots)
+  Chest: 7 sets (2 exercise slots)
+  : 3 sets (1 exercise slots)
+  Shoulders: 6 sets (2 exercise slots)
+  Arms: 6 sets (2 exercise slots)
+  Back: 7 sets (2 exercise slots)
+  Core: 3 sets (1 exercise slots)

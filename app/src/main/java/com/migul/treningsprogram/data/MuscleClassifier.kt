@@ -59,6 +59,16 @@ package com.migul.treningsprogram.data
  * more robust than false-precision decimals.
  */
 object MuscleClassifier {
+
+    /**
+     * 2026-08 fix: the Cardio keyword "run" must only match at a WORD START ("Run",
+     * "Outdoor Run", "Running", "Trail Run"), never inside another word — the plain
+     * substring matched "c-run-ch", so "Cable Crunch"/"Bicycle Crunch" classified as
+     * Cardio (and the time estimator then counted them as 30-minute cardio entries).
+     * Shared by [fromName] and [finerMusclesFor] so both stay consistent.
+     */
+    private val RUN_WORD_START = Regex("\\brun")
+
     fun fromName(exerciseName: String): String {
         val lower = exerciseName.lowercase()
         // Rules are ordered by SPECIFICITY, not by anatomy: a movement's own keyword must win over
@@ -82,21 +92,25 @@ object MuscleClassifier {
             // 1. Genuine cardio. NOTE: "tempo"/"interval" deliberately REMOVED (they are strength
             //    modifiers; genuine "Interval Run"/"Tempo Run" still match via "run"). "walk" handled
             //    at the END so "walking lunge"/"walking plank" classify by their strength movement first.
+            //    "run" is word-start-anchored ([RUN_WORD_START]) so "Cable Crunch" is NOT cardio.
             lower.containsAny(
-                "run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
+                "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
                 "burpee", "mountain climber", "high knee", "jump rope"
-            ) -> "Cardio"
+            ) || RUN_WORD_START.containsMatchIn(lower) -> "Cardio"
             // 2. Posterior-/rear-delt target moves → Shoulders. MUST precede rows and Chest.
+            //    "pull-apart"/"pull apart" (band pull-aparts) are rear-delt work (2026-08 addition).
             lower.containsAny(
                 "rear delt", "rear-delt", "reverse fly", "reverse flye", "rear fly", "reverse pec",
-                "bent over fly", "bent-over fly", "face pull", "y-raise", " y raise"
+                "bent over fly", "bent-over fly", "face pull", "y-raise", " y raise",
+                "pull-apart", "pull apart"
             ) -> "Shoulders"
             // 3. Overhead / shoulder pressing + delt raises + upright row → Shoulders (before Chest's
             //    incidental "bench"). Bare "overhead" is NOT here (it also appears in "overhead tricep
-            //    extension" → Arms); only explicit shoulder-press phrases.
+            //    extension" → Arms); only explicit shoulder-press phrases. "landmine press" is the
+            //    app's overhead-press substitute for shoulder injuries (2026-08 addition).
             lower.containsAny(
                 "overhead press", "shoulder press", "arnold", "z-press", "z press", "military",
-                "push press", "ohp", "upright row", "lateral raise", "front raise"
+                "push press", "ohp", "upright row", "lateral raise", "front raise", "landmine press"
             ) -> "Shoulders"
             // 4. Shrug (traps) → Back (before Chest; e.g. "Chest-Supported Shrug").
             lower.contains("shrug") -> "Back"
@@ -106,11 +120,13 @@ object MuscleClassifier {
             lower.contains("row") -> "Back"
             // 7. Legs (before Chest/Arms). Catches loaded calf/tibialis/heel raise, squats, hinges,
             //    sumo, good morning. + tibialis + good morning + heel raise (loaded).
+            //    "pull-through"/"pull through" (cable pull-through) is a glute/hinge movement
+            //    (2026-08 addition; must precede the Back rule's "pull-up" family).
             lower.containsAny(
                 "squat", "leg press", "lunge", "calf", "tibialis", "hamstring", "quad", "romanian", "rdl",
                 "glute", "hip thrust", "leg curl", "leg extension", "hip hinge", "step up",
                 "step-up", "box jump", "split squat", "wall sit", "sumo", "pistol",
-                "good morning", "heel raise"
+                "good morning", "heel raise", "pull-through", "pull through"
             ) -> "Legs"
             // 8. Arms (before Chest; e.g. a curl/tricep-extension performed "on a bench"). Bare "arm"
             //    is intentionally NOT a keyword — "Single-Arm Bench Press" must stay Chest.
@@ -125,14 +141,22 @@ object MuscleClassifier {
                 "leg raise", "dead bug", "l-sit", "dragon flag", "hollow", "pallof", "anti-rotation",
                 "anti rotation", "carry"
             ) || lower.startsWith("ab ") || lower.contains(" ab ") -> "Core"
+            // 9b. Incline/decline PRESSES → Chest (2026-08 addition). "Incline Barbell Press" /
+            //     "Incline Dumbbell Press" / "Decline Dumbbell Press" contain neither "bench" nor
+            //     "chest", so they fell through every rule and stored "" (dropped from volume/
+            //     recovery stats). Placed immediately BEFORE the generic Chest catch-all so all
+            //     earlier specific rules ("shoulder press" → Shoulders, etc.) still win;
+            //     "Incline Bench Press" keeps hitting Chest via "bench" either way.
+            (lower.contains("incline") || lower.contains("decline")) && lower.contains("press") -> "Chest"
             // 10. Chest (generic pressing/fly catch-all, after all specific movements above).
             lower.containsAny(
                 "bench", "chest", "fly", "flye", "pec", "push-up", "pushup", "dip", "squeeze press"
             ) -> "Chest"
-            // 11. Back (remaining).
+            // 11. Back (remaining). "pullover" (straight-arm/dumbbell pullover) is lat-focused
+            //     (2026-08 addition).
             lower.containsAny(
                 "pulldown", "pull-up", "pullup", "chin-up", "chinup", "lat ",
-                "deadlift", "back", "scapular", "dead hang"
+                "deadlift", "back", "scapular", "dead hang", "pullover"
             ) -> "Back"
             // 12. Shoulders (remaining).
             lower.containsAny("shoulder", "overhead", "delt", "military", "external rotation") -> "Shoulders"
@@ -207,25 +231,35 @@ object MuscleClassifier {
     fun finerMusclesFor(exerciseName: String): List<Pair<String, Float>> {
         val lower = exerciseName.lowercase()
         return when {
-            // ── Cardio ──────────────────────────────────────────────────────────────────
+            // ── Cardio ("run" word-start-anchored, same fix as fromName: "Cable Crunch" must
+            //    fall through to the Core rule, not match "c-run-ch") ──────────────────────
             lower.containsAny(
-                "run", "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
+                "jog", "sprint", "cardio", "hiit", "bike", "cycling", "treadmill",
                 "burpee", "mountain climber", "high knee", "jump rope"
-            ) -> listOf("Cardio" to 1.0f)
+            ) || RUN_WORD_START.containsMatchIn(lower) -> listOf("Cardio" to 1.0f)
 
             // ── Posterior / rear-delt (MUST precede Chest/pressing so a rear-delt move named
             //    with "incline bench"/"bench"/"fly" is not captured as Chest) ───────────────
             lower.containsAny("face pull") ->
                 listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f, "Biceps" to 0.3f)
+            // "pull-apart"/"pull apart" generalised from the old space-only "band pull apart"
+            // keyword (which lived in the scapular rule below and missed "Band Pull-Apart").
+            // Weights chosen as Rear Delts 1.0 / Upper Back 0.6 — the rear delts are the target
+            // of a pull-apart — keeping the finer taxonomy consistent (via broadGroupFor) with
+            // fromName's broad classification of pull-aparts as Shoulders.
             lower.containsAny("rear delt", "rear fly", "reverse fly",
                                "reverse pec", "bent over fly", "bent-over fly",
-                               "y-raise", " y raise") ->
+                               "y-raise", " y raise", "pull-apart", "pull apart") ->
                 listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f)
 
             // ── Chest / pressing ─────────────────────────────────────────────────────────
-            lower.containsAny("incline bench", "incline press", "incline push") && !lower.contains("row") ->
+            // Contains-both match (2026-08 fix): the old containsAny("incline bench",
+            // "incline press", …) missed "Incline Barbell Press" / "Incline Dumbbell Press"
+            // (a word sits between the qualifier and the movement), sending them to the
+            // broad-group fallback which returned empty.
+            lower.contains("incline") && lower.containsAny("bench", "press", "push") && !lower.contains("row") ->
                 listOf("Chest" to 1.0f, "Front Delts" to 0.6f, "Triceps" to 0.6f)
-            lower.containsAny("decline bench", "decline press", "decline push") ->
+            lower.contains("decline") && lower.containsAny("bench", "press", "push") && !lower.contains("row") ->
                 listOf("Chest" to 1.0f, "Triceps" to 0.6f, "Front Delts" to 0.3f)
             lower.containsAny("cable cross", "cable fly", "chest fly", "pec fly",
                                "chest flye", "pec flye") ->
@@ -238,6 +272,10 @@ object MuscleClassifier {
                 listOf("Chest" to 1.0f, "Triceps" to 0.6f, "Front Delts" to 0.6f)
 
             // ── Overhead / shoulder pressing ─────────────────────────────────────────────
+            // Landmine press (2026-08 addition): the app's overhead-press substitute for
+            // shoulder injuries — front-delt primary, at an angle that recruits upper chest.
+            lower.containsAny("landmine press") ->
+                listOf("Front Delts" to 1.0f, "Chest" to 0.6f, "Triceps" to 0.6f)
             lower.containsAny("overhead press", "ohp", "military press",
                                "shoulder press", "push press") ->
                 listOf("Front Delts" to 1.0f, "Side Delts" to 0.6f,
@@ -253,6 +291,10 @@ object MuscleClassifier {
                 listOf("Side Delts" to 1.0f, "Front Delts" to 0.6f, "Biceps" to 0.3f)
 
             // ── Pull / back ───────────────────────────────────────────────────────────────
+            // Pullover (2026-08 addition): lat-focused straight-arm movement ("Dumbbell
+            // Pullover", "Straight-Arm Cable Pullover"); chest/long-head triceps assist.
+            lower.containsAny("pullover") ->
+                listOf("Upper Back" to 1.0f, "Chest" to 0.3f, "Triceps" to 0.3f)
             lower.containsAny("pull-up", "pullup", "chin-up", "chinup") ->
                 listOf("Upper Back" to 1.0f, "Biceps" to 0.6f, "Rear Delts" to 0.3f)
             lower.containsAny("lat pulldown", "pulldown") ->
@@ -265,7 +307,9 @@ object MuscleClassifier {
                        "Biceps" to 0.6f, "Rear Delts" to 0.3f)
             lower.containsAny("shrug") ->
                 listOf("Upper Back" to 1.0f, "Side Delts" to 0.3f)
-            lower.containsAny("scapular", "dead hang", "band pull apart") ->
+            // NOTE: "band pull apart" moved UP into the rear-delt rule (2026-08) — pull-aparts
+            // are rear-delt-primary and now classify broad-Shoulders, not broad-Back.
+            lower.containsAny("scapular", "dead hang") ->
                 listOf("Upper Back" to 1.0f, "Rear Delts" to 0.3f)
 
             // ── Deadlifts ─────────────────────────────────────────────────────────────────
@@ -290,6 +334,10 @@ object MuscleClassifier {
                 listOf("Quads" to 1.0f, "Glutes" to 0.3f)
 
             // ── Glute/hip dominant ────────────────────────────────────────────────────────
+            // Cable pull-through (2026-08 addition): a glute/hinge movement, matching
+            // fromName's broad-Legs classification.
+            lower.containsAny("pull-through", "pull through") ->
+                listOf("Glutes" to 1.0f, "Hamstrings" to 0.6f, "Lower Back" to 0.6f)
             lower.containsAny("hip thrust", "glute bridge", "glute kickback", "donkey kick") ->
                 listOf("Glutes" to 1.0f, "Hamstrings" to 0.6f, "Lower Back" to 0.3f)
 

@@ -83,6 +83,109 @@ class MuscleClassifierTest {
         assertEquals("", MuscleClassifier.fromName("Turkish Get-Up"))
     }
 
+    // ── 2026-08 gen-science fixes: names AI plans generate that returned "" or misclassified ──
+
+    @Test fun inclineDeclinePresses_resolveToChest() {
+        // These contain neither "bench" nor "chest", so they fell through every rule and
+        // stored "" — 12 of 14 live AI-generated plans contained at least one such name.
+        assertEquals("Chest", MuscleClassifier.fromName("Incline Barbell Press"))
+        assertEquals("Chest", MuscleClassifier.fromName("Incline Dumbbell Press"))
+        assertEquals("Chest", MuscleClassifier.fromName("Decline Dumbbell Press"))
+        // Already worked via "bench" — must keep doing so.
+        assertEquals("Chest", MuscleClassifier.fromName("Incline Bench Press"))
+        // Earlier specific rules still win over the new incline/decline+press rule.
+        assertEquals("Shoulders", MuscleClassifier.fromName("Incline Shoulder Press"))
+    }
+
+    @Test fun landminePress_resolvesToShoulders() {
+        // The app's overhead-press substitute for shoulder injuries.
+        assertEquals("Shoulders", MuscleClassifier.fromName("Landmine Press"))
+        assertEquals("Shoulders", MuscleClassifier.fromName("Half-Kneeling Landmine Press"))
+    }
+
+    @Test fun pullThrough_resolvesToLegs() {
+        assertEquals("Legs", MuscleClassifier.fromName("Cable Pull-Through"))
+        assertEquals("Legs", MuscleClassifier.fromName("Cable Pull Through"))
+    }
+
+    @Test fun pullover_resolvesToBack() {
+        assertEquals("Back", MuscleClassifier.fromName("Straight-Arm Cable Pullover"))
+        assertEquals("Back", MuscleClassifier.fromName("Dumbbell Pullover"))
+    }
+
+    @Test fun pullApart_resolvesToShoulders() {
+        assertEquals("Shoulders", MuscleClassifier.fromName("Band Pull-Apart"))
+        assertEquals("Shoulders", MuscleClassifier.fromName("Band Pull Apart"))
+    }
+
+    @Test fun crunchVariants_areCore_notCardio() {
+        // Regression: the Cardio keyword "run" used to match INSIDE "crunch" ("c-run-ch"),
+        // so every crunch classified as Cardio and the time estimator counted it as a
+        // 30-minute cardio entry (live-demonstrated). "run" is now word-start-anchored.
+        assertEquals("Core", MuscleClassifier.fromName("Cable Crunch"))
+        assertEquals("Core", MuscleClassifier.fromName("Bicycle Crunch"))
+        assertEquals("Core", MuscleClassifier.fromName("Crunch"))
+    }
+
+    @Test fun genuineRunNames_stillCardio_afterWordBoundaryFix() {
+        assertEquals("Cardio", MuscleClassifier.fromName("Run"))
+        assertEquals("Cardio", MuscleClassifier.fromName("Outdoor Run"))
+        assertEquals("Cardio", MuscleClassifier.fromName("Interval Run"))
+        assertEquals("Cardio", MuscleClassifier.fromName("Running"))
+        assertEquals("Cardio", MuscleClassifier.fromName("Trail Run"))
+    }
+
+    @Test fun walkingLunge_staysLegs_andAnkleRehabStaysUngrouped() {
+        assertEquals("Legs", MuscleClassifier.fromName("Walking Lunge"))
+        // The intentional ""-classifications for ankle/foot rehab are untouched.
+        assertEquals("", MuscleClassifier.fromName("Ankle Circles"))
+        assertEquals("", MuscleClassifier.fromName("Toe Scrunch"))
+        assertEquals("", MuscleClassifier.fromName("Ankle Alphabet"))
+        assertEquals("", MuscleClassifier.fromName("Single-Leg Balance Hold"))
+    }
+
+    @Test fun finerMuscles_forTheNewNames_areNonEmptyAndTiered() {
+        assertEquals(
+            listOf("Chest" to 1.0f, "Front Delts" to 0.6f, "Triceps" to 0.6f),
+            MuscleClassifier.finerMusclesFor("Incline Barbell Press")
+        )
+        assertEquals(
+            listOf("Chest" to 1.0f, "Front Delts" to 0.6f, "Triceps" to 0.6f),
+            MuscleClassifier.finerMusclesFor("Incline Dumbbell Press")
+        )
+        assertEquals(
+            listOf("Chest" to 1.0f, "Triceps" to 0.6f, "Front Delts" to 0.3f),
+            MuscleClassifier.finerMusclesFor("Decline Dumbbell Press")
+        )
+        assertEquals(
+            listOf("Front Delts" to 1.0f, "Chest" to 0.6f, "Triceps" to 0.6f),
+            MuscleClassifier.finerMusclesFor("Landmine Press")
+        )
+        assertEquals(
+            listOf("Glutes" to 1.0f, "Hamstrings" to 0.6f, "Lower Back" to 0.6f),
+            MuscleClassifier.finerMusclesFor("Cable Pull-Through")
+        )
+        assertEquals(
+            listOf("Upper Back" to 1.0f, "Chest" to 0.3f, "Triceps" to 0.3f),
+            MuscleClassifier.finerMusclesFor("Dumbbell Pullover")
+        )
+        // Pull-apart: Rear Delts primary — the finer primary's broad group (Shoulders)
+        // matches fromName, keeping broad/finer consistent via broadGroupFor.
+        assertEquals(
+            listOf("Rear Delts" to 1.0f, "Upper Back" to 0.6f),
+            MuscleClassifier.finerMusclesFor("Band Pull-Apart")
+        )
+        assertEquals(
+            MuscleClassifier.fromName("Band Pull-Apart"),
+            MuscleClassifier.broadGroupFor(MuscleClassifier.finerMusclesFor("Band Pull-Apart").first().first)
+        )
+    }
+
+    @Test fun finerMuscles_crunchIsCore_runIsCardio() {
+        assertEquals(listOf("Core" to 1.0f), MuscleClassifier.finerMusclesFor("Cable Crunch"))
+        assertEquals(listOf("Cardio" to 1.0f), MuscleClassifier.finerMusclesFor("Outdoor Run"))
+    }
+
     @Test fun colorFor_returnsCanonicalColors_andRespectsPerScreenFallback() {
         assertEquals("#E91E63", MuscleClassifier.colorFor("Chest", fallbackColor = "#000000"))
         assertEquals("#4CAF50", MuscleClassifier.colorFor("Legs", fallbackColor = "#000000"))

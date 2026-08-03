@@ -1,0 +1,35 @@
+# LIVE ANTHROPIC API CALL LEDGER — HARD MAX 20 TOTAL — generation-science-review-2026-08-03
+# Append EXACTLY ONE line per live API call, BEFORE making it. Never let data lines exceed 20.
+# Format: <n>/20 | <ISO timestamp> | <agent> | <purpose> | <result-after: ok/fail/error>
+# Plan: 13 matrix cells (11 base + week2/week3 progression pair), 7 in reserve for
+# retries / follow-up probes. Model: claude-sonnet-4-6 (the app's own), max_tokens 24576
+# (the app's GENERATION_MAX_TOKENS), single attempt per cell, no validateProgram calls.
+# --- calls below this line ---
+1/20 | 2026-08-03T12:08:36.053681188+02:00 | science-harness | gen 01-strength-int-4d-60 | sending
+   ^ 1 result: ok stop=end_turn len=14362
+2/20 | 2026-08-03T12:09:27.136757719+02:00 | science-harness | gen 02-strength-beg-3d-45 | sending
+   ^ 2 result: ok stop=end_turn len=10181
+3/20 | 2026-08-03T12:10:04.694659457+02:00 | science-harness | gen 03-strength-adv-5d-75 | sending
+   ^ 3 result: ok stop=end_turn len=17028
+4/20 | 2026-08-03T12:11:04.164850723+02:00 | science-harness | gen 04-hyper-int-5d-60 | sending
+   ^ 4 result: ok stop=end_turn len=18073
+5/20 | 2026-08-03T12:12:06.416857083+02:00 | science-harness | gen 05-hyper-beg-3d-60 | sending
+   ^ 5 result: ok stop=end_turn len=11695
+6/20 | 2026-08-03T12:12:48.353443972+02:00 | science-harness | gen 06-hyper-adv-6d-90 | sending
+   ^ 6 result: ok stop=end_turn len=25937
+7/20 | 2026-08-03T12:14:20.374390906+02:00 | science-harness | gen 07-endur-int-4d-60 | sending
+   ^ 7 result: ok stop=end_turn len=19235
+8/20 | 2026-08-03T12:15:27.961518445+02:00 | science-harness | gen 08-wloss-beg-3d-45 | sending
+   ^ 8 result: ok stop=end_turn len=11358
+9/20 | 2026-08-03T12:16:10.369918019+02:00 | science-harness | gen 09-wloss-int-5d-60 | sending
+   ^ 9 result: ok stop=end_turn len=16580
+10/20 | 2026-08-03T12:17:08.999584955+02:00 | science-harness | gen 10-strength-int-4d-60-homegym | sending
+   ^ 10 result: ok stop=end_turn len=13999
+11/20 | 2026-08-03T12:17:57.140738277+02:00 | science-harness | gen 11-hyper-int-4d-60-shoulder | sending
+   ^ 11 result: ok stop=end_turn len=18146
+12/20 | 2026-08-03T12:19:06.064938247+02:00 | science-harness | gen 12-strength-int-4d-60-week2 | sending
+   ^ 12 result: ok stop=end_turn len=14004
+13/20 | 2026-08-03T12:19:59.879052984+02:00 | science-harness | gen 13-strength-int-4d-60-week3 | sending
+   ^ 13 result: ok stop=end_turn len=14609
+14/20 | 2026-08-03T12:21:34.675366043+02:00 | science-harness | gen 14-crossweek-sun-chest-probe | sending
+   ^ 14 result: ok stop=end_turn len=12092

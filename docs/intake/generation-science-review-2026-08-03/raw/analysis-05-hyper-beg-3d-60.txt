@@ -1,0 +1,32 @@
+CELL 05-hyper-beg-3d-60
+profile: goal=Hypertrophy exp=Beginner days=3 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Full Body A/B/C
+rationale: New user starting from scratch — this full-body A/B/C plan hits every major movement pattern twice a week across three sessions, uses fundamental beginner-friendly lifts, and starts conservatively so you can establish solid form and progress each week.
+
+DAY 1 — est 39 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 3x6-8 @40.0kg rest=180s | RPE 7 (~2-3 RIR); double progression — add reps to 8 across all sets then +2.5 kg
+  2. Barbell Bench Press [Chest] 3x6-10 @40.0kg rest=180s | RPE 7 (~2-3 RIR); double progression — add reps to 10 across all sets then +2.5 kg
+  3. Cable Seated Row [Back] 3x10-12 @35.0kg rest=120s | RPE 8 (~2 RIR); double progression — add reps to 12 across all sets then +2.5 kg
+  4. Dumbbell Lateral Raise [Shoulders] 3x12-15 @6.0kg rest=90s | RPE 8 (~1-2 RIR); double progression — add reps to 15 across all sets then +1 kg
+  5. Cable Tricep Pushdown [Arms] 3x12-15 @15.0kg rest=75s | RPE 8 (~1-2 RIR); double progression — add reps to 15 across all sets then +2.5 kg
+DAY 3 — est 40 min (window 50-70: OUT)
+  1. Barbell Deadlift [Back] 3x5-6 @50.0kg rest=210s | RPE 7 (~2-3 RIR); leave ≥2 RIR always; double progression — add reps to 6 across all sets then +5 kg
+  2. Dumbbell Overhead Press [Shoulders] 3x8-10 @14.0kg rest=180s | RPE 7 (~2-3 RIR); double progression — add reps to 10 across all sets then +2 kg
+  3. Lat Pulldown [Back] 3x10-12 @40.0kg rest=120s | RPE 8 (~2 RIR); double progression — add reps to 12 across all sets then +2.5 kg
+  4. Leg Press [Legs] 3x10-12 @60.0kg rest=120s | RPE 7 (~2-3 RIR); double progression — add reps to 12 across all sets then +5 kg
+  5. Dumbbell Curl [Arms] 3x12-15 @10.0kg rest=75s | RPE 8 (~1-2 RIR); double progression — add reps to 15 across all sets then +1 kg
+DAY 5 — est 43 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 3x6-8 @40.0kg rest=180s | RPE 7 (~2-3 RIR); double progression — add reps to 8 across all sets then +2.5 kg
+  2. Barbell Bench Press [Chest] 3x6-10 @40.0kg rest=180s | RPE 7 (~2-3 RIR); double progression — add reps to 10 across all sets then +2.5 kg
+  3. Dumbbell Romanian Deadlift [Legs] 3x10-12 @18.0kg rest=120s | RPE 7 (~2-3 RIR); leave ≥2 RIR; double progression — add reps to 12 across all sets then +2 kg
+  4. Cable Face Pull [Shoulders] 3x15-20 @12.5kg rest=75s | RPE 8 (~1-2 RIR); double progression — add reps to 20 across all sets then +2.5 kg
+  5. Dumbbell Farmer's Carry [Core] 3x20-30 m @20.0kg rest=90s | RPE 7 (~2-3 RIR); double progression — increase distance to 30 m across all sets then +2 kg
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Legs: 12 sets (4 exercise slots)
+  Chest: 6 sets (2 exercise slots)
+  Back: 9 sets (3 exercise slots)
+  Shoulders: 9 sets (3 exercise slots)
+  Arms: 6 sets (2 exercise slots)
+  Core: 3 sets (1 exercise slots)

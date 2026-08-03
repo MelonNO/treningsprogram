@@ -1,0 +1,29 @@
+CELL 02-strength-beg-3d-45
+profile: goal=Strength exp=Beginner days=3 duration=45min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Full Body A/B/C
+rationale: Brand-new plan built for a beginner strength goal: three full-body sessions spaced Monday/Wednesday/Friday, each led by a heavy compound, then accessories and one isolation, all within the 45-min target.
+
+DAY 1 — est 34 min (window 35-55: OUT)
+  1. Barbell Back Squat [Legs] 3x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); double progression +reps then +2.5 kg each session
+  2. Barbell Bench Press [Chest] 3x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); double progression +reps then +2.5 kg each session
+  3. Barbell Bent-Over Row [Back] 3x5-8 @0.0kg rest=180s | RPE 7 (~3 RIR); double progression +reps then +2.5 kg each session
+  4. Dumbbell Lateral Raise [Shoulders] 2x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then +1 kg each dumbbell
+DAY 3 — est 34 min (window 35-55: OUT)
+  1. Barbell Deadlift [Back] 3x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR, ≥2 RIR always); double progression +reps then +5 kg each session
+  2. Overhead Press [Shoulders] 3x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); double progression +reps then +1.25 kg each session
+  3. Lat Pulldown [Back] 3x5-8 @0.0kg rest=180s | RPE 7 (~3 RIR); double progression +reps then +2.5 kg each session
+  4. Cable Face Pull [Shoulders] 2x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then +2.5 kg each session
+DAY 5 — est 47 min (window 35-55: IN)
+  1. Leg Press [Legs] 3x5-8 @0.0kg rest=240s | RPE 7 (~3 RIR); double progression +reps then +5 kg each session
+  2. Barbell Bench Press [Chest] 3x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); double progression +reps then +2.5 kg each session
+  3. Dumbbell RDL [Legs] 3x8-12 @0.0kg rest=180s | RPE 7 (~3 RIR, ≥2 RIR always); double progression +reps then +2 kg each dumbbell
+  4. Cable Seated Row [Back] 3x5-8 @0.0kg rest=180s | RPE 7 (~3 RIR); double progression +reps then +2.5 kg each session
+  5. Farmer's Carry [Core] 3x20 m @0.0kg rest=90s | RPE 7 (~3 RIR); add 2 kg per dumbbell when all sets feel easy
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Legs: 9 sets (3 exercise slots)
+  Chest: 6 sets (2 exercise slots)
+  Back: 12 sets (4 exercise slots)
+  Shoulders: 7 sets (3 exercise slots)
+  Core: 3 sets (1 exercise slots)

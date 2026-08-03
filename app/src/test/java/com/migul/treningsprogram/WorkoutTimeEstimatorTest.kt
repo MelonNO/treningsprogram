@@ -65,4 +65,32 @@ class WorkoutTimeEstimatorTest {
         val run5k = planned("Easy Jog", sets = 1, targetReps = "5 km", rest = 60)
         assertEquals(1560, WorkoutTimeEstimator.estimateExerciseSeconds(run5k))
     }
+
+    // ── 2026-08 fix: rep-style cardio must NOT hit the 1800 s fallback ─────────────────
+
+    @Test fun repStyleCardio_usesStrengthFormula_notThirtyMinuteFallback() {
+        // A Cardio-classified name carrying a pure rep count was falling into
+        // parseCardioSeconds' 1800 s fallback → counted as ~31 minutes (live-demonstrated).
+        assertEquals("Cardio", MuscleClassifier.displayName("Mountain Climber"))
+
+        // Mountain Climber: 3 * (20*4) + (3-1)*30 + 60 = 240 + 60 + 60 = 360
+        val climbers = planned("Mountain Climber", sets = 3, targetReps = "20", rest = 30)
+        assertEquals(360, WorkoutTimeEstimator.estimateExerciseSeconds(climbers))
+        assertNotEquals(1800 + 60, WorkoutTimeEstimator.estimateExerciseSeconds(climbers))
+    }
+
+    @Test fun repRangeCardio_usesStrengthFormula() {
+        // A rep RANGE on a cardio-classified name is also sets×reps work.
+        assertEquals("Cardio", MuscleClassifier.displayName("Burpees"))
+        // Burpees: 3 * (20*4) + (3-1)*45 + 60 = 240 + 90 + 60 = 390
+        val burpees = planned("Burpees", sets = 3, targetReps = "15-20", rest = 45)
+        assertEquals(390, WorkoutTimeEstimator.estimateExerciseSeconds(burpees))
+    }
+
+    @Test fun unparseableIntervalString_keepsThirtyMinuteFallback() {
+        // "6×400m" is neither "min"/"km" nor a pure rep scheme → genuine 1800 s fallback.
+        assertEquals("Cardio", MuscleClassifier.displayName("Interval Run"))
+        val intervals = planned("Interval Run", sets = 1, targetReps = "6×400m", rest = 60)
+        assertEquals(1800 + 60, WorkoutTimeEstimator.estimateExerciseSeconds(intervals))
+    }
 }

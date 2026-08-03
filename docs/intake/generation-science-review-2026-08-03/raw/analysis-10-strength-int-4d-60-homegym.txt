@@ -1,0 +1,37 @@
+CELL 10-strength-int-4d-60-homegym
+profile: goal=Strength exp=Intermediate days=4 duration=60min
+equipment: Dumbbells, Adjustable Bench, Resistance Bands
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower ×2
+rationale: New user with no history — this plan builds your strength foundation using an Upper/Lower split twice per week, leading each session with heavy low-rep dumbbell compounds and spacing muscle groups 48+ hours apart for full recovery.
+
+DAY 1 — est 50 min (window 50-70: IN)
+  1. Dumbbell Bench Press [Chest] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg each DB
+  2. Dumbbell Bent-Over Row [Back] 4x5-8 @0.0kg rest=180s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg each DB
+  3. Dumbbell Overhead Press [Shoulders] 3x5-8 @0.0kg rest=180s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg each DB
+  4. Resistance Band Lateral Raise [Shoulders] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then move to heavier band
+  5. Resistance Band Face Pull [Shoulders] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then move to heavier band
+DAY 3 — est 49 min (window 50-70: OUT)
+  1. Dumbbell Goblet Squat [Legs] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg
+  2. Dumbbell Romanian Deadlift [Legs] 4x6-8 @0.0kg rest=240s | RPE 7 (~3 RIR, ≥2 RIR always); new user — start conservative, double progression +reps then +2 kg each DB
+  3. Dumbbell Reverse Lunge [Legs] 3x6-8 @0.0kg rest=180s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg each DB
+  4. Dumbbell Farmer Carry [Core] 3x30 m @0.0kg rest=120s | RPE 7 (~3 RIR); new user — start conservative, +1 kg each DB when all 3 carries feel easy
+DAY 5 — est 48 min (window 50-70: OUT)
+  1. Dumbbell Incline Press [] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg each DB
+  2. Resistance Band Pull-Apart [] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then move to heavier band
+  3. Dumbbell Single-Arm Row [Back] 4x5-8 @0.0kg rest=180s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg
+  4. Dumbbell Lateral Raise [Shoulders] 3x10-12 @0.0kg rest=120s | RPE 8 (~2 RIR); double progression +reps then +1 kg each DB
+  5. Dumbbell Hammer Curl [Arms] 3x8-10 @0.0kg rest=90s | RPE 8 (~2 RIR); double progression +reps then +1 kg each DB
+DAY 7 — est 46 min (window 50-70: OUT)
+  1. Dumbbell Bulgarian Split Squat [Legs] 4x5-8 @0.0kg rest=240s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +2 kg each DB
+  2. Dumbbell Hip Thrust [Legs] 4x12-15 @0.0kg rest=180s | RPE 8 (~2 RIR); double progression +reps then +2 kg
+  3. Dumbbell Single-Leg Romanian Deadlift [Legs] 3x8-10 @0.0kg rest=180s | RPE 7 (~3 RIR); new user — start conservative, double progression +reps then +1 kg each DB
+  4. Resistance Band Pallof Press [Core] 3x10-12 @0.0kg rest=120s | RPE 7 (~3 RIR); double progression +reps then move to heavier band
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 4 sets (1 exercise slots)
+  Back: 8 sets (2 exercise slots)
+  Shoulders: 12 sets (4 exercise slots)
+  Legs: 22 sets (6 exercise slots)
+  Core: 6 sets (2 exercise slots)
+  : 7 sets (2 exercise slots)
+  Arms: 3 sets (1 exercise slots)

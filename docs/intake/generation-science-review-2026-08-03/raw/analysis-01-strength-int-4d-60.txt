@@ -1,0 +1,38 @@
+CELL 01-strength-int-4d-60
+profile: goal=Strength exp=Intermediate days=4 duration=60min
+equipment: Barbell, Squat Rack, Bench, Dumbbells, Cable Machine, Pull-up Bar, Leg Press Machine
+theme: MOVEMENT PATTERN VARIETY   split: Upper/Lower ×2
+rationale: This is your first week, so all loads are conservative baselines (~RPE 7) to establish your starting point — use double progression from here.
+
+DAY 1 — est 53 min (window 50-70: IN)
+  1. Barbell Bench Press [Chest] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); conservative baseline — double progression +reps then +2.5 kg
+  2. Weighted Pull-Up [Back] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); use bodyweight to start — add load via belt when all reps hit cleanly
+  3. Seated Dumbbell Overhead Press [Shoulders] 3x6-8 @0.0kg rest=180s | RPE 7 (~2-3 RIR); double progression +reps then +2 kg per dumbbell
+  4. Cable Lateral Raise [Shoulders] 3x10-12 @0.0kg rest=120s | RPE 8 (~1-2 RIR); double progression +reps then +2.5 kg
+  5. Cable Face Pull [Shoulders] 3x10-12 @0.0kg rest=120s | RPE 8 (~1-2 RIR); double progression +reps then +2.5 kg
+DAY 3 — est 44 min (window 50-70: OUT)
+  1. Barbell Back Squat [Legs] 4x4-6 @0.0kg rest=270s | RPE 7 (~3 RIR); conservative baseline — double progression +reps then +5 kg
+  2. Barbell Romanian Deadlift [Legs] 3x5-8 @0.0kg rest=240s | RPE 7 (~2-3 RIR); ≤8 reps hard cap — double progression +reps then +5 kg
+  3. Leg Press [Legs] 3x6-8 @0.0kg rest=180s | RPE 7 (~2-3 RIR); double progression +reps then +10 kg
+  4. Hip Thrust (Barbell) [Legs] 3x10-12 @0.0kg rest=150s | RPE 8 (~1-2 RIR); exempt from hinge cap — double progression +reps then +5 kg
+DAY 5 — est 51 min (window 50-70: IN)
+  1. Barbell Row (Overhand / Pronated) [Back] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); conservative baseline — double progression +reps then +2.5 kg
+  2. Incline Barbell Press [] 4x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); conservative baseline — double progression +reps then +2.5 kg
+  3. Cable Seated Row (Close Grip) [Back] 3x6-8 @0.0kg rest=180s | RPE 7 (~2-3 RIR); double progression +reps then +5 kg
+  4. Dumbbell Lateral Raise [Shoulders] 3x10-12 @0.0kg rest=120s | RPE 8 (~1-2 RIR); double progression +reps then +2 kg per dumbbell
+  5. Cable Tricep Pushdown (Straight Bar) [Arms] 3x8-10 @0.0kg rest=90s | RPE 8 (~1-2 RIR); double progression +reps then +2.5 kg
+DAY 7 — est 76 min (window 50-70: OUT)
+  1. Barbell Conventional Deadlift [Back] 4x3-5 @0.0kg rest=270s | RPE 7 (~3 RIR); conservative baseline, ≤8 reps hard cap — double progression +reps then +5 kg
+  2. Barbell Front Squat [Legs] 3x4-6 @0.0kg rest=240s | RPE 7 (~3 RIR); conservative baseline — double progression +reps then +2.5 kg
+  3. Dumbbell Farmer's Carry [Core] 3x30 m @0.0kg rest=150s | RPE 7 (~2-3 RIR); add 2 kg per dumbbell when all carries feel controlled
+  4. Seated Leg Curl [Legs] 3x10-12 @0.0kg rest=120s | RPE 8 (~1-2 RIR); exempt from hinge cap — double progression +reps then +5 kg
+  5. Cable Crunch [Cardio] 3x10-12 @0.0kg rest=120s | RPE 8 (~1-2 RIR); double progression +reps then +5 kg
+
+WEEKLY SET TALLY (deterministic, MuscleClassifier groups, non-cardio):
+  Chest: 4 sets (1 exercise slots)
+  Back: 15 sets (4 exercise slots)
+  Shoulders: 12 sets (4 exercise slots)
+  Legs: 19 sets (6 exercise slots)
+  : 4 sets (1 exercise slots)
+  Arms: 3 sets (1 exercise slots)
+  Core: 3 sets (1 exercise slots)
