@@ -1760,8 +1760,12 @@ OR
                         if (group.isNotEmpty()) loadedGroups.add(group)
                     }
                 }
+                // P1: use the LOGICAL date (DayBoundary), matching the "Session yyyy-MM-dd" lines
+                // rendered above — the cross-week block and the history must show the SAME date for
+                // the same session (a 2 am session belongs to the previous logical day in both).
                 sessionMuscles.add(
-                    session.dateMs to groupSetCounts.entries.sortedByDescending { it.value }.map { it.key }
+                    com.migul.treningsprogram.domain.DayBoundary.toLogicalMillis(session.dateMs) to
+                        groupSetCounts.entries.sortedByDescending { it.value }.map { it.key }
                 )
             }
         }
