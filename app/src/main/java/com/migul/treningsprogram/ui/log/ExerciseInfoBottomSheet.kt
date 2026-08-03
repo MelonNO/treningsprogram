@@ -75,6 +75,24 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
     private var imageAlternateRunnable: Runnable? = null
     private var imageFrame = 0
 
+    /** Item 01: the container holding every entry-sourced detail (metadata + instructions). */
+    private var entrySection: LinearLayout? = null
+
+    /** Item 01: "info hidden because you flagged this match" explanation line. */
+    private var hiddenNotice: TextView? = null
+
+    /**
+     * Item 01: called when the user flags the match from within the open sheet — stops the
+     * image cycler and hides all entry-sourced content immediately, showing the explanation.
+     */
+    private fun hideFlaggedContent() {
+        imageAlternateRunnable?.let { imageHandler.removeCallbacks(it) }
+        imageAlternateRunnable = null
+        imageView?.visibility = View.GONE
+        entrySection?.visibility = View.GONE
+        hiddenNotice?.visibility = View.VISIBLE
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -107,7 +125,19 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
         val hasDbImages = dbId != null
         val staticImageUrl = if (!hasDbImages) ExerciseCatalog.getImageUrl(name) else null
 
-        if (hasDbImages || staticImageUrl != null) {
+        // Flagged-info 2026-08 item 01: once the user flags this match as wrong, everything
+        // sourced from the matched entry is hidden — pictures, instructions, metadata — from
+        // EVERY entry point. The name, Coach's note and the performed section stay (they are
+        // not DB-sourced). Section visibility is decided by [FlaggedExerciseInfoPolicy].
+        val flagged = name.isNotBlank() && corrections.isFlagged(name)
+        val sections = FlaggedExerciseInfoPolicy.sectionsFor(
+            flagged = flagged,
+            hasDbEntry = dbEntry != null,
+            hasStaticEntry = staticEntry != null,
+            hasImageSource = hasDbImages || staticImageUrl != null
+        )
+
+        if (sections.images) {
             val iv = ImageView(requireContext()).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 layoutParams = LinearLayout.LayoutParams(
@@ -227,13 +257,22 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
             layout.addView(divider(density, medPad))
         }
 
+        // Item 01: all entry-sourced details live in one container so flagging from within the
+        // open sheet can hide them instantly (see hideFlaggedContent). When the sheet opens
+        // already-flagged, the container is simply never populated.
+        val content = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        entrySection = content
+        layout.addView(content)
+
         when {
-            dbEntry != null -> {
+            sections.dbDetails && dbEntry != null -> {
                 // Item 06: the DB entry's own name, right above the database-sourced content, so
                 // the user can see which entry the info comes from. Hidden when identical to the
                 // program name (D3 — never show the same string twice).
                 if (!dbEntry.name.trim().equals(name.trim(), ignoreCase = true)) {
-                    layout.addView(TextView(requireContext()).apply {
+                    content.addView(TextView(requireContext()).apply {
                         text = "From database: ${dbEntry.name}"
                         textSize = 13f
                         setTypeface(null, Typeface.BOLD)
@@ -242,13 +281,13 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                     })
                 }
                 if (dbEntry.primaryMuscles.isNotEmpty()) {
-                    layout.addView(metaLine(
+                    content.addView(metaLine(
                         "Muscles: ${dbEntry.primaryMuscles.joinToString(", ").replaceFirstChar { it.uppercaseChar() }}",
                         density
                     ))
                 }
                 if (!dbEntry.equipment.isNullOrBlank()) {
-                    layout.addView(metaLine(
+                    content.addView(metaLine(
                         "Equipment: ${dbEntry.equipment.replaceFirstChar { it.uppercaseChar() }}",
                         density
                     ))
@@ -256,11 +295,11 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                 val meta = listOfNotNull(dbEntry.level, dbEntry.category)
                     .joinToString("  •  ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
                 if (meta.isNotBlank()) {
-                    layout.addView(metaLine(meta, density))
+                    content.addView(metaLine(meta, density))
                 }
-                layout.addView(divider(density, medPad))
+                content.addView(divider(density, medPad))
                 dbEntry.instructions.forEachIndexed { i, step ->
-                    layout.addView(TextView(requireContext()).apply {
+                    content.addView(TextView(requireContext()).apply {
                         text = "${i + 1}. $step"
                         textSize = 14f
                         setLineSpacing(0f, 1.4f)
@@ -269,22 +308,22 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                 }
             }
 
-            staticEntry != null -> {
+            sections.staticDetails && staticEntry != null -> {
                 if (staticEntry.equipment.isNotEmpty()) {
-                    layout.addView(metaLine("Equipment: ${staticEntry.equipment.joinToString(", ")}", density))
+                    content.addView(metaLine("Equipment: ${staticEntry.equipment.joinToString(", ")}", density))
                 }
-                layout.addView(metaLine(staticEntry.muscleGroup, density))
-                layout.addView(divider(density, medPad))
-                layout.addView(TextView(requireContext()).apply {
+                content.addView(metaLine(staticEntry.muscleGroup, density))
+                content.addView(divider(density, medPad))
+                content.addView(TextView(requireContext()).apply {
                     text = staticEntry.instructions
                     textSize = 15f
                     setLineSpacing(0f, 1.4f)
                 })
             }
 
-            else -> {
-                layout.addView(divider(density, medPad))
-                layout.addView(TextView(requireContext()).apply {
+            sections.genericFallback -> {
+                content.addView(divider(density, medPad))
+                content.addView(TextView(requireContext()).apply {
                     text = "Set up properly and engage your core throughout the movement. " +
                            "Control the eccentric (lowering) phase and maintain good form. " +
                            "Adjust weight or difficulty as needed."
@@ -293,6 +332,18 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                 })
             }
         }
+
+        // Item 01: the explanation shown in place of the hidden entry details. The flag row
+        // below carries the "manage under Settings → About → Debug → Flagged Matches" pointer.
+        hiddenNotice = TextView(requireContext()).apply {
+            text = "Exercise info hidden — you flagged this database match as incorrect."
+            textSize = 14f
+            setTextColor(0xFF888888.toInt())
+            setLineSpacing(0f, 1.35f)
+            setPadding(0, smallPad, 0, smallPad)
+            visibility = if (sections.hiddenNotice) View.VISIBLE else View.GONE
+        }
+        layout.addView(hiddenNotice)
 
         // QoL 2026-08 item 04: flag "this database info doesn't match this exercise" — available
         // from every entry point that opens this sheet. Flagging only records the pair (nothing
@@ -314,6 +365,9 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
                     setOnClickListener {
                         corrections.addFlag(name, dbId)
                         flaggedState()
+                        // Item 01: the mismatched content disappears the moment the user flags,
+                        // not only on next open.
+                        hideFlaggedContent()
                     }
                 }
                 textSize = 13f
@@ -330,6 +384,8 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
         imageAlternateRunnable?.let { imageHandler.removeCallbacks(it) }
         imageAlternateRunnable = null
         imageView = null
+        entrySection = null
+        hiddenNotice = null
     }
 
     private fun metaLine(text: String, density: Float) = TextView(requireContext()).apply {

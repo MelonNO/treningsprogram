@@ -25,9 +25,14 @@ class ProgramViewModelTest {
     }
 
     @Test fun thisMonday_plus6DaysCoversCurrentDay() {
+        // thisMonday() is keyed on the LOGICAL day (DayBoundary, default 04:00 cutoff): between
+        // Sunday 24:00 and Monday 03:59 local it deliberately still returns LAST week's Monday.
+        // The window therefore extends past Sunday midnight by the cutoff (fixed 2026-08-03 —
+        // this assertion used to end at Monday 00:00 and failed when run early Monday morning).
         val monday = thisMonday()
-        val sunday = monday + 6L * 24 * 60 * 60 * 1000
+        val weekEnd = monday + 7L * 24 * 60 * 60 * 1000 +
+            com.migul.treningsprogram.domain.DayBoundary.cutoffHour * 60L * 60 * 1000
         val now = System.currentTimeMillis()
-        assertTrue("now should fall within Mon-Sun window", now in monday..sunday + 24 * 60 * 60 * 1000)
+        assertTrue("now should fall within the logical Mon-Sun window", now in monday..weekEnd)
     }
 }
