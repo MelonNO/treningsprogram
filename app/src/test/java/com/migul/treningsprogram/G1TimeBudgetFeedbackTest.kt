@@ -23,10 +23,9 @@ import org.junit.Test
  *     UNDER the 40-min floor for a 50-min target, so the strict gate rejects the whole plan and the
  *     fixed feedback steers those days the correct direction (ADD).
  *
- * Estimates are hand-computed with the authoritative formula in [WorkoutTimeEstimator]:
- *   strength sec = sets*(maxReps*3) + (sets-1)*rest + 60
- *   cardio   sec = duration + 60      ("20-25" with no min/km unit → 30-min fallback = 1800)
- *   day mins     = (sum + 30) / 60
+ * Estimates are hand-computed with the authoritative formula in [WorkoutTimeEstimator]
+ * (2026-08-03 corrected: sets*(maxReps*4 + 35) + sets*rest + 90; fixtures are weight-0 so no
+ * ramp term applies; day mins = (sum + 30) / 60).
  */
 class G1TimeBudgetFeedbackTest {
 
@@ -126,24 +125,26 @@ class G1TimeBudgetFeedbackTest {
         ex("Standing Bilateral Calf Raise (Bodyweight, Slow Tempo)", 3, "20-25", 45, 7)
     )
 
-    // P2 2026-07: per-rep work is now 4 s (was 3 s), so every day estimates ~15 % higher. Friday, which
-    // sat at 36 min under 3 s/rep, now lands exactly on the 40-min floor (in-window); the other three
-    // under-floor days are still under. Numbers are re-derived with the 4-s formula.
+    // 2026-08-03 duration-truth correction: the calibrated estimator counts this fixture's real time.
+    // The historical story INVERTS — the plan the old optimistic formula rejected as "4 of 5 days
+    // UNDER the floor" was in fact a right-sized ~50-70-real-minute plan all along (which is exactly
+    // why the old gate was measuring the wrong number). Under the corrected formula only Tuesday
+    // (71 min) is out-of-window — on the OVER side, where feedback says TRIM.
     @Test fun fixtureDayEstimates_matchAuthoritativeFormula() {
-        assertEquals(48, WorkoutTimeEstimator.estimateDayMinutes(tuesday))   // in-window
-        assertEquals(36, WorkoutTimeEstimator.estimateDayMinutes(wednesday)) // UNDER floor
-        assertEquals(40, WorkoutTimeEstimator.estimateDayMinutes(friday))    // exactly at floor → in-window
-        assertEquals(34, WorkoutTimeEstimator.estimateDayMinutes(saturday))  // UNDER floor
-        assertEquals(37, WorkoutTimeEstimator.estimateDayMinutes(sunday))    // UNDER floor (tempo fixed)
+        assertEquals(71, WorkoutTimeEstimator.estimateDayMinutes(tuesday))   // OVER the 60 ceiling
+        assertEquals(56, WorkoutTimeEstimator.estimateDayMinutes(wednesday)) // in-window
+        assertEquals(60, WorkoutTimeEstimator.estimateDayMinutes(friday))    // exactly at ceiling → in-window
+        assertEquals(53, WorkoutTimeEstimator.estimateDayMinutes(saturday))  // in-window
+        assertEquals(56, WorkoutTimeEstimator.estimateDayMinutes(sunday))    // in-window
     }
 
     /**
-     * The fixture really is rejected by the strict gate: with the 4-s/rep estimator, 3 of its 5 days fall
-     * under the 40-min floor (Friday now lands exactly on the floor = in-window), and the direction-aware
-     * feedback steers each under-floor day the correct direction (ADD), while the in-window days produce
-     * no feedback. This is the regression the fix targets.
+     * Gate behaviour on the fixture under the corrected estimator: exactly one day (Tuesday, 71 min)
+     * is out-of-window, on the OVER side, and the direction-aware feedback steers it to TRIM while
+     * every in-window day produces no feedback. (Historically this fixture was rejected as mostly
+     * UNDER — that was the OLD estimator's optimism, not the plan's actual size.)
      */
-    @Test fun fixturePlan_isRejected_andUnderDaysGetAddGuidance() {
+    @Test fun fixturePlan_isRejected_onTheOverDay_withTrimGuidance() {
         val days = mapOf(
             2 to tuesday, 3 to wednesday, 5 to friday, 6 to saturday, 7 to sunday
         )
@@ -154,13 +155,14 @@ class G1TimeBudgetFeedbackTest {
             }
 
         val rejectedDays = feedback.filterValues { it != null }
-        assertEquals("exactly the 3 under-floor days are rejected", setOf(3, 6, 7), rejectedDays.keys)
-        rejectedDays.forEach { (day, msg) ->
-            assertTrue("Day $day under-floor feedback must say ADD: $msg", msg!!.contains("ADD"))
-        }
-        // In-window days produce no rejection feedback (Tuesday at 48, Friday at the 40-min floor).
-        assertNull(feedback[2])
+        assertEquals("exactly the one over-ceiling day is rejected", setOf(2), rejectedDays.keys)
+        assertTrue("Day 2 over-ceiling feedback must say TRIM: ${feedback[2]}",
+            feedback[2]!!.contains("TRIM"))
+        // In-window days produce no rejection feedback (Friday sits exactly on the 60-min ceiling).
+        assertNull(feedback[3])
         assertNull(feedback[5])
+        assertNull(feedback[6])
+        assertNull(feedback[7])
 
         // Whole-plan outcome: any out-of-window day makes the deterministic durationReason non-empty,
         // which is exactly what the generation loop rejects on (and short-circuits the LLM review).

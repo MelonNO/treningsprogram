@@ -36,8 +36,9 @@ import kotlin.math.roundToInt
  *    [DEFAULT_BODY_WEIGHT_KG] = 75 kg ONLY when no weigh-in exists at all (brief A2).
  *  - Clamps: body weight is coerced into [MIN_BODY_WEIGHT_KG]..[MAX_BODY_WEIGHT_KG] (typo guard);
  *    duration is capped at [MAX_DURATION_MINUTES] (clock-skew guard); a stored duration of 0
- *    (legacy/sub-minute sessions) falls back to [FALLBACK_MINUTES_PER_SET] × set count — in line
- *    with the app's own per-set time math (~4 s/rep work + rest + admin ≈ 3 min).
+ *    (legacy/sub-minute sessions) falls back to [FALLBACK_MINUTES_PER_SET] × set count — MEASURED:
+ *    real sessions in the 2026-08-03 estimator calibration ran a median 4.4 minutes per logged set
+ *    (n=18 sessions), and the corrected [WorkoutTimeEstimator] per-set math agrees (~3.5–4 min).
  *  - Output is rounded to the nearest 10 kcal with a 10 kcal floor, and [format] prefixes "~",
  *    so the figure always READS as an estimate, never as an exact claim.
  */
@@ -52,8 +53,12 @@ object CalorieEstimator {
     /** Brief-mandated fallback used ONLY when the user has never logged a body weight. */
     const val DEFAULT_BODY_WEIGHT_KG = 75f
 
-    /** Fallback session length when the stored duration is 0 (legacy/sub-minute sessions). */
-    const val FALLBACK_MINUTES_PER_SET = 3
+    /**
+     * Fallback session length when the stored duration is 0 (legacy/sub-minute sessions).
+     * 2026-08-03: raised 3 → 4 with the estimator correction — real sessions measure a median
+     * ~4.4 min per logged set; the old 3 was "in line with" the old OPTIMISTIC formula.
+     */
+    const val FALLBACK_MINUTES_PER_SET = 4
 
     /** Sanity ceiling on the duration term (6 h) — guards absurd stored values (clock skew). */
     const val MAX_DURATION_MINUTES = 360

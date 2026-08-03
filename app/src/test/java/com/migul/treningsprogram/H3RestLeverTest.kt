@@ -23,8 +23,9 @@ import org.junit.Test
  *  2. The retry feedback now NAMES the rest lever for under-time days (while the reject CONDITION and the
  *     over-time branch are unchanged — see G1).
  *
- * Estimates use the authoritative formula (P2 2026-07: per-rep work is 4 s):
- *   strength sec = sets*(maxReps*4) + (sets-1)*rest + 60 ;  day mins = (sum + 30) / 60
+ * Estimates use the authoritative formula (2026-08-03 duration-truth correction):
+ *   strength sec = sets*(maxReps*4 + 35) + sets*rest + 90 (weight-0 fixtures ⇒ no ramp term)
+ *   day mins = (sum + 30) / 60
  */
 class H3RestLeverTest {
 
@@ -43,15 +44,15 @@ class H3RestLeverTest {
             recommendedRestSeconds = rest
         )
 
-    // A realistic 6-exercise hypertrophy day with conventional "short rest for accessories/isolation"
-    // (45–90 s). It lands UNDER the 40-min floor — exactly the repro class.
+    // A realistic lean 4-exercise hypertrophy day with conventional "short rest for accessories"
+    // (45–75 s). It lands UNDER the 40-min floor — exactly the repro class. (Resized 2026-08-03:
+    // under the corrected estimator the old 6-exercise fixture measured a full 60 real minutes —
+    // the "under-time" days of this class were largely an artifact of the old optimistic formula.)
     private val underTimeDay = listOf(
-        ex("Barbell Bench Press", 4, "6-8", 90),
-        ex("Dumbbell Row", 4, "8-12", 75),
-        ex("Dumbbell Lateral Raise", 3, "12-15", 60),
-        ex("Triceps Pushdown", 3, "10-15", 60),
-        ex("Dumbbell Curl", 3, "10-12", 60),
-        ex("Leg Curl", 3, "12-15", 60)
+        ex("Barbell Bench Press", 3, "6-8", 75),
+        ex("Dumbbell Row", 3, "8-12", 60),
+        ex("Dumbbell Lateral Raise", 3, "12-15", 45),
+        ex("Triceps Pushdown", 3, "10-12", 45)
     )
 
     // The SAME plan (same exercises, sets, reps) with inter-set rest raised toward the hypertrophy band
@@ -67,7 +68,7 @@ class H3RestLeverTest {
 
     @Test fun underTimeDay_isBelowFloor() {
         val mins = WorkoutTimeEstimator.estimateDayMinutes(underTimeDay)
-        assertEquals(39, mins)
+        assertEquals(34, mins)
         assertTrue("the day is under the 40-min floor → strict gate rejects it", mins < floor)
         // And the strict gate fires (direction-aware feedback returned).
         assertTrue(dayDurationFeedback(1, mins, target) != null)
@@ -75,8 +76,8 @@ class H3RestLeverTest {
 
     @Test fun raisingRestTo120_clearsFloor_withoutAddingVolume() {
         val mins = WorkoutTimeEstimator.estimateDayMinutes(restRaisedDay)
-        assertEquals(51, mins)
-        // Rest ALONE moved the day from 39 → 51, inside the strict window — no extra sets/exercises.
+        assertEquals(46, mins)
+        // Rest ALONE moved the day from 34 → 46, inside the strict window — no extra sets/exercises.
         assertTrue("rest lever alone clears the floor", mins in floor..(target + 10))
         assertNull("the rest-raised day is now in-window → no rejection feedback",
             dayDurationFeedback(1, mins, target))

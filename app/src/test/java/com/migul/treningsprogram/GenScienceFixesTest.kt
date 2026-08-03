@@ -212,8 +212,9 @@ class GenScienceFixesTest {
 
     @Test fun trimFloor_changesOutcome_strengthDayIsNotButcheredTo60s() {
         // 4 exercises, sets=2 (no set-drops possible), removal blocked (would leave < 4), rest 180.
-        // est: per ex = 2*30*4 + 1*180 + 60 = 480 s; day = 1920 s = 32 min. Target 20 → window 10–30.
-        val day = (0..3).map { i -> ex("Lift $i", order = i, sets = 2, reps = "30", rest = 180) }
+        // Corrected estimator: per ex = 2*(20*4+35) + 2*180 + 90 = 680 s; day = 2720 s ≈ 45 min.
+        // Target 20 → window 10–30 (at the flat 60 s floor the day is 4×440+30 ≈ 29 min = in-window).
+        val day = (0..3).map { i -> ex("Lift $i", order = i, sets = 2, reps = "20", rest = 180) }
         // Strength floor (180): rest is untouchable, no other lever → correctly unsalvageable.
         assertNull(trimOverflowToWindow(day, 20, emptySet(), null, 180))
         // Historical flat 60 s floor: the same day WOULD have been salvaged by cutting rest to

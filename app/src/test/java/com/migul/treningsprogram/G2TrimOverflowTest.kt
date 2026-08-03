@@ -22,8 +22,11 @@ import org.junit.Test
  *   (3) remove whole trailing non-primary exercises (guarded).
  * reps / weight / notes are NEVER edited. These pure tests pin that contract (mirrors the H3/H4 pattern).
  *
- * Estimator (authoritative, same one the gate uses; P2 2026-07: per-rep work is 4 s):
- *   strength sec = sets*(maxReps*4) + (sets-1)*rest + 60 ;  day mins = (Σ + 30) / 60
+ * Estimator (authoritative, same one the gate uses; 2026-08-03 duration-truth correction):
+ *   strength sec = sets*(maxReps*4 + 35) + sets*rest + 90 [+120 ramp if weight>0 and rest>=120]
+ *   day mins = (Σ + 30) / 60. Fixtures carry weight 20 ⇒ the ramp term applies at rest ≥ 120 and
+ *   drops out when the trim reduces rest below the threshold — deliberate, the trim ladder
+ *   re-estimates every step with the same authoritative formula.
  */
 class G2TrimOverflowTest {
 
@@ -81,14 +84,14 @@ class G2TrimOverflowTest {
     @Test fun restOnly_overshoot_salvagedByRestReductionAlone_noSetOrExerciseRemoved() {
         // 6 exercises at the SAME sets but long 150 s rest ⇒ over the ceiling purely on rest.
         val daySrc = listOf(
-            ex(0, "Barbell Bench Press", 4, "6-8", 150),   // primary
-            ex(1, "Dumbbell Row", 4, "8-12", 150),
-            ex(2, "Lateral Raise", 4, "12-15", 150),
-            ex(3, "Triceps Pushdown", 4, "10-15", 150),
-            ex(4, "Dumbbell Curl", 4, "10-12", 150),
-            ex(5, "Leg Curl", 4, "12-15", 150)
+            ex(0, "Barbell Bench Press", 3, "6-8", 150),   // primary
+            ex(1, "Dumbbell Row", 3, "8-12", 150),
+            ex(2, "Lateral Raise", 3, "12-15", 150),
+            ex(3, "Triceps Pushdown", 3, "10-15", 150),
+            ex(4, "Dumbbell Curl", 3, "10-12", 150),
+            ex(5, "Leg Curl", 3, "12-15", 150)
         )
-        assertEquals("fixture is genuinely OVER the ceiling", 72, dayMins(daySrc, 1))
+        assertEquals("fixture is genuinely OVER the ceiling", 92, dayMins(daySrc, 1))
 
         val trimmed = trimOverflowToWindow(daySrc, target, lockedDays = emptySet())
         assertNotNull("a rest-only overshoot must be salvageable", trimmed)
@@ -171,10 +174,10 @@ class G2TrimOverflowTest {
         // target 30 (window 20–40). rest already 60 + accessories at the 2-set floor ⇒ only REMOVAL helps.
         // Trailing two (Arms, Shoulders) are the ONLY member of their group → removing them would orphan
         // the group → skipped. Leg Curl (Legs, duplicated by the squat primary) is the deepest removable.
-        // Sized for the 4-s/rep estimator: day ≈ 42 min (over the 40 ceiling); removing Leg Curl ⇒ ≈ 38 min.
+        // Sized for the corrected estimator: day ≈ 45 min (over the 40 ceiling); removing Leg Curl ⇒ ≈ 39 min.
         val t30 = 30
         val daySrc = listOf(
-            ex(0, "Barbell Squat", 13, "12", 60),    // primary, Legs — big enough that levers 1&2 are exhausted
+            ex(0, "Barbell Squat", 5, "12", 60),     // primary, Legs — big enough that levers 1&2 are exhausted
             ex(1, "Dumbbell Row", 2, "12", 60),      // Back
             ex(2, "Lat Pulldown", 2, "12", 60),      // Back (dup)
             ex(3, "Leg Curl", 2, "12", 60),          // Legs (dup of squat) → safe to remove
@@ -191,7 +194,7 @@ class G2TrimOverflowTest {
         assertTrue("unique Arms exercise retained", trimmed.any { it.exerciseName == "Dumbbell Curl" })
         assertTrue("unique Shoulders exercise retained", trimmed.any { it.exerciseName == "Lateral Raise" })
         assertFalse("duplicate-muscle Leg Curl removed", trimmed.any { it.exerciseName == "Leg Curl" })
-        assertEquals("primary sets untouched", 13, trimmed.first { it.exerciseName == "Barbell Squat" }.sets)
+        assertEquals("primary sets untouched", 5, trimmed.first { it.exerciseName == "Barbell Squat" }.sets)
         assertTrue("day keeps ≥4 exercises", trimmed.size >= 4)
         assertTrue("rest untouched at floor", trimmed.all { it.recommendedRestSeconds == 60 })
         // re-numbered contiguously after the removal
@@ -235,10 +238,10 @@ class G2TrimOverflowTest {
             ex(1, "Dumbbell Row", 6, "12", 180, day = 1),
             ex(2, "Lateral Raise", 6, "15", 180, day = 1),
             ex(3, "Dumbbell Curl", 6, "12", 180, day = 1),
-            ex(0, "Barbell Bench Press", 4, "8", 150, day = 2),
-            ex(1, "Dumbbell Row", 4, "10", 150, day = 2),
-            ex(2, "Lateral Raise", 4, "15", 150, day = 2),
-            ex(3, "Triceps Pushdown", 4, "15", 150, day = 2)
+            ex(0, "Barbell Bench Press", 3, "8", 105, day = 2),
+            ex(1, "Dumbbell Row", 3, "10", 105, day = 2),
+            ex(2, "Lateral Raise", 3, "15", 105, day = 2),
+            ex(3, "Triceps Pushdown", 3, "15", 105, day = 2)
         )
         assertTrue("locked day 1 is over the window", dayMins(plan, 1) > high)
         assertTrue("day 2 is in-window", dayMins(plan, 2) in low..high)
@@ -256,7 +259,7 @@ class G2TrimOverflowTest {
         // Day 2 returned unchanged and in-window (in-window days are not rest-trimmed).
         val day2 = trimmed.filter { it.dayOfWeek == 2 }
         assertEquals("day 2 untouched (count)", 4, day2.size)
-        assertTrue("day 2 rest untouched", day2.all { it.recommendedRestSeconds == 150 })
+        assertTrue("day 2 rest untouched", day2.all { it.recommendedRestSeconds == 105 })
         assertTrue("day 2 still in-window", dayMins(trimmed, 2) in low..high)
     }
 
@@ -264,10 +267,10 @@ class G2TrimOverflowTest {
 
     @Test fun allInWindow_returnedUnchanged() {
         val daySrc = listOf(
-            ex(0, "Barbell Bench Press", 4, "8", 150),
-            ex(1, "Dumbbell Row", 4, "10", 150),
-            ex(2, "Lateral Raise", 4, "15", 150),
-            ex(3, "Triceps Pushdown", 4, "15", 150)
+            ex(0, "Barbell Bench Press", 3, "8", 105),
+            ex(1, "Dumbbell Row", 3, "10", 105),
+            ex(2, "Lateral Raise", 3, "15", 105),
+            ex(3, "Triceps Pushdown", 3, "15", 105)
         )
         assertTrue("fixture already in-window", dayMins(daySrc, 1) in low..high)
         val trimmed = trimOverflowToWindow(daySrc, target, emptySet())

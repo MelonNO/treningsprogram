@@ -97,9 +97,10 @@ class R1ExerciseRecognitionTest {
         val name = "Standing Calf Raise (Slow Tempo)"
         assertNotEquals("tempo move must not be Cardio", "Cardio", MuscleClassifier.displayName(name))
 
-        // strength sec = sets*(maxReps*4) + (sets-1)*rest + 60 = 3*(25*4) + 2*45 + 60 = 450 (P2 2026-07: 4 s/rep)
+        // strength sec = sets*(maxReps*4 + 35) + sets*rest + 90 = 3*(25*4+35) + 3*45 + 90 = 630
+        // (2026-08-03 corrected formula; weight-0 fixture ⇒ no ramp term)
         val ex = planned(name, sets = 3, targetReps = "20-25", rest = 45)
-        assertEquals(450, WorkoutTimeEstimator.estimateExerciseSeconds(ex))
+        assertEquals(630, WorkoutTimeEstimator.estimateExerciseSeconds(ex))
         assertTrue("must be far under the 30-min cardio fallback",
             WorkoutTimeEstimator.estimateExerciseSeconds(ex) < 1800)
 

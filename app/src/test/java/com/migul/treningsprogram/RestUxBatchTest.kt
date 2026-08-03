@@ -123,20 +123,24 @@ class RestUxBatchTest {
 
     @Test fun estimator_manualOverridesAiRest() {
         val manual = ManualRestTimes(heavyCompoundSeconds = 180, accessorySeconds = 90)
+        // 2026-08-03 corrected formula; fixtures carry weight 20 ⇒ ramp (+120) when the EFFECTIVE
+        // rest (manual override included) is ≥ 120 s.
         // Squat (heavy): AI said 120 s but the user rests 180 s.
-        // 4*(10*4) + 3*180 + 60 = 160 + 540 + 60 = 760 (vs 580 with the AI's 120 s)
+        // AI:     4*(10*4+35) + 4*120 + 90 + 120 = 300 + 480 + 210 = 990
+        // manual: 4*(10*4+35) + 4*180 + 90 + 120 = 300 + 720 + 210 = 1230
         val squat = ex("Barbell Squat", sets = 4, reps = "8-10", rest = 120)
-        assertEquals(580, WorkoutTimeEstimator.estimateExerciseSeconds(squat))
-        assertEquals(760, WorkoutTimeEstimator.estimateExerciseSeconds(squat, manual))
+        assertEquals(990, WorkoutTimeEstimator.estimateExerciseSeconds(squat))
+        assertEquals(1230, WorkoutTimeEstimator.estimateExerciseSeconds(squat, manual))
 
-        // Curl (accessory): AI said 150 s but the user rests 90 s.
-        // 3*(12*4) + 2*90 + 60 = 144 + 180 + 60 = 384 (vs 504 with the AI's 150 s)
+        // Curl (accessory): AI said 150 s but the user rests 90 s (ramp only at the AI's 150 s).
+        // AI:     3*(12*4+35) + 3*150 + 90 + 120 = 249 + 450 + 210 = 909
+        // manual: 3*(12*4+35) + 3*90 + 90 = 249 + 270 + 90 = 609 (rest < 120 ⇒ no ramp)
         val curl = ex("Bicep Curl", sets = 3, reps = "10-12", rest = 150)
-        assertEquals(504, WorkoutTimeEstimator.estimateExerciseSeconds(curl))
-        assertEquals(384, WorkoutTimeEstimator.estimateExerciseSeconds(curl, manual))
+        assertEquals(909, WorkoutTimeEstimator.estimateExerciseSeconds(curl))
+        assertEquals(609, WorkoutTimeEstimator.estimateExerciseSeconds(curl, manual))
 
-        // Day minutes recompute with the same override: (760 + 384 + 30) / 60 = 19
-        assertEquals(19, WorkoutTimeEstimator.estimateDayMinutes(listOf(squat, curl), manual))
+        // Day minutes recompute with the same override: (1230 + 609 + 30) / 60 = 31
+        assertEquals(31, WorkoutTimeEstimator.estimateDayMinutes(listOf(squat, curl), manual))
     }
 
     @Test fun estimator_cardioUnaffectedByManualMode() {
@@ -161,18 +165,17 @@ class RestUxBatchTest {
     @Test fun trim_manualMode_neverTouchesRecommendedRest_andLandsInWindow() {
         val manual = ManualRestTimes(heavyCompoundSeconds = 180, accessorySeconds = 90)
         val target = 50
-        // Build a day that is OVER 60 min under MANUAL math:
-        // Squat 5x8 @180: 5*32*... => 5*(8*4)=160 + 4*180=720 + 60 = 940 s
-        // Bench 4x10 @180: 4*40=160... reps 10 → 4*(10*4)=160 + 3*180=540 + 60 = 760 s
-        // Row 4x10 @180: 760 s ; Curl 4x12 @90: 4*48=192 + 3*90=270 + 60 = 522 s
-        // Extension 4x12 @90: 522 s → total 3504 s → (3504+30)/60 = 58 min... need more.
+        // Build a day that is far OVER the 60-min ceiling under MANUAL math (corrected estimator:
+        // heavies at 180 s manual rest carry the ramp term; accessories at 90 s do not).
+        // Day ≈ 73 min under manual math (squat 1198 s + bench/row 975 s each + curl/leg-ext
+        // 609 s each, ramps included); dropping accessory sets to the 2-set floor reclaims
+        // ~14 min → lands in the 40–60 window without touching any recommendedRestSeconds.
         val day = listOf(
-            ex("Barbell Squat", 5, "8", 120, order = 0),
-            ex("Bench Press", 4, "10", 120, order = 1),
-            ex("Barbell Row", 4, "10", 120, order = 2),
-            ex("Bicep Curl", 4, "12", 60, order = 3),
-            ex("Leg Extension", 4, "12", 60, order = 4),
-            ex("Lateral Raise", 4, "15", 60, order = 5)
+            ex("Barbell Squat", 4, "8", 120, order = 0),
+            ex("Bench Press", 3, "10", 120, order = 1),
+            ex("Barbell Row", 3, "10", 120, order = 2),
+            ex("Bicep Curl", 3, "12", 60, order = 3),
+            ex("Leg Extension", 3, "12", 60, order = 4)
         )
         val before = WorkoutTimeEstimator.estimateDayMinutes(day, manual)
         assertTrue("precondition: day must be OVER the ceiling under manual math", before > target + 10)

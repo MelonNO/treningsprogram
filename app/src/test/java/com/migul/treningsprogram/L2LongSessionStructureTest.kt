@@ -31,9 +31,9 @@ import org.junit.Test
  *     the modalities the prompt FORBIDS as the timed entry (rowing/carries) are proven to be mis-timed,
  *     which is exactly WHY they are excluded.
  *
- * Estimator formula (P2 2026-07, per-rep work = 4 s):
- *   strength sec = sets*(maxReps*4) + (sets-1)*rest + 60
- *   cardio   sec = duration_seconds + 60           (duration parsed from targetReps, e.g. "40 min")
+ * Estimator formula (2026-08-03 duration-truth correction):
+ *   strength sec = sets*(maxReps*4 + 35) + sets*rest + 90   (weight-0 fixtures ⇒ no ramp term)
+ *   cardio   sec = duration_seconds + 90           (duration parsed from targetReps, e.g. "40 min")
  *   day mins     = (sum + 30) / 60
  */
 class L2LongSessionStructureTest {
@@ -125,47 +125,47 @@ class L2LongSessionStructureTest {
     // ── 3. Estimator: a cardio conditioning entry adds clean DURATION minutes ───────────────────────
 
     @Test fun cardioConditioningEntry_isTimedByItsDuration() {
-        // A 40-min stationary-bike finisher: 40*60 + 60 s setup = 2460 s (≈ 41 min). This is the clean
-        // minutes a long session uses to reach its target without junk lifting volume.
+        // A 40-min stationary-bike finisher: 40*60 + 90 s transition = 2490 s (≈ 42 min). This is the
+        // clean minutes a long session uses to reach its target without junk lifting volume.
         val bike = ex("Stationary Bike", sets = 1, reps = "40 min", rest = 60)
         assertEquals("Stationary Bike must classify as Cardio", "Cardio",
             MuscleClassifier.displayName("Stationary Bike"))
-        assertEquals(2460, WorkoutTimeEstimator.estimateExerciseSeconds(bike))
+        assertEquals(2490, WorkoutTimeEstimator.estimateExerciseSeconds(bike))
 
         // An easy incline-walk warm-up is also cardio-timed.
         val walk = ex("Incline Walk", sets = 1, reps = "12 min", rest = 60)
         assertEquals("Cardio", MuscleClassifier.displayName("Incline Walk"))
-        assertEquals(780, WorkoutTimeEstimator.estimateExerciseSeconds(walk))
+        assertEquals(810, WorkoutTimeEstimator.estimateExerciseSeconds(walk))
     }
 
     @Test fun forbiddenModalities_areNotTimedByDuration_soTheyAreExcluded() {
         // WHY the prompt forbids rowing/carries as the timed entry: the estimator classifies them as
         // strength/core, so a "40 min" targetReps is read as reps (40) and grossly UNDER-timed — a 40-min
-        // row would count as ~4 min, silently failing the time budget.
+        // row would count as ~6 min, silently failing the time budget.
         assertEquals("Back", MuscleClassifier.displayName("Rowing Machine"))
         assertEquals("Core", MuscleClassifier.displayName("Farmer's Carry"))
         val row = ex("Rowing Machine", sets = 1, reps = "40 min", rest = 60)
-        assertEquals(220, WorkoutTimeEstimator.estimateExerciseSeconds(row)) // 1*(40*4)+0+60 = 220 s ≈ 4 min
-        assertTrue("a 40-min row is mis-timed as ~4 min (NOT ~41) — hence excluded",
+        assertEquals(345, WorkoutTimeEstimator.estimateExerciseSeconds(row)) // 1*(40*4+35)+1*60+90 = 345 s ≈ 6 min
+        assertTrue("a 40-min row is mis-timed as ~6 min (NOT ~42) — hence excluded",
             WorkoutTimeEstimator.estimateExerciseSeconds(row) <
                 WorkoutTimeEstimator.estimateExerciseSeconds(ex("Stationary Bike", 1, "40 min", 60)) / 5)
     }
 
     @Test fun multiModal120MinDay_landsInWindow() {
-        // A realistic 120-min day: a full 6-exercise strength block (~53 min) + a 12-min warm-up walk +
-        // a 45-min conditioning bike ⇒ 112 min, inside [110, 130]. No junk lifting volume needed.
+        // A realistic 120-min day: a full 6-exercise strength block (~80 min under the corrected
+        // estimator) + a 12-min warm-up walk + a 30-min conditioning bike ⇒ 125 min, inside [110, 130].
         val day = listOf(
-            ex("Incline Walk", 1, "12 min", 60, order = 0),                 // 780 s  (warm-up)
-            ex("Barbell Bench Press", 4, "6-8", 180, order = 1),            // 728 s
-            ex("Barbell Row", 4, "8-12", 150, order = 2),                   // 702 s
-            ex("Dumbbell Overhead Press", 3, "8-10", 150, order = 3),       // 480 s
-            ex("Dumbbell Lateral Raise", 3, "12-15", 90, order = 4),        // 420 s
-            ex("Triceps Pushdown", 3, "10-15", 90, order = 5),             // 420 s
-            ex("Lying Leg Curl", 3, "12-15", 90, order = 6),               // 420 s
-            ex("Stationary Bike", 1, "45 min", 60, order = 7)              // 2760 s (conditioning finisher)
+            ex("Incline Walk", 1, "12 min", 60, order = 0),                 // 810 s  (warm-up)
+            ex("Barbell Bench Press", 4, "6-8", 180, order = 1),            // 1078 s
+            ex("Barbell Row", 4, "8-12", 150, order = 2),                   // 1022 s
+            ex("Dumbbell Overhead Press", 3, "8-10", 150, order = 3),       // 765 s
+            ex("Dumbbell Lateral Raise", 3, "12-15", 90, order = 4),        // 645 s
+            ex("Triceps Pushdown", 3, "10-15", 90, order = 5),             // 645 s
+            ex("Lying Leg Curl", 3, "12-15", 90, order = 6),               // 645 s
+            ex("Stationary Bike", 1, "30 min", 60, order = 7)              // 1890 s (conditioning finisher)
         )
         val mins = WorkoutTimeEstimator.estimateDayMinutes(day)
-        assertEquals(112, mins)
+        assertEquals(125, mins)
         assertTrue("multi-modal long day lands in the ±10 window [110,130]: $mins", mins in 110..130)
         // And the deterministic gate accepts it (no feedback returned).
         assertNull("gate accepts the in-window multi-modal day",
@@ -176,13 +176,14 @@ class L2LongSessionStructureTest {
         // Regression guard: a lean 50-min hypertrophy day (6 strength exercises, NO cardio) still estimates
         // in [40,60] and is NOT a long session — nothing about this path changed.
         assertFalse(isLongSession(50))
+        // Resized 2026-08-03: a corrected-estimator-lean 50-min day is 5 exercises × 3 sets at
+        // moderate rests (the old 6-exercise/4-set fixture measures ~69 real minutes).
         val day = listOf(
-            ex("Barbell Bench Press", 4, "6-8", 120, order = 0),
-            ex("Barbell Row", 4, "8-12", 120, order = 1),
-            ex("Dumbbell Overhead Press", 3, "8-10", 90, order = 2),
-            ex("Dumbbell Lateral Raise", 3, "12-15", 75, order = 3),
-            ex("Triceps Pushdown", 3, "10-15", 75, order = 4),
-            ex("Lying Leg Curl", 3, "12-15", 75, order = 5)
+            ex("Barbell Bench Press", 3, "6-8", 90, order = 0),
+            ex("Barbell Row", 3, "8-12", 90, order = 1),
+            ex("Dumbbell Overhead Press", 3, "8-10", 75, order = 2),
+            ex("Dumbbell Lateral Raise", 3, "12-15", 60, order = 3),
+            ex("Triceps Pushdown", 3, "10-12", 60, order = 4)
         )
         val mins = WorkoutTimeEstimator.estimateDayMinutes(day)
         assertTrue("lean 50-min day estimates in-window [40,60]: $mins", mins in 40..60)

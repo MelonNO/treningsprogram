@@ -163,9 +163,11 @@ internal const val GENERATION_MAX_TOKENS: Int = 24576
 
 // ── Layer-2 (long-session fix 2026-07; rewritten 2026-08 for the cardio removal): LONG threshold ──
 //
-// A lean strength/hypertrophy session tops out ~55–70 min under the app's soundness rules (≤8
-// exercises, per-muscle ~8–10 hard-set cap, junk-volume rejection) at MID-band rests. Targets at/above
-// 90 min therefore need DELIBERATE sizing. Since the 2026-08 cardio removal the levers are
+// A lean strength/hypertrophy session tops out ~85–105 min under the app's soundness rules (≤8
+// exercises, per-muscle ~8–10 hard-set cap, junk-volume rejection) at MID-band rests — figures in the
+// CORRECTED 2026-08-03 estimator's minutes (the old "~55–70" was the same volume counted by the old
+// optimistic formula). Targets at/above 90 min still need DELIBERATE sizing, especially for the
+// short-rest goals. Since the 2026-08 cardio removal the levers are
 // resistance-only: rest at the TOP of the goal band (strength ~300 s / hypertrophy compounds ~240 s —
 // this alone moves a day by 15–25 min), fuller rep ranges, a structured warm-up block (strength-shape
 // entries, cap-exempt), and a fuller exercise complement within the caps. Short-rest goals
@@ -176,57 +178,71 @@ internal const val GENERATION_MAX_TOKENS: Int = 24576
 internal const val LONG_SESSION_THRESHOLD_MIN: Int = 90
 internal fun isLongSession(targetMinutes: Int): Boolean = targetMinutes >= LONG_SESSION_THRESHOLD_MIN
 
-// ── Duration calibration (gen-calibration 2026-07): compensate the model's systematic self-estimate
-//    UNDER-bias vs the exact WorkoutTimeEstimator formula ────────────────────────────────────────────
+// ── Duration calibration: where the model should AIM inside the ±10 window ────────────────────────
 //
-// Across every live generation round the model sizes each day so ITS OWN reckoning ≈ the target, but the
-// app's exact recount (4 s/rep work + 60 s setup + rest-BETWEEN-sets) comes out SEVERAL MINUTES LOWER, so
-// a day the model sizes "right at the target" recounts UNDER the ±10-min floor and the strict gate rejects
-// it → a retry is burned. Documented baselines: at a 50-min target the low-volume goals (strength /
-// endurance / weight-loss) land ~34–40 min vs the 40-min floor on attempt 1 (self-heal over the 3-attempt
-// ladder — extra user wait); a ~100-min target lands ~88–89 vs the 90-min floor (the v1.17.0 residual).
-// Hypertrophy@50 (naturally higher volume ⇒ smaller bias) already lands in-window on attempt 1.
+// HISTORY (gen-calibration 2026-07): with the OLD optimistic WorkoutTimeEstimator (4 s/rep +
+// (sets−1)×rest + 60 s admin) the app's exact recount came out SEVERAL MINUTES LOWER than the model's
+// own sizing, so a day sized "right at the target" recounted UNDER the floor and burned a retry. A live
+// A/B set the buffer to +12 to compensate, with only ~40–50 % pass-through (moving the stated aim +12
+// moved real landings ~+3–6).
 //
-// The fix does NOT touch the gate, the window, or [WorkoutTimeEstimator]. It tells the model to SIZE each
-// day a fixed buffer ABOVE the target so the exact recount lands INSIDE the window on attempt 1, then leans
-// on the existing deterministic [trimOverflowToWindow] salvage for any overshoot. The miss is ASYMMETRIC —
-// a day that recounts OVER the ceiling is trimmed back (safe, at worst one extra retry) while a day UNDER
-// the floor is the only FATAL miss — so we deliberately err HIGH.
+// 2026-08-03 "duration truth" correction: that premise is now INVERTED. The estimator was calibrated
+// against the user's real training history (it was ~1.6–1.7× optimistic — see [WorkoutTimeEstimator]),
+// so the recount of any given plan RISES ~1.4–1.7×. Re-scoring the six committed live-confirmation
+// plans (docs/intake/gen-science-confirm-2026-08-03) with the corrected formula: the attempt-1 plans
+// the old gate rejected as "UNDER by 11–15" land IN-window or a few minutes OVER, and the old gate's
+// "self-healed" attempt-2 plans now read OVER — i.e. the +12 buffer would push nearly everything past
+// the ceiling. The old buffer is therefore obsolete.
 //
-// Value 12 chosen by a LIVE A/B (gen-calibration-2026-07, JVM harness rendering the REAL buildPrompt over a
-// plain live POST + the REAL gate; 9/20-call budget). What that run actually measured (corrects the earlier
-// a-priori guess that the bias was small for hypertrophy / large only for low-volume goals):
-//   • At a 50-min target the under-bias is UNIFORMLY LARGE (~16–25 min) across ALL FOUR goals — NOT
-//     goal-dependent. (The old "120-min is low-bias" was cardio DILUTION: a duration entry is estimated
-//     accurately by both the model and the formula, so it carries no bias.)
-//   • Buffer pass-through is only ~40–50 % (moving the STATED aim +12 moved real landings ~+3–6), so no
-//     single additive buffer fully closes the tightest days of the SHORT-REST goals (endurance / weight-loss:
-//     their rest band is too short to use rest as the time lever).
-//   • RESULT at 12: Strength@50 and Hypertrophy@120 close on attempt 1; Hypertrophy@50 nearly (3/4);
-//     endurance/weight-loss@50 improve but need the (now buffered-aim) retry ladder; the 100-min case reaches
-//     an OVER-only landing on attempt 2 (~112/105/102/100) that the salvage trims into the window and SAVES
-//     (v1.17.0 landed 88–89 UNDER the floor = unsalvageable). Every cell ≥ its old baseline (no regression).
-// A larger buffer gave diminishing returns (partial pass-through) and began tipping the long cells over the
-// ceiling, so 12 is kept. Pure + internal so the value is unit-testable and shared by every prompt seam that
-// states the per-day aim (buildPrompt TIME BUDGET, the long-session block, buildSingleDayPrompt, dayDurationFeedback).
-internal const val DURATION_AIM_BUFFER_MIN: Int = 12
+// Value 6 is REASONED, not measured (the old +12 was measured against the WRONG estimator; no live
+// budget existed to re-derive it at correction time): the miss asymmetry still holds — a day that
+// recounts a little OVER the ceiling is deterministically trimmed back by [trimOverflowToWindow]
+// (safe), while a day UNDER the floor is the only FATAL miss — so the aim stays a small margin above
+// the target rather than dead-centre. 6 ≈ half the window's upper margin; with the corrected formula
+// now stated verbatim in the prompt the model's sizing arithmetic and the app's recount finally use
+// the same numbers, so no large compensating buffer is justified. MUST be re-derived with a small live
+// pass (≈6 calls: 4 goals @60 + 90 + 120) when budget is granted. Pure + internal so the value is
+// unit-testable and shared by every prompt seam that states the per-day aim (buildPrompt TIME BUDGET,
+// the long-session block, buildSingleDayPrompt, dayDurationFeedback).
+internal const val DURATION_AIM_BUFFER_MIN: Int = 6
 internal fun durationAimMinutes(targetMinutes: Int): Int = targetMinutes + DURATION_AIM_BUFFER_MIN
 
 /**
- * The shared one-line "size each day a buffer above the target, err HIGH" calibration phrase used by every
+ * The EXACT per-exercise duration formula, stated once so buildPrompt and buildSingleDayPrompt can never
+ * drift from each other or from [WorkoutTimeEstimator] (whose constants are interpolated directly). The
+ * model must size with the SAME arithmetic the deterministic gate recounts with — that identity is the
+ * whole point of the 2026-08-03 estimator correction.
+ */
+internal fun timeBudgetFormulaPhrase(): String =
+    "Per exercise ≈ sets × (reps × ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s work + " +
+        "${WorkoutTimeEstimator.SETUP_SECONDS_PER_SET} s per-set overhead) + sets × rest seconds + " +
+        "~${WorkoutTimeEstimator.TRANSITION_SECONDS_PER_EXERCISE} s transition; " +
+        "ADD ~${WorkoutTimeEstimator.WARMUP_RAMP_SECONDS} s warm-up ramp allowance for each LOADED lift " +
+        "(targetWeightKg > 0) whose rest is ≥ ${WorkoutTimeEstimator.RAMP_REST_THRESHOLD_SECONDS} s. " +
+        "Rest counts after EVERY set (N sets ⇒ N rest periods — the recovery after an exercise's final " +
+        "set is real time spent before the next station); the " +
+        "${WorkoutTimeEstimator.SETUP_SECONDS_PER_SET} s per set covers racking, plate changes and " +
+        "logging (${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s/rep = realistic controlled tempo)."
+
+/**
+ * The shared one-line "size each day slightly above the target" calibration phrase used by every
  * prompt seam that states the per-day duration aim, so the wording (and the aim number) stay identical
  * across buildPrompt, buildSingleDayPrompt, the long-session block, and the retry feedback. Pure + internal
  * so it is unit-testable without an [AiRepository] instance. Deliberately contains no "TRIM"/"ADD" imperative
  * (those belong to the direction-aware [dayDurationFeedback]); "auto-trimmed" is lower-case on purpose.
+ *
+ * 2026-08-03: the old wording claimed the app's recount lands BELOW the model's sizing — true for the
+ * old optimistic estimator, FALSE after the correction (prompt formula and gate now use identical
+ * arithmetic). The aim stays slightly above target purely for the miss ASYMMETRY (over ⇒ trimmed,
+ * under ⇒ fatal).
  */
 internal fun durationAimPhrase(targetMinutes: Int): String {
     val aim = durationAimMinutes(targetMinutes)
     val low = targetMinutes - 10
     val high = targetMinutes + 10
-    return "SIZE each day so YOUR OWN estimate is about $aim min — a few minutes ABOVE the $targetMinutes " +
-        "target, NOT the centre and NOT the $low floor. The app RE-COUNTS every day with the exact formula, " +
-        "and that recount lands SEVERAL MINUTES BELOW your own sizing, so a day you size right at " +
-        "$targetMinutes usually recounts UNDER the $low-min floor and is REJECTED. Err HIGH on purpose: a " +
+    return "SIZE each day so YOUR OWN estimate (computed with the EXACT formula above) is about $aim min — " +
+        "a few minutes ABOVE the $targetMinutes target, NOT the $low floor. The app RE-COUNTS every day " +
+        "with the same formula and enforces the $low–$high window STRICTLY. Err HIGH on purpose: a " +
         "day that recounts a little over the $high-min ceiling is automatically trimmed back into the window " +
         "(safe), but a day that recounts under the $low floor wastes the WHOLE plan (fatal)."
 }
@@ -540,8 +556,8 @@ internal fun dayDurationFeedback(
         estimateMinutes < low && restIsLever ->
             "Day $day estimates ~$estimateMinutes min — that is UNDER the target window " +
                 "($low–$high min, aim $targetMinutes). ADD work to this day so it CLEARS the $low-min " +
-                "floor AND YOUR sizing reaches about ${durationAimMinutes(targetMinutes)} min (err HIGH — the app " +
-                "recounts each day LOWER than you size it), in THIS order until in-window: (1) raise inter-set REST toward the TOP " +
+                "floor AND YOUR sizing reaches about ${durationAimMinutes(targetMinutes)} min (err HIGH — " +
+                "under the floor is the only fatal miss; a little over is auto-trimmed), in THIS order until in-window: (1) raise inter-set REST toward the TOP " +
                 "of THIS goal's rest band — rest is the #1 time lever and short rest is the main cause of " +
                 "under-time days (do not exceed the goal's own rest band); (2) raise reps toward the TOP " +
                 "of each exercise's role range; (3) add a set to an accessory/isolation exercise; (4) add " +
@@ -553,8 +569,8 @@ internal fun dayDurationFeedback(
                 "($low–$high min, aim $targetMinutes). REST IS NOT A LEVER here: the user takes their own " +
                 "FIXED rest times, so changing recommendedRestSeconds changes NOTHING. ADD work to this " +
                 "day so it CLEARS the $low-min floor AND YOUR sizing reaches about " +
-                "${durationAimMinutes(targetMinutes)} min (err HIGH — the app recounts each day LOWER " +
-                "than you size it), in THIS order until in-window: (1) raise reps toward the TOP of each " +
+                "${durationAimMinutes(targetMinutes)} min (err HIGH — under the floor is the only fatal " +
+                "miss; a little over is auto-trimmed), in THIS order until in-window: (1) raise reps toward the TOP of each " +
                 "exercise's role range; (2) add a set to an accessory/isolation exercise; (3) add one " +
                 "more accessory exercise. Size to the SESSION DURATION, not to a fixed set count; keep " +
                 "volume goal- and duration-appropriate; CLEAR the floor — do NOT pad with junk volume. " +
@@ -1952,7 +1968,7 @@ This is a LONG session and the plan is RESISTANCE-ONLY (see NO CARDIO — condit
    • A structured WARM-UP block (about 5–15 min): ramp/mobility entries written as ordinary strength-shape entries (sets × reps, light or bodyweight, role "warmup") — these do NOT count toward the strength exercise cap.
    • A fuller exercise complement toward the experience cap, and sets at the top of the guideline — ONLY while every per-muscle volume cap still holds.
 3. Do NOT pad with junk volume, a duplicated movement pattern, or a cardio/conditioning entry. If the target genuinely cannot be reached inside the volume caps and rest bands, prefer the top of every band over breaking a cap.
-4. Size EVERY day with the TIME BUDGET formula so YOUR OWN estimate totals about ${durationAimMinutes(sessionDurationMinutes)} min — a few minutes ABOVE the target, never the ${sessionDurationMinutes - 10}-min floor. The app RE-COUNTS each day and its recount lands LOWER than your sizing; a day that recounts a few minutes OVER is automatically trimmed back, but a day UNDER the ${sessionDurationMinutes - 10}-min floor is REJECTED and wastes the ENTIRE plan. Give EVERY day the same deliberate sizing; do not leave any single day short.
+4. Size EVERY day with the TIME BUDGET formula so YOUR OWN estimate totals about ${durationAimMinutes(sessionDurationMinutes)} min — a few minutes ABOVE the target, never the ${sessionDurationMinutes - 10}-min floor. The app RE-COUNTS each day with the SAME formula and enforces the window strictly; a day that recounts a few minutes OVER is automatically trimmed back, but a day UNDER the ${sessionDurationMinutes - 10}-min floor is REJECTED and wastes the ENTIRE plan. Give EVERY day the same deliberate sizing; do not leave any single day short.
 """ else ""
 
         val rejectionBlock = if (previousRejectionReason.isNotBlank()) """
@@ -2143,7 +2159,7 @@ $splitBlock$previousPlanBlock
 TIME BUDGET (applies PER training day — DERIVED FROM THE SESSION DURATION, STRICT both directions)
 ══════════════════════════════════════════
 The session target is $sessionDurationMinutes min. EACH training day MUST estimate within ±10 min of that — target $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min. This applies across the FULL range the user might pick (20–120 min): a SHORT session must be lean with NO junk padding, and a LONG session must actually REACH its target. Volume, rest, exercise count, and per-day time are DERIVED from goal × experience × days/week × THIS session duration — there is NO fixed set count, NO fixed minute target, and NO blanket rest ceiling driving the size. A day UNDER ${sessionDurationMinutes - 10} min is rejected just as hard as one OVER ${sessionDurationMinutes + 10} min. Self-size EVERY day using this EXACT estimate (it is the formula the app enforces — match it, do not approximate):
-- Per exercise ≈ sets × reps × ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s work + (sets − 1) × rest seconds + ~60 s setup. Rest counts only BETWEEN sets, so an exercise with N sets has N−1 rest periods, NOT N. (${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s/rep reflects a realistic controlled tempo.)
+- ${timeBudgetFormulaPhrase()}
 - A day's estimate = the sum of its exercises.
 ${if (manualRest != null) """
 THE USER TAKES FIXED REST TIMES — CRITICAL FOR THE FORMULA ABOVE: this user overrides rest with their own timer settings, so in the formula "rest seconds" is ALWAYS ${manualRest.heavyCompoundSeconds} s for a HEAVY COMPOUND strength exercise (any squat / deadlift / RDL / bench / press / row / lunge / hip-thrust / clean / snatch / good-morning / pull-up / chin-up / dip type lift — NOT pallof press, calf work, pressdowns, wrist work, or the rowing/erg machine) and ${manualRest.accessorySeconds} s for EVERY OTHER strength exercise. Your recommendedRestSeconds values are still recorded as suggestions but DO NOT affect the enforced duration math — REST IS NOT A TIME LEVER for you; size every day with reps, sets, and exercise count instead.
@@ -2153,14 +2169,14 @@ ${if (manualRest == null)
 "REST IS YOUR #1 TIME LEVER. Short rest is the single biggest cause of under-time days. When a day estimates under $sessionDurationMinutes min, RAISE inter-set rest toward the TOP of THIS GOAL's rest band FIRST — strength has the most headroom here (3–5 min / up to ~300 s), hypertrophy compounds up to ~240 s, endurance/weight-loss stay in their shorter bands. Do not push rest beyond the goal's own band."
 else
 "REST IS NOT A TIME LEVER (fixed user rest times — see above). When a day estimates under $sessionDurationMinutes min, add work: raise reps, add sets, or add an accessory."}
-UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until YOUR OWN estimate reaches about ${durationAimMinutes(sessionDurationMinutes)} min (do NOT stop the moment it scrapes the ${sessionDurationMinutes - 10}-min floor — err HIGH per CALIBRATION above, since the app recounts your day LOWER than you size it):
+UNDER-FILL CORRECTION — when a day lands under ${sessionDurationMinutes - 10} min, apply these IN ORDER until YOUR OWN estimate reaches about ${durationAimMinutes(sessionDurationMinutes)} min (do NOT stop the moment it scrapes the ${sessionDurationMinutes - 10}-min floor — err HIGH per CALIBRATION above: under the floor is the only fatal miss, a little over is auto-trimmed):
 ${if (manualRest == null) """  1. Raise inter-set rest toward this goal's band MAXIMUM (this alone clears most under-time days).
   2. RAISE reps toward the TOP of each exercise's role range.
   3. ADD 1 set to an accessory/isolation exercise.
   4. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume).""" else """  1. RAISE reps toward the TOP of each exercise's role range.
   2. ADD 1 set to an accessory/isolation exercise.
   3. ADD one more accessory exercise (respecting the experience exercise-count cap and goal-appropriate per-muscle volume)."""}
-OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory${if (manualRest == null) ", reduce sets, or shorten rest" else " or reduce sets (rest is fixed)"} until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, use rest at the top of the goal band and a structured warm-up block (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the ${sessionDurationMinutes - 10}-min low edge — the app recounts each day LOWER than you size it, so a low-edge day tips back under the floor. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
+OVER-FILL: if a day lands over ${sessionDurationMinutes + 10} min, TRIM — remove an accessory${if (manualRest == null) ", reduce sets, or shorten rest" else " or reduce sets (rest is fixed)"} until it estimates close to $sessionDurationMinutes.${if (isLongSession(sessionDurationMinutes)) " For a LONG target that is hard to reach, use rest at the top of the goal band and a structured warm-up block (see LONG SESSION STRUCTURE below) BEFORE junk volume." else ""} For a SHORT target, do NOT pad — keep it lean. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the ${sessionDurationMinutes - 10}-min low edge — a low-edge day has NO margin for sizing error, and under the floor is the only fatal miss. Size within goal- and duration-appropriate volume; never add junk volume or duplicate a movement pattern just to hit a number.
 $longSessionBlock
 ══════════════════════════════════════════
 SESSION DESIGN RULES
@@ -2211,7 +2227,7 @@ Each exercise's "notes" must be TERSE — a single short clause, NOT sentences. 
 ══════════════════════════════════════════
 BUILD RULES — every day must satisfy ALL of these; apply them as you build, do NOT narrate or restate them in the output
 ══════════════════════════════════════════
-- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. Volume/rest/count are DERIVED from the $sessionDurationMinutes-min target, not from a fixed set count. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order ${if (manualRest == null) "(rest toward the goal's band max FIRST, then reps, then a set, then an accessory — staying inside the goal's own rest band)" else "(reps FIRST, then a set, then an accessory — the user's rest times are FIXED and not a lever)"}; TRIM any day over ${sessionDurationMinutes + 10} min. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the low edge — the app recounts each day LOWER than you size it, so low-edge days tip back under the floor.
+- Each training day must estimate within ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10} min by the TIME BUDGET formula above — size each day with the formula (do not eyeball it), but do NOT write the arithmetic into the output. Volume/rest/count are DERIVED from the $sessionDurationMinutes-min target, not from a fixed set count. For ANY day under ${sessionDurationMinutes - 10} min, apply the UNDER-FILL CORRECTION in order ${if (manualRest == null) "(rest toward the goal's band max FIRST, then reps, then a set, then an accessory — staying inside the goal's own rest band)" else "(reps FIRST, then a set, then an accessory — the user's rest times are FIXED and not a lever)"}; TRIM any day over ${sessionDurationMinutes + 10} min. Err HIGH toward ~${durationAimMinutes(sessionDurationMinutes)} min per the CALIBRATION above, never the low edge — a low-edge day has no margin for sizing error, and under the floor is the only fatal miss.
 - No barbell hinge above 8 reps; no loaded DB hinge above 12 reps.
 - Rep ranges vary by exercise role within each session (not monotone), and match the goal.
 - Every exercise's notes carry an RIR/RPE target AND a progression rule; every loaded lift carries a history-anchored targetWeightKg (never a fabricated number).
@@ -2408,12 +2424,12 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             appendLine("EXPERIENCE: $experience")
             if (bodyWeightLine.isNotBlank()) appendLine(bodyWeightLine.replaceFirst("Body weight:", "BODY WEIGHT:"))
             appendLine("SESSION DURATION: $sessionDurationMinutes minutes")
-            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. Estimate ≈ per exercise: sets × reps × ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s work + (sets − 1) × rest seconds + ~60 s setup (rest counts only between sets; ${WorkoutTimeEstimator.WORK_SECONDS_PER_REP} s/rep = realistic controlled tempo). " +
+            appendLine("TIME BUDGET (DERIVED from the $sessionDurationMinutes-min target): this day MUST estimate within ±10 min of $sessionDurationMinutes (aim $sessionDurationMinutes, accept ${sessionDurationMinutes - 10}–${sessionDurationMinutes + 10}) — a day UNDER ${sessionDurationMinutes - 10} is rejected just like one OVER ${sessionDurationMinutes + 10}. Volume/rest/count are sized to THIS duration — NO fixed set count, NO blanket rest ceiling. ${timeBudgetFormulaPhrase()} " +
                 (if (manualRest == null)
                     "REST IS THE #1 TIME LEVER — if the day is short, FIRST raise inter-set rest toward THIS goal's band max (strength up to ~300 s, hypertrophy compounds up to ~240 s, endurance/weight-loss stay short), THEN raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim. "
                 else
                     "THE USER TAKES FIXED REST TIMES: in the formula above, \"rest seconds\" is ALWAYS ${manualRest.heavyCompoundSeconds} s for a HEAVY COMPOUND strength exercise (squat / deadlift / RDL / bench / press / row / lunge / hip-thrust / clean / snatch / good-morning / pull-up / chin-up / dip type lifts — NOT pallof press, calf work, pressdowns, wrist work, or the rowing/erg machine) and ${manualRest.accessorySeconds} s for every OTHER strength exercise; your recommendedRestSeconds are recorded but do NOT affect the duration math. REST IS NOT A LEVER — if the day is short, raise reps toward the top of each range, THEN add a set, THEN add an accessory; if long, trim an accessory or reduce sets. ") +
-                "Keep volume goal- and duration-appropriate. CALIBRATION: the app RE-COUNTS each day with the exact formula LOWER than you size it, so ERR HIGH — size this day so your own estimate is about ${durationAimMinutes(sessionDurationMinutes)} min (a few min ABOVE $sessionDurationMinutes), never the ${sessionDurationMinutes - 10}-min low edge; a day that recounts a little over is auto-trimmed to fit, a day under the floor is rejected.")
+                "Keep volume goal- and duration-appropriate. CALIBRATION: the app RE-COUNTS this day with the SAME formula and enforces the window strictly, so ERR HIGH — size this day so your own estimate is about ${durationAimMinutes(sessionDurationMinutes)} min (a few min ABOVE $sessionDurationMinutes), never the ${sessionDurationMinutes - 10}-min low edge; a day that recounts a little over is auto-trimmed to fit, a day under the floor is rejected.")
             appendLine("TARGET REP RANGE: $repRange")
             appendLine("AVAILABLE EQUIPMENT: $equipStr")
             if (equipmentNotes.isNotBlank()) appendLine("EQUIPMENT NOTES: $equipmentNotes")

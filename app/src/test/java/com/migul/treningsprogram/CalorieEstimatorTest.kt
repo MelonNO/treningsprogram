@@ -60,9 +60,10 @@ class CalorieEstimatorTest {
         assertEquals(150, CalorieEstimator.estimateSession(session(durationMin = 30), strengthSets(8), 75f))
     }
 
-    @Test fun `zero stored duration falls back to 3 min per set`() {
-        // 10 sets → 30 min → 4.0 × 75 × 0.5 h = 150
-        assertEquals(150, CalorieEstimator.estimateSession(session(durationMin = 0), strengthSets(10), 75f))
+    @Test fun `zero stored duration falls back to 4 min per set`() {
+        // 2026-08-03: fallback raised 3 → 4 min/set (measured median ~4.4 real min per logged set).
+        // 10 sets → 40 min → 4.0 × 75 × (40/60) h = 200
+        assertEquals(200, CalorieEstimator.estimateSession(session(durationMin = 0), strengthSets(10), 75f))
     }
 
     @Test fun `absurd duration is capped at 6 hours`() {
@@ -162,7 +163,7 @@ class CalorieEstimatorTest {
     @Test fun `breakdown reports the per-set duration fallback`() {
         val b = CalorieEstimator.breakdown(session(durationMin = 0), strengthSets(10), 75f)!!
         assertEquals(true, b.usedPerSetFallback)
-        assertEquals(30, b.minutes)   // 10 sets × 3 min
+        assertEquals(40, b.minutes)   // 10 sets × 4 min
     }
 
     @Test fun `breakdown is null exactly when the chip shows nothing`() {
