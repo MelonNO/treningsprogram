@@ -13,6 +13,12 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 72, versionName = "1.31.0",
+            highlights = listOf(
+                "Flagged an exercise's info as the wrong movement? The info sheet now hides the mismatched pictures, instructions, and details everywhere it opens, showing a short notice instead — until the flag is resolved",
+            ),
+        ),
+        Entry(
             versionCode = 71, versionName = "1.30.0",
             highlights = listOf(
                 "Dumbbell lifts without \"dumbbell\" in the name (Zottman curls, hammer curls, lateral raises…) now get the per-side plate readout on the keypad too",
