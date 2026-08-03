@@ -562,6 +562,50 @@ class WorkoutRepository @Inject constructor(
             else plannedDao.getForWeekInProgram(program.id, weekStart)
         }
 
+    /** One-shot read of the active program's plan for [weekStart] (empty when no active program). */
+    suspend fun getPlannedForWeekOnce(weekStart: Long): List<PlannedExercise> {
+        val program = programDao.getActiveOnce() ?: return emptyList()
+        return plannedDao.getForWeekInProgramOnce(program.id, weekStart)
+    }
+
+    /**
+     * Item 03 (training-data 2026-08): display names of ACTIVE-program planned exercises that have
+     * recurred across ≥ [minWeeks] consecutive counted weeks with ZERO logged performances (whole-day
+     * misses are neutral — see [com.migul.treningsprogram.domain.NeverPerformedExercises]). Pure
+     * detection over existing plan + session data; DISMISSAL filtering is the caller's job (the
+     * "kept" preference lives in [PreferencesManager]).
+     *
+     * Week anchors ([PlannedExercise.weekStart], Monday 00:00 local) convert via plain local date;
+     * session days use the app's LOGICAL day ([com.migul.treningsprogram.domain.DayBoundary]) —
+     * the same attribution the rest of the app uses for "which day was this session".
+     */
+    suspend fun neverPerformedPlannedExercises(
+        minWeeks: Int = com.migul.treningsprogram.domain.NeverPerformedExercises.DEFAULT_MIN_WEEKS
+    ): List<String> {
+        val program = programDao.getActiveOnce() ?: return emptyList()
+        val rows = plannedDao.getAllOnce().filter { it.programId == program.id }
+        if (rows.isEmpty()) return emptyList()
+        val zone = java.time.ZoneId.systemDefault()
+        val weeks = rows.groupBy { it.weekStart }.map { (ws, weekRows) ->
+            com.migul.treningsprogram.domain.NeverPerformedExercises.PlannedWeek(
+                weekStartEpochDay = java.time.Instant.ofEpochMilli(ws).atZone(zone).toLocalDate().toEpochDay(),
+                rows = weekRows.map {
+                    com.migul.treningsprogram.domain.NeverPerformedExercises.PlannedRow(it.dayOfWeek, it.exerciseName)
+                }
+            )
+        }
+        val performedByEpochDay = setDao.getPerformedExerciseDays()
+            .groupBy(
+                { com.migul.treningsprogram.domain.DayBoundary.logicalEpochDay(it.dateMs) },
+                { it.exerciseName.trim().lowercase() }
+            )
+            .mapValues { (_, names) -> names.toSet() }
+        return com.migul.treningsprogram.domain.NeverPerformedExercises.detect(
+            weeks, performedByEpochDay,
+            com.migul.treningsprogram.domain.DayBoundary.todayEpochDay(), minWeeks
+        )
+    }
+
     suspend fun savePlan(weekStart: Long, exercises: List<PlannedExercise>) {
         val programId = ensureActiveProgramId()
         db.withTransaction {
@@ -657,6 +701,37 @@ class WorkoutRepository @Inject constructor(
             plannedDao.insertAll(exercises.map { it.copy(rationale = weekRationale, programId = programId) })
         }
         // A regenerated/edited day plan is user data worth backing up.
+        backupScheduler.requestBackup()
+    }
+
+    /**
+     * Item 02 (training-data 2026-08): the ACCEPTED missed-day-recovery APPEND path — adds
+     * [extraRows] (the missed day's key exercises for the uncovered muscles) to the END of
+     * [dayOfWeek]'s plan. Only ever INSERTS planned rows after the day's existing ones: existing
+     * rows (including any logged rows and their actuals) are never deleted, rewritten, or
+     * renumbered, and logged sets/history live in other tables and are never referenced — the same
+     * data-safety rule as regen-preserves-logged. The MOVE recovery path reuses [commitDayMove].
+     */
+    suspend fun appendToDayPlan(weekStart: Long, dayOfWeek: Int, extraRows: List<PlannedExercise>) {
+        if (extraRows.isEmpty()) return
+        val programId = ensureActiveProgramId()
+        db.withTransaction {
+            val existing = plannedDao.getForDayInProgramOnce(programId, weekStart, dayOfWeek)
+            val base = (existing.maxOfOrNull { it.orderInDay } ?: -1) + 1
+            plannedDao.insertAll(extraRows.mapIndexed { i, row ->
+                row.copy(
+                    id = 0L,
+                    weekStart = weekStart,
+                    dayOfWeek = dayOfWeek,
+                    orderInDay = base + i,
+                    isLogged = false,
+                    actualWeightKg = 0f,
+                    actualReps = "",
+                    actualSets = 0,
+                    programId = programId
+                )
+            })
+        }
         backupScheduler.requestBackup()
     }
 

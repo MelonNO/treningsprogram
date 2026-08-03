@@ -443,6 +443,137 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Item 02 (training-data 2026-08): missed-day muscle-recovery OFFER — shown only when
+                 a missed day zeroed a muscle group for the week (offered, never silently applied). -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_missed_recovery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="MISSED-DAY RECOVERY"
+                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+                        <TextView
+                            android:id="@+id/btn_missed_recovery_dismiss"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="4dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:text="✕"
+                            android:textSize="14sp"
+                            android:textColor="@color/auros_fog_dim" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_missed_recovery_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="@color/auros_snow"
+                        android:layout_marginBottom="2dp" />
+
+                    <TextView
+                        android:id="@+id/tv_missed_recovery_line"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="10dp" />
+
+                    <TextView
+                        android:id="@+id/btn_missed_recovery_accept"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:textAppearance="?attr/textAppearanceLabelLarge"
+                        android:textColor="@color/auros_cyan" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Item 03 (training-data 2026-08): never-performed planned exercise suggestion —
+                 informs that the next generated week will replace it; "Keep it" opts out. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_never_performed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="PLAN CHECK-IN"
+                        android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
+
+                    <TextView
+                        android:id="@+id/tv_never_performed_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="@color/auros_snow"
+                        android:layout_marginBottom="2dp" />
+
+                    <TextView
+                        android:id="@+id/tv_never_performed_line"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="10dp" />
+
+                    <TextView
+                        android:id="@+id/btn_never_performed_keep"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:text="Keep in my plan"
+                        android:textAppearance="?attr/textAppearanceLabelLarge"
+                        android:textColor="@color/auros_cyan" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Weekly Challenges card (H1: moved below the day's action — a reward surface,
                  not the primary action). -->
             <com.google.android.material.card.MaterialCardView

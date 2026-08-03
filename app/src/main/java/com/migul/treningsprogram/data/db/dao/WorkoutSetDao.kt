@@ -48,6 +48,13 @@ data class ExercisePrWithDate(val exerciseName: String, val maxWeight: Float, va
 /** Stage-3 item 4: one weighted working set with its session date (RecentPrs candidate pool). */
 data class ExerciseSetSample(val exerciseName: String, val weightKg: Float, val dateMs: Long)
 
+/**
+ * Item 03 (training-data 2026-08): one (session date, exercise name) pair per exercise actually
+ * performed in a completed REAL session — the never-performed-planned-exercise detector's ground
+ * truth of what the user actually did, and on which days.
+ */
+data class PerformedExerciseDay(val dateMs: Long, val exerciseName: String)
+
 @Dao
 interface WorkoutSetDao {
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY exerciseName, setNumber")
@@ -336,6 +343,19 @@ interface WorkoutSetDao {
         ORDER BY s.dateMs DESC
     """)
     fun observeExerciseSessionRows(): Flow<List<ExerciseSessionRow>>
+
+    /**
+     * Item 03 (training-data 2026-08): distinct (session date, exercise name) pairs across all
+     * completed REAL sessions (REST/MISSED placeholders carry no sets and `kind IS NULL` excludes
+     * them anyway). Warm-up sets COUNT — logging even a warm-up of an exercise is performing it.
+     */
+    @Query("""
+        SELECT DISTINCT s.dateMs AS dateMs, ws.exerciseName AS exerciseName
+        FROM workout_sets ws
+        JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE s.isCompleted = 1 AND s.kind IS NULL AND ws.exerciseName != ''
+    """)
+    suspend fun getPerformedExerciseDays(): List<PerformedExerciseDay>
 
     @Query("DELETE FROM workout_sets")
     suspend fun deleteAll()

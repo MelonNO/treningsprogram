@@ -304,6 +304,30 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_WRAPPED_SEEN_MONTH, "") ?: ""
         set(value) { prefs.edit().putString(KEY_WRAPPED_SEEN_MONTH, value).apply() }
 
+    // Item 03 (training-data 2026-08): normalized (lowercased/trimmed) names of never-performed
+    // planned exercises the user chose to KEEP ("dismiss" = leave my plan alone) — suppresses both
+    // the Home suggestion AND the generation replace-signal for that exercise until the user actually
+    // performs it (a performance breaks the detection streak, at which point the entry is pruned).
+    // Newline-delimited (exercise names may legitimately contain commas). Presentation/decision
+    // state — intentionally NOT in the backup schema.
+    var neverPerformedKeptNames: Set<String>
+        get() = (prefs.getString(KEY_NEVER_PERFORMED_KEPT, "") ?: "")
+            .split('\n').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        set(value) {
+            prefs.edit().putString(KEY_NEVER_PERFORMED_KEPT, value.joinToString("\n")).apply()
+        }
+
+    // Item 02 (training-data 2026-08): "weekStart:missedDay" keys of missed-day-recovery offers the
+    // user accepted or declined — declining is remembered for that week (no repeat prompt for the
+    // same miss), while a DIFFERENT uncovered miss in the same week can still surface. Newline-
+    // delimited; callers prune stale-week keys when storing. Not backed up.
+    var missedRecoveryHandledKeys: Set<String>
+        get() = (prefs.getString(KEY_MISSED_RECOVERY_HANDLED, "") ?: "")
+            .split('\n').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        set(value) {
+            prefs.edit().putString(KEY_MISSED_RECOVERY_HANDLED, value.joinToString("\n")).apply()
+        }
+
     init {
         // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
         // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
@@ -363,5 +387,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_REST_RECOVERY_ENABLED = "rest_day_recovery_enabled"
         private const val KEY_REST_RECOVERY_DISMISSED_DAY = "rest_recovery_dismissed_epoch_day"
         private const val KEY_WRAPPED_SEEN_MONTH = "wrapped_seen_month_key"
+        private const val KEY_NEVER_PERFORMED_KEPT = "never_performed_kept_names"
+        private const val KEY_MISSED_RECOVERY_HANDLED = "missed_recovery_handled_key"
     }
 }

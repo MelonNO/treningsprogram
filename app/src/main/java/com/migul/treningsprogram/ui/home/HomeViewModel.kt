@@ -16,7 +16,10 @@ import com.migul.treningsprogram.data.preferences.PreferencesManager
 import com.migul.treningsprogram.data.repository.GamificationRepository
 import com.migul.treningsprogram.data.repository.WorkoutRepository
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
+import com.migul.treningsprogram.data.repository.dayOfWeekOf
+import com.migul.treningsprogram.data.repository.mondayOf
 import com.migul.treningsprogram.data.repository.thisMonday
+import com.migul.treningsprogram.domain.MissedMuscleRecovery
 import com.migul.treningsprogram.domain.MuscleRecovery
 import com.migul.treningsprogram.domain.model.DailyChallenge
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -271,6 +274,91 @@ class HomeViewModel @Inject constructor(
     /** B7: viewing or dismissing the ready card retires it for that month. */
     fun markWrappedSeen(month: com.migul.treningsprogram.domain.MonthlyWrapped.MonthKey) {
         prefs.wrappedSeenMonthKey = month.key
+    }
+
+    /**
+     * Item 03 (training-data 2026-08): planned exercises flagged as never performed across
+     * consecutive weeks, minus the ones the user chose to KEEP. Also prunes stale KEEP entries
+     * whose detection streak has broken (the user performed the exercise), so a NEW streak on the
+     * same exercise can prompt again — "no repeat until circumstances change".
+     */
+    suspend fun neverPerformedSuggestion(): List<String> {
+        val detected = workoutRepository.neverPerformedPlannedExercises()
+        val detectedNorm = detected.map { it.trim().lowercase() }.toSet()
+        val kept = prefs.neverPerformedKeptNames
+        val prunedKept = kept intersect detectedNorm
+        if (prunedKept != kept) prefs.neverPerformedKeptNames = prunedKept
+        return detected.filter { it.trim().lowercase() !in prunedKept }
+    }
+
+    /** Item 03: the user chose to keep these planned exercises — suppress card + generation signal. */
+    fun keepNeverPerformed(names: List<String>) {
+        prefs.neverPerformedKeptNames =
+            prefs.neverPerformedKeptNames + names.map { it.trim().lowercase() }
+    }
+
+    /**
+     * Item 02 (training-data 2026-08): the missed-day muscle-recovery OFFER for the current week,
+     * or null when there is nothing to offer (no miss zeroed a muscle group, the offer for this
+     * miss was already handled, or the auto-rebalance toggle — which owns "the app may rearrange
+     * my week" — is off). Detection only; nothing is applied until [acceptMissedRecovery].
+     */
+    suspend fun missedRecoveryOffer(): MissedMuscleRecovery.Offer? {
+        if (!prefs.autoRebalanceEnabled) return null
+        workoutRepository.autoLogRestDays() // idempotent — ensure MISSED markers are current
+        val weekStart = thisMonday()
+        val rows = workoutRepository.getPlannedForWeekOnce(weekStart)
+        if (rows.isEmpty()) return null
+        val weekSessions = workoutRepository.getAllSessionsOnce()
+            .filter { mondayOf(it.dateMs) == weekStart }
+        val missedDays = weekSessions.filter { it.isMissedDay }
+            .map { dayOfWeekOf(it.dateMs) }.toSet()
+        val trainedDays = weekSessions.filter { it.isCompleted && !it.isPlaceholder }
+            .map { dayOfWeekOf(it.dateMs) }.toSet()
+        return MissedMuscleRecovery.detect(
+            weekStart, rows, missedDays, trainedDays, currentDayOfWeek(),
+            handledKeys = prefs.missedRecoveryHandledKeys
+        )
+    }
+
+    /** Item 02: mark an offer spent, pruning keys from past weeks (keys embed their weekStart). */
+    private fun markMissedRecoveryHandled(offer: MissedMuscleRecovery.Offer) {
+        prefs.missedRecoveryHandledKeys = prefs.missedRecoveryHandledKeys
+            .filter { it.startsWith("${offer.weekStart}:") }
+            .toSet() + offer.dismissKey
+    }
+
+    /** Item 02: declining is remembered for that week — no repeat prompt for the same miss. */
+    fun declineMissedRecovery(offer: MissedMuscleRecovery.Offer) {
+        markMissedRecoveryHandled(offer)
+    }
+
+    /**
+     * Item 02: apply the ACCEPTED recovery — MOVE the missed day's plan to the free day when one
+     * exists (preserves the session exactly; reuses the do-another-day move machinery), else APPEND
+     * the uncovered muscles' key exercises to the last remaining planned day. Never touches logged
+     * days or logged sets (see [WorkoutRepository.commitDayMove] / [WorkoutRepository.appendToDayPlan]).
+     */
+    fun acceptMissedRecovery(offer: MissedMuscleRecovery.Offer, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val message = when {
+                offer.moveTargetDay != null -> {
+                    workoutRepository.commitDayMove(
+                        offer.weekStart, offer.missedDay, offer.moveTargetDay, emptySet()
+                    )
+                    "Workout moved to ${com.migul.treningsprogram.domain.TrainingDaySelection.dayName(offer.moveTargetDay)}"
+                }
+                offer.appendTargetDay != null -> {
+                    workoutRepository.appendToDayPlan(
+                        offer.weekStart, offer.appendTargetDay, offer.appendRows
+                    )
+                    "Exercises added to ${com.migul.treningsprogram.domain.TrainingDaySelection.dayName(offer.appendTargetDay)}"
+                }
+                else -> return@launch
+            }
+            markMissedRecoveryHandled(offer)
+            onDone(message)
+        }
     }
 
     init {

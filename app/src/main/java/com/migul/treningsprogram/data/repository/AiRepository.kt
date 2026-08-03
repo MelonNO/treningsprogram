@@ -15,6 +15,8 @@ import com.migul.treningsprogram.data.db.entity.PlannedExercise
 import com.migul.treningsprogram.data.db.entity.WorkoutSession
 import com.migul.treningsprogram.domain.StallDetector
 import com.migul.treningsprogram.domain.ManualRestTimes
+import com.migul.treningsprogram.domain.MuscleVolumeFloor
+import com.migul.treningsprogram.domain.NeverPerformedExercises
 import com.migul.treningsprogram.domain.WorkoutTimeEstimator
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
 import kotlinx.coroutines.CoroutineDispatcher
@@ -737,6 +739,34 @@ internal fun trimOverflowToWindow(
     return resultByDay.values.flatten()
 }
 
+// ── Item 03 (training-data 2026-08): never-performed re-inclusion gate ────────────────────────────
+//
+// The prompt's NEVER-PERFORMED block ([NeverPerformedExercises.promptBlock]) instructs the model to
+// REPLACE exercises the user demonstrably never does (preserving their muscle/movement coverage).
+// Prompt rules are advisory — this deterministic check is the guarantee that generation stops
+// blindly re-prescribing them: any parsed entry whose normalized name matches a flagged exercise
+// rejects the attempt (retryable, targeted feedback asking for a coverage-preserving REPLACEMENT —
+// never a strip, which would silently delete the stimulus). Locked (logged-history) days are exempt.
+// Exact-name matching only: a renamed variant (e.g. "Seated DB Shoulder Press" for a flagged
+// "Dumbbell Shoulder Press") is intentionally allowed — a variant swap is exactly the desired fix.
+internal fun neverPerformedViolation(
+    exercises: List<PlannedExercise>,
+    forbiddenNormalized: Set<String>,
+    lockedDays: Set<Int> = emptySet()
+): String? {
+    if (forbiddenNormalized.isEmpty()) return null
+    val offenders = exercises
+        .filter { it.dayOfWeek !in lockedDays }
+        .map { it.exerciseName }
+        .distinct()
+        .filter { it.trim().lowercase() in forbiddenNormalized }
+    if (offenders.isEmpty()) return null
+    return "The plan re-includes ${offenders.joinToString(", ")} — exercise(s) the user has NEVER " +
+        "performed across weeks of plans despite completing the rest of those sessions (see the " +
+        "NEVER-PERFORMED PLANNED EXERCISES block). Replace each with a DIFFERENT exercise that " +
+        "preserves the same primary muscle(s) and movement pattern — do not simply delete the slot."
+}
+
 // ── NO-CARDIO gate (2026-08-03 product decision: generated plans are RESISTANCE-ONLY) ─────────────
 //
 // The user removed cardio from GENERATED plans entirely (logging/stats/history/classification of
@@ -1279,6 +1309,12 @@ $qa
             .promptLine(bodyMeasurementDao.getAllOnce())
         val previousPlanCtx = buildPreviousPlanContext()
         val previousPlan = previousPlanCtx.text
+        // Item 03 (training-data 2026-08): exercises planned for weeks and NEVER performed (while
+        // their planned siblings were logged), minus the ones the user chose to KEEP — fed to the
+        // prompt as a replace-preserving-coverage instruction AND deterministically gated below.
+        val neverPerformedNames = workoutRepository.neverPerformedPlannedExercises()
+            .filter { it.trim().lowercase() !in preferencesManager.neverPerformedKeptNames }
+        val neverPerformedNormalized = neverPerformedNames.map { it.trim().lowercase() }.toSet()
         val variationTheme = variationThemes.random()
         val splitSuggestion = splitSuggestions[daysPerWeek]?.random()
             ?: splitSuggestions.entries.minByOrNull { kotlin.math.abs(it.key - daysPerWeek) }?.value?.random() ?: ""
@@ -1361,7 +1397,8 @@ $qa
                 separateCardioDays, rejectionReasons.lastOrNull() ?: "",
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, gymAvoidExercises, onboardingContext,
                 previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
-                restDays, lockedExercises, manualRest, bodyWeightLine, crossWeekRecoveryBlock
+                restDays, lockedExercises, manualRest, bodyWeightLine, crossWeekRecoveryBlock,
+                neverPerformedNames
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
             // (it would just time out again, burning a second callTimeout). Real transient blips (5xx/429,
@@ -1469,6 +1506,19 @@ $qa
             // (retryable, targeted feedback). Locked (logged-history) days are exempt.
             val cardioReason = cardioEntriesViolation(exercises, lockedDays) ?: ""
 
+            // ── Item 03: NEVER-PERFORMED re-inclusion check (HARD) ────────────────
+            // The plan must not re-prescribe an exercise the user has skipped for weeks (the prompt
+            // asks for a coverage-preserving replacement; this makes it enforceable).
+            val neverPerformedReason = neverPerformedViolation(exercises, neverPerformedNormalized, lockedDays) ?: ""
+
+            // ── Item 01: PER-MUSCLE WEEKLY FLOOR check (HARD, profile-gated) ──────
+            // On a ≥4-day Hypertrophy profile every major muscle group needs ≥2 training days and a
+            // minimum of direct sets ([MuscleVolumeFloor] is the single adjustable place — A1).
+            // Skipped for partial regenerations (locked days can't be restructured) and deload weeks.
+            val muscleFloorReason = if (lockedDays.isEmpty())
+                MuscleVolumeFloor.violation(exercises, goal, daysPerWeek, mesocycle.isDeload) ?: ""
+            else ""
+
             // ── Deterministic ±10 min duration check (AUTHORITATIVE) ──────────────
             // Each training day must estimate within ±10 min of the session target,
             // using the SAME time-estimate formula the Program screen shows.
@@ -1504,7 +1554,8 @@ $qa
                     .mapValues { (_, dayEx) -> WorkoutTimeEstimator.estimateDayMinutes(dayEx, manualRest) }
                 val anyUnderWindow = nonLockedDayMinutes.values.any { it < low }
                 val isOverOnlyDurationMiss = emptyPlanReason.isEmpty() && restDayReason.isEmpty() &&
-                    cardioReason.isEmpty() && durationReason.isNotEmpty() && !anyUnderWindow
+                    cardioReason.isEmpty() && neverPerformedReason.isEmpty() &&
+                    muscleFloorReason.isEmpty() && durationReason.isNotEmpty() && !anyUnderWindow
                 if (isOverOnlyDurationMiss) {
                     val overshoot = nonLockedDayMinutes.values.sumOf { maxOf(0, it - high) }
                     val best = salvageCandidate
@@ -1515,14 +1566,18 @@ $qa
             }
 
             // Deterministic (Kotlin) rejections, in priority order: empty plan, B08 rest-day violation,
-            // the no-cardio rule, then the ±10-min duration miss. Any of these makes the plan
+            // the no-cardio rule, the never-performed re-inclusion check (item 03), the per-muscle
+            // weekly floor (item 01), then the ±10-min duration miss. Any of these makes the plan
             // un-acceptable regardless of the LLM review, so we surface the most critical one AND skip
-            // the costly review when set. (Cardio ranks above duration: a cardio entry also corrupts
-            // the duration estimate, so its feedback must win.)
+            // the costly review when set. (Selection-level violations — cardio, never-performed,
+            // floor — rank above duration: fixing them changes the exercise list, which changes the
+            // duration estimate, so their feedback must win.)
             val deterministicReason = when {
                 emptyPlanReason.isNotEmpty() -> emptyPlanReason
                 restDayReason.isNotEmpty() -> restDayReason
                 cardioReason.isNotEmpty() -> cardioReason
+                neverPerformedReason.isNotEmpty() -> neverPerformedReason
+                muscleFloorReason.isNotEmpty() -> muscleFloorReason
                 durationReason.isNotEmpty() -> durationReason
                 else -> ""
             }
@@ -1901,9 +1956,19 @@ OR
         bodyWeightLine: String = "",
         // P1 (science review 2026-08): the CROSS-WEEK RECOVERY block ([buildCrossWeekRecoveryBlock]);
         // "" for a new user keeps the prompt unchanged.
-        crossWeekRecoveryBlock: String = ""
+        crossWeekRecoveryBlock: String = "",
+        // Item 03 (training-data 2026-08): planned-but-never-performed exercises (KEEP choices
+        // already filtered out) — rendered as a replace-preserving-coverage instruction. Empty
+        // keeps the prompt byte-identical for users who perform their planned exercises.
+        neverPerformedNames: List<String> = emptyList()
     ): String {
         val goalLower = goal.lowercase()
+        // Item 01 (training-data 2026-08): per-muscle weekly floor guidance — "" unless the floor is
+        // active for this profile (Hypertrophy at ≥4 days/week, not a deload week), so out-of-scope
+        // profiles keep their exact prompt. The accept path re-counts the floors deterministically.
+        val muscleFloorBlock = MuscleVolumeFloor.promptBlock(goal, daysPerWeek, mesocycle.isDeload)
+        // Item 03: the never-performed replace instruction ("" when nothing is flagged).
+        val neverPerformedBlock = NeverPerformedExercises.promptBlock(neverPerformedNames)
         // B08: when specific rest days are pinned, training must land on EXACTLY their complement.
         val restDayBlock = buildRestDayBlock(restDays)
         // B09: already-trained days this week, fed back as fixed context so the model reproduces them
@@ -2070,7 +2135,7 @@ CROSS-TIER RULES (apply at every severity): substitutes must be GENUINELY bilate
 You are an expert strength & conditioning coach. Design a $daysPerWeek-day weekly training program tailored to the user below.
 
 CRITICAL: Do NOT follow gym-culture day conventions (e.g., chest on Monday, back on Tuesday, arms on Friday). Assign muscle groups to days based purely on recovery logic — weekday placement may shift week to week as long as the recovery rules hold. A good coach KEEPS the main/anchor lifts stable and progressively overloads them from the logged history, and finds variety in accessories, grip/angle, order, and theme — NOT by swapping the trackable main lifts out every week.
-$safetyBlock$injuryHardBlock$restDayBlock$lockedDaysBlock$mesocycleBlock$rejectionBlock$blacklistBlock$themeBlock$crossWeekRecoveryBlock
+$safetyBlock$injuryHardBlock$restDayBlock$lockedDaysBlock$mesocycleBlock$muscleFloorBlock$rejectionBlock$blacklistBlock$neverPerformedBlock$themeBlock$crossWeekRecoveryBlock
 ══════════════════════════════════════════
 WORKOUT HISTORY
 ══════════════════════════════════════════

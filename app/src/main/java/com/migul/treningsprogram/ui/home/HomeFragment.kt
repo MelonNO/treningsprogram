@@ -98,6 +98,72 @@ class HomeFragment : Fragment() {
             }
         }
 
+        // Item 02 (training-data 2026-08): missed-day muscle-recovery OFFER card. Shown only when a
+        // missed day zeroed a muscle group for the rest of the week (detection is no-nagging: a miss
+        // whose muscles are still covered later shows nothing). Accepting applies the recovery via
+        // the existing move/append machinery; declining is remembered for this week's miss.
+        viewLifecycleOwner.lifecycleScope.launch {
+            val offer = viewModel.missedRecoveryOffer() ?: return@launch
+            if (_binding == null) return@launch
+            val missedName = com.migul.treningsprogram.domain.TrainingDaySelection.dayName(offer.missedDay)
+            val muscles = offer.muscles.joinToString(" + ")
+            binding.tvMissedRecoveryTitle.text = "$muscles training was missed this week"
+            val actionText: String
+            val lineText: String
+            when {
+                offer.moveTargetDay != null -> {
+                    val target = com.migul.treningsprogram.domain.TrainingDaySelection.dayName(offer.moveTargetDay)
+                    lineText = "$missedName was the only day training $muscles, and no remaining day covers it. " +
+                        "You can move that workout to $target."
+                    actionText = "Move workout to $target"
+                }
+                else -> {
+                    val target = com.migul.treningsprogram.domain.TrainingDaySelection.dayName(offer.appendTargetDay!!)
+                    lineText = "$missedName was the only day training $muscles, and no remaining day covers it. " +
+                        "You can add its key exercises to $target's session."
+                    actionText = "Add exercises to $target"
+                }
+            }
+            binding.tvMissedRecoveryLine.text = lineText
+            binding.btnMissedRecoveryAccept.text = actionText
+            binding.cardMissedRecovery.visibility = View.VISIBLE
+            binding.btnMissedRecoveryAccept.setOnClickListener {
+                if (!isAdded) return@setOnClickListener
+                viewModel.acceptMissedRecovery(offer) { message ->
+                    if (_binding != null) {
+                        binding.cardMissedRecovery.visibility = View.GONE
+                        Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG).show()
+                    }
+                }
+            }
+            binding.btnMissedRecoveryDismiss.setOnClickListener {
+                viewModel.declineMissedRecovery(offer)
+                binding.cardMissedRecovery.visibility = View.GONE
+            }
+        }
+
+        // Item 03 (training-data 2026-08): never-performed planned exercise suggestion. Informs the
+        // user that the flagged exercise(s) will be swapped for a comparable alternative at the next
+        // generation; "Keep in my plan" opts a name out of both the card and the generation signal.
+        viewLifecycleOwner.lifecycleScope.launch {
+            val names = viewModel.neverPerformedSuggestion()
+            if (_binding == null || names.isEmpty()) return@launch
+            binding.tvNeverPerformedTitle.text =
+                if (names.size == 1) "${names.first()} keeps getting skipped"
+                else "${names.size} planned exercises keep getting skipped"
+            binding.tvNeverPerformedLine.text =
+                "Planned for weeks but never logged, even when the rest of those sessions were completed: " +
+                "${names.joinToString(", ")}. Your next generated week will swap " +
+                (if (names.size == 1) "it" else "them") +
+                " for a comparable alternative — or keep " +
+                (if (names.size == 1) "it" else "them") + " if you still want to try."
+            binding.cardNeverPerformed.visibility = View.VISIBLE
+            binding.btnNeverPerformedKeep.setOnClickListener {
+                viewModel.keepNeverPerformed(names)
+                binding.cardNeverPerformed.visibility = View.GONE
+            }
+        }
+
         // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
         binding.cardHomeXp.setOnClickListener {
             if (findNavController().currentDestination?.id == R.id.homeFragment)
