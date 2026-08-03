@@ -1,0 +1,39 @@
+CELL 06-hyper-int-4d-120 (goal=Hypertrophy days=4 target=120)
+live: id=msg_011Cdg4m1Mz9YosT8vy5Ydya output_tokens=6249 stop_reason=end_turn
+cardioGate=PASS
+p2WeightsCoerced=25 of 25 positive-weight entries
+  day 1: est=90 (pre-sanitize 98) [UNDER by 20]
+    Barbell Bench Press 4x6-8 @0.0kg rest=180 [Chest]
+    Barbell Bent-Over Row 4x6-8 @0.0kg rest=180 [Back]
+    Dumbbell Incline Press 3x10-12 @0.0kg rest=120 [Chest]
+    Cable Seated Row (wide bar) 3x10-12 @0.0kg rest=120 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=75 [Shoulders]
+    Cable Tricep Pushdown (rope) 3x12-15 @0.0kg rest=75 [Arms]
+    Dumbbell Hammer Curl 3x12-15 @0.0kg rest=75 [Arms]
+  feedback(day 1): Day 1 estimates ~90 min — that is 30 min UNDER the aim of 120 (window 110–130). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY c…
+  day 3: est=77 (pre-sanitize 85) [UNDER by 33]
+    Barbell Back Squat 4x6-8 @0.0kg rest=210 [Legs]
+    Romanian Deadlift (Barbell) 3x6-8 @0.0kg rest=180 [Legs]
+    Leg Press 3x10-12 @0.0kg rest=120 [Legs]
+    Dumbbell Walking Lunge 3x10-12 @0.0kg rest=120 [Legs]
+    Lying Leg Curl (Machine) 3x12-15 @0.0kg rest=90 [Legs]
+    Cable Pallof Press (anti-rotation hold) 3x10-12 @0.0kg rest=75 [Core]
+  feedback(day 3): Day 3 estimates ~77 min — that is 43 min UNDER the aim of 120 (window 110–130). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY c…
+  day 5: est=91 (pre-sanitize 97) [UNDER by 19]
+    Barbell Overhead Press 4x6-8 @0.0kg rest=180 [Shoulders]
+    Pull-Up (bodyweight) 4x6-10 @0.0kg rest=180 [Back]
+    Dumbbell Arnold Press 3x10-12 @0.0kg rest=120 [Shoulders]
+    Cable Lat Pulldown (underhand grip) 3x10-12 @0.0kg rest=120 [Back]
+    Cable Rear-Delt Fly (rope, face-pull angle) 3x15-20 @0.0kg rest=75 [Shoulders]
+    EZ-Bar / Dumbbell Curl 3x12-15 @0.0kg rest=75 [Arms]
+    Cable Overhead Tricep Extension 3x12-15 @0.0kg rest=75 [Arms]
+  feedback(day 5): Day 5 estimates ~91 min — that is 29 min UNDER the aim of 120 (window 110–130). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY c…
+  day 7: est=80 (pre-sanitize 88) [UNDER by 30]
+    Conventional Deadlift (Barbell) 4x4-6 @0.0kg rest=210 [Back]
+    Barbell Hip Thrust 3x12-15 @0.0kg rest=150 [Legs]
+    Leg Press (high foot placement) 3x10-12 @0.0kg rest=120 [Legs]
+    Dumbbell RDL (single-leg) 3x10-12 @0.0kg rest=120 [Legs]
+    Seated Leg Curl (Machine) 3x12-15 @0.0kg rest=90 [Legs]
+    Farmer's Carry (Dumbbell) 3x20-25 @0.0kg rest=90 [Core]
+  feedback(day 7): Day 7 estimates ~80 min — that is 40 min UNDER the aim of 120 (window 110–130). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY c…
+attempt1DaysInWindow=0/4

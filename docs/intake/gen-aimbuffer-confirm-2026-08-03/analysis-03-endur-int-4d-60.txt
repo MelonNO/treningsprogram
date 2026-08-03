@@ -1,0 +1,32 @@
+CELL 03-endur-int-4d-60 (goal=Endurance days=4 target=60)
+live: id=msg_011Cdg4WmYtUSLFWrufxBH1i output_tokens=5371 stop_reason=end_turn
+cardioGate=PASS
+p2WeightsCoerced=0 of 0 positive-weight entries
+  day 1: est=62 (pre-sanitize 62) [IN]
+    Barbell Bench Press 3x12-15 @0.0kg rest=60 [Chest]
+    Cable Seated Row (neutral grip) 3x15-18 @0.0kg rest=60 [Back]
+    Dumbbell Overhead Press 3x12-15 @0.0kg rest=60 [Shoulders]
+    Cable Lateral Raise 3x15-20 @0.0kg rest=45 [Shoulders]
+    Cable Face Pull 3x20-25 @0.0kg rest=45 [Shoulders]
+    Plank 3x30-45 s @0.0kg rest=30 [Core]
+  day 3: est=51 (pre-sanitize 51) [IN]
+    Barbell Back Squat 3x12-15 @0.0kg rest=75 [Legs]
+    Barbell Romanian Deadlift 3x6-8 @0.0kg rest=75 [Legs]
+    Leg Press 3x15-20 @0.0kg rest=60 [Legs]
+    Hip Thrust (Barbell) 3x15-20 @0.0kg rest=60 [Legs]
+    Farmer's Carry (Dumbbells) 3x30 m @0.0kg rest=45 [Core]
+  day 5: est=58 (pre-sanitize 58) [IN]
+    Pull-up (Assisted or Bodyweight) 3x8-12 @0.0kg rest=75 [Back]
+    Dumbbell Incline Press 3x12-15 @0.0kg rest=60 [Chest]
+    Cable Lat Pulldown (wide grip) 3x15-18 @0.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=45 [Shoulders]
+    Cable Tricep Pushdown (rope) 3x15-20 @0.0kg rest=45 [Arms]
+    Dead Hang 3x20-30 s @0.0kg rest=30 [Back]
+  day 7: est=49 (pre-sanitize 49) [UNDER by 1]
+    Barbell Front Squat 3x12-15 @0.0kg rest=75 [Legs]
+    Dumbbell Romanian Deadlift 3x10-12 @0.0kg rest=60 [Legs]
+    Leg Press (narrow stance) 3x15-20 @0.0kg rest=60 [Back]
+    Cable Pull-Through 3x15-20 @0.0kg rest=60 [Legs]
+    Cable Woodchop (high to low) 3x15-20 per side @0.0kg rest=45 [Training]
+  feedback(day 7): Day 7 estimates ~49 min — that is UNDER the target window (50–70 min, aim 60). ADD work to this day so it CLEARS the 50-min floor AND YOUR sizing reaches about …
+attempt1DaysInWindow=3/4

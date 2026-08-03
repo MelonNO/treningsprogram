@@ -1,0 +1,39 @@
+CELL 04-wloss-int-5d-60 (goal=Weight Loss days=5 target=60)
+live: id=msg_011Cdg4b5cCCeVDwE1LmtDUG output_tokens=6090 stop_reason=end_turn
+cardioGate=PASS
+p2WeightsCoerced=23 of 23 positive-weight entries
+  day 1: est=49 (pre-sanitize 49) [UNDER by 1]
+    Barbell Bench Press 3x10-12 @0.0kg rest=75 [Chest]
+    Barbell Bent-Over Row 3x10-12 @0.0kg rest=75 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=60 [Shoulders]
+    Cable Face Pull 3x15-20 @0.0kg rest=60 [Shoulders]
+    Tricep Cable Pushdown 3x12-15 @0.0kg rest=60 [Arms]
+  feedback(day 1): Day 1 estimates ~49 min — that is UNDER the target window (50–70 min, aim 60). ADD work to this day so it CLEARS the 50-min floor AND YOUR sizing reaches about …
+  day 2: est=49 (pre-sanitize 49) [UNDER by 1]
+    Barbell Back Squat 3x10-12 @0.0kg rest=90 [Legs]
+    Leg Press 3x12-15 @0.0kg rest=75 [Legs]
+    Hip Thrust (Barbell) 3x15-20 @0.0kg rest=75 [Legs]
+    Lying Leg Curl 3x12-15 @0.0kg rest=60 [Legs]
+    Dumbbell Walking Lunge (carry) 3x12-14 @0.0kg rest=60 [Legs]
+  feedback(day 2): Day 2 estimates ~49 min — that is UNDER the target window (50–70 min, aim 60). ADD work to this day so it CLEARS the 50-min floor AND YOUR sizing reaches about …
+  day 3: est=50 (pre-sanitize 50) [IN]
+    Barbell Overhead Press 3x10-12 @0.0kg rest=90 [Shoulders]
+    Dumbbell Incline Press 3x12-15 @0.0kg rest=75 [Chest]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=60 [Shoulders]
+    Cable Overhead Tricep Extension 3x12-15 @0.0kg rest=60 [Arms]
+    Dumbbell Rear Delt Fly 3x15-20 @0.0kg rest=60 [Shoulders]
+  day 5: est=47 (pre-sanitize 47) [UNDER by 3]
+    Deadlift 3x6-8 @0.0kg rest=90 [Back]
+    Pull-Up 3x8-12 @0.0kg rest=75 [Back]
+    Cable Seated Row (neutral grip) 3x12-15 @0.0kg rest=75 [Back]
+    Dumbbell Hammer Curl 3x12-15 @0.0kg rest=60 [Arms]
+    Suitcase Carry (Dumbbell) 3x12-15 @0.0kg rest=60 [Core]
+  feedback(day 5): Day 5 estimates ~47 min — that is UNDER the target window (50–70 min, aim 60). ADD work to this day so it CLEARS the 50-min floor AND YOUR sizing reaches about …
+  day 6: est=49 (pre-sanitize 49) [UNDER by 1]
+    Barbell Front Squat 3x10-12 @0.0kg rest=90 [Legs]
+    Dumbbell RDL 3x10-12 @0.0kg rest=75 [Legs]
+    Dumbbell Single-Arm Row 3x12-15 @0.0kg rest=75 [Back]
+    Cable Lateral Raise 3x15-20 @0.0kg rest=60 [Shoulders]
+    Ab Wheel Rollout 3x10-15 @0.0kg rest=60 [Core]
+  feedback(day 6): Day 6 estimates ~49 min — that is UNDER the target window (50–70 min, aim 60). ADD work to this day so it CLEARS the 50-min floor AND YOUR sizing reaches about …
+attempt1DaysInWindow=1/5

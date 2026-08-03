@@ -1,0 +1,27 @@
+CELL 02-hyper-int-4d-60 (goal=Hypertrophy days=4 target=60)
+live: id=msg_011Cdg4T2e8QD75eKUVga9Bo output_tokens=4647 stop_reason=end_turn
+cardioGate=PASS
+p2WeightsCoerced=0 of 0 positive-weight entries
+  day 1: est=68 (pre-sanitize 68) [IN]
+    Barbell Bench Press 4x6-8 @0.0kg rest=180 [Chest]
+    Barbell Bent-Over Row 4x6-8 @0.0kg rest=180 [Back]
+    Dumbbell Lateral Raise 3x12-15 @0.0kg rest=90 [Shoulders]
+    Cable Tricep Pushdown (Rope) 3x12-15 @0.0kg rest=90 [Arms]
+    Cable Face Pull 3x15-20 @0.0kg rest=75 [Shoulders]
+  day 3: est=56 (pre-sanitize 56) [IN]
+    Barbell Back Squat 4x6-8 @0.0kg rest=210 [Legs]
+    Romanian Deadlift (Barbell) 3x6-8 @0.0kg rest=180 [Legs]
+    Leg Press 3x10-12 @0.0kg rest=120 [Legs]
+    Lying Leg Curl 3x12-15 @0.0kg rest=90 [Legs]
+  day 5: est=69 (pre-sanitize 69) [IN]
+    Overhead Press (Barbell) 4x6-8 @0.0kg rest=180 [Shoulders]
+    Pull-Up (Bodyweight) 4x6-10 @0.0kg rest=180 [Back]
+    Dumbbell Incline Press 3x10-12 @0.0kg rest=120 [Chest]
+    Dumbbell Rear Delt Fly 3x15-20 @0.0kg rest=75 [Shoulders]
+    Cable Bicep Curl 3x12-15 @0.0kg rest=75 [Arms]
+  day 7: est=61 (pre-sanitize 61) [IN]
+    Barbell Deadlift 4x4-6 @0.0kg rest=210 [Back]
+    Barbell Front Squat 3x6-8 @0.0kg rest=180 [Legs]
+    Hip Thrust (Barbell) 3x12-15 @0.0kg rest=120 [Legs]
+    Dumbbell Farmer's Carry 3x30-40 m @0.0kg rest=90 [Core]
+attempt1DaysInWindow=4/4

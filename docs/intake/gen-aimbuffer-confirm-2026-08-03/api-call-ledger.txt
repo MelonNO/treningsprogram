@@ -1,0 +1,16 @@
+# LIVE ANTHROPIC API CALL LEDGER — HARD MAX 6 TOTAL — aim-buffer confirmation 2026-08-03
+# NEW user grant of exactly 6 (prior 20-call grant separate and spent). One line BEFORE each send.
+# Model: claude-sonnet-4-6, max_tokens 24576, SINGLE attempt per cell, no ladder, no validateProgram.
+# --- calls below this line ---
+1/6 | 2026-08-03T17:34:05.089129512+02:00[Europe/Oslo] | aimbuffer-harness | 01-strength-int-4d-60 | sending
+1/6 | 2026-08-03T17:34:53.519955522+02:00[Europe/Oslo] | aimbuffer-harness | 01-strength-int-4d-60 | result: ok (14503 bytes)
+2/6 | 2026-08-03T17:34:53.574629484+02:00[Europe/Oslo] | aimbuffer-harness | 02-hyper-int-4d-60 | sending
+2/6 | 2026-08-03T17:35:44.288858392+02:00[Europe/Oslo] | aimbuffer-harness | 02-hyper-int-4d-60 | result: ok (16157 bytes)
+3/6 | 2026-08-03T17:35:44.300276661+02:00[Europe/Oslo] | aimbuffer-harness | 03-endur-int-4d-60 | sending
+3/6 | 2026-08-03T17:36:42.486742985+02:00[Europe/Oslo] | aimbuffer-harness | 03-endur-int-4d-60 | result: ok (18479 bytes)
+4/6 | 2026-08-03T17:36:42.510604183+02:00[Europe/Oslo] | aimbuffer-harness | 04-wloss-int-5d-60 | sending
+4/6 | 2026-08-03T17:37:44.793747463+02:00[Europe/Oslo] | aimbuffer-harness | 04-wloss-int-5d-60 | result: ok (20641 bytes)
+5/6 | 2026-08-03T17:37:44.804564985+02:00[Europe/Oslo] | aimbuffer-harness | 05-wloss-int-4d-90 | sending
+5/6 | 2026-08-03T17:38:57.420307045+02:00[Europe/Oslo] | aimbuffer-harness | 05-wloss-int-4d-90 | result: ok (23876 bytes)
+6/6 | 2026-08-03T17:38:57.432686278+02:00[Europe/Oslo] | aimbuffer-harness | 06-hyper-int-4d-120 | sending
+6/6 | 2026-08-03T17:40:02.139638919+02:00[Europe/Oslo] | aimbuffer-harness | 06-hyper-int-4d-120 | result: ok (21251 bytes)

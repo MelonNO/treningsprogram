@@ -1,0 +1,41 @@
+CELL 05-wloss-int-4d-90 (goal=Weight Loss days=4 target=90)
+live: id=msg_011Cdg4feTVu5JyMxpQtn37S output_tokens=7026 stop_reason=end_turn
+cardioGate=PASS
+p2WeightsCoerced=0 of 0 positive-weight entries
+  day 1: est=84 (pre-sanitize 84) [IN]
+    Barbell Bench Press 4x10-12 @0.0kg rest=75 [Chest]
+    Pull-up (Bodyweight) 4x8-12 @0.0kg rest=75 [Back]
+    Cable Seated Row 3x12-15 @0.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=60 [Shoulders]
+    Cable Face Pull 3x15-20 @0.0kg rest=60 [Shoulders]
+    Cable Tricep Pushdown (Rope) 3x12-15 @0.0kg rest=60 [Arms]
+    Dumbbell Hammer Curl 3x12-15 @0.0kg rest=60 [Arms]
+    Farmer's Carry (Dumbbells) 3x20-25 @0.0kg rest=60 [Core]
+  day 3: est=76 (pre-sanitize 76) [UNDER by 4]
+    Barbell Back Squat 4x10-12 @0.0kg rest=90 [Legs]
+    Barbell Romanian Deadlift 4x6-8 @0.0kg rest=90 [Legs]
+    Leg Press 3x12-15 @0.0kg rest=75 [Legs]
+    Barbell Hip Thrust 3x15-20 @0.0kg rest=75 [Legs]
+    Lying Leg Curl 3x15-20 @0.0kg rest=60 [Legs]
+    Cable Pull-Through 3x15-20 @0.0kg rest=60 [Legs]
+    Ab Wheel Rollout 3x12-15 @0.0kg rest=60 [Core]
+  feedback(day 3): Day 3 estimates ~76 min — that is 14 min UNDER the aim of 90 (window 80–100). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY con…
+  day 5: est=73 (pre-sanitize 73) [UNDER by 7]
+    Barbell Incline Press 4x10-12 @0.0kg rest=75 [Chest]
+    Barbell Bent-Over Row 4x10-12 @0.0kg rest=75 [Back]
+    Dumbbell Seated Overhead Press 3x12-15 @0.0kg rest=75 [Shoulders]
+    Cable Lat Pulldown (Wide Grip) 3x12-15 @0.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=60 [Shoulders]
+    Cable Rear-Delt Fly 3x15-20 @0.0kg rest=60 [Shoulders]
+    Cable Bicep Curl 3x12-15 @0.0kg rest=60 [Arms]
+  feedback(day 5): Day 5 estimates ~73 min — that is 17 min UNDER the aim of 90 (window 80–100). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY con…
+  day 7: est=75 (pre-sanitize 75) [UNDER by 5]
+    Barbell Conventional Deadlift 4x5-6 @0.0kg rest=90 [Back]
+    Barbell Front Squat 4x10-12 @0.0kg rest=90 [Legs]
+    Leg Press 3x15-20 @0.0kg rest=75 [Legs]
+    Dumbbell Romanian Deadlift 3x10-12 @0.0kg rest=75 [Legs]
+    Barbell Hip Thrust 3x15-20 @0.0kg rest=60 [Legs]
+    Pallof Press (Cable) 3x12-15 @0.0kg rest=60 [Core]
+    Seated Calf Raise 3x15-20 @0.0kg rest=60 [Legs]
+  feedback(day 7): Day 7 estimates ~75 min — that is 15 min UNDER the aim of 90 (window 80–100). This is a LONG session and the plan must reach the target with RESISTANCE-ONLY con…
+attempt1DaysInWindow=1/4

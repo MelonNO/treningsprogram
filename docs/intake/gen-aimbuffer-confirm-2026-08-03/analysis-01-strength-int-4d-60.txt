@@ -1,0 +1,25 @@
+CELL 01-strength-int-4d-60 (goal=Strength days=4 target=60)
+live: id=msg_011Cdg4PWECLCpAzSuUHNSL7 output_tokens=4271 stop_reason=end_turn
+cardioGate=PASS
+p2WeightsCoerced=0 of 0 positive-weight entries
+  day 1: est=59 (pre-sanitize 59) [IN]
+    Barbell Bench Press 4x3-5 @0.0kg rest=240 [Chest]
+    Barbell Bent-Over Row 4x5-6 @0.0kg rest=180 [Back]
+    Dumbbell Lateral Raise 3x10-12 @0.0kg rest=90 [Shoulders]
+    Cable Face Pull 3x10-12 @0.0kg rest=90 [Shoulders]
+  day 3: est=60 (pre-sanitize 60) [IN]
+    Barbell Back Squat 4x3-5 @0.0kg rest=270 [Legs]
+    Barbell Romanian Deadlift 3x5-8 @0.0kg rest=180 [Legs]
+    Leg Press 3x8-10 @0.0kg rest=150 [Legs]
+    Suitcase Carry (Dumbbell) 3x20 m per side @0.0kg rest=60 [Core]
+  day 5: est=59 (pre-sanitize 59) [IN]
+    Weighted Pull-Up 4x3-5 @0.0kg rest=240 [Back]
+    Barbell Overhead Press 4x5-6 @0.0kg rest=180 [Shoulders]
+    Cable Rear-Delt Fly (single-arm) 3x10-12 @0.0kg rest=90 [Shoulders]
+    Cable Tricep Pushdown (rope) 3x8-10 @0.0kg rest=90 [Arms]
+  day 7: est=60 (pre-sanitize 60) [IN]
+    Conventional Deadlift 4x3-5 @0.0kg rest=270 [Back]
+    Barbell Bulgarian Split Squat 3x6-8 @0.0kg rest=180 [Legs]
+    Hip Thrust (Barbell) 3x10-15 @0.0kg rest=120 [Legs]
+    Cable Pull-Through 3x12-15 @0.0kg rest=90 [Legs]
+attempt1DaysInWindow=4/4
