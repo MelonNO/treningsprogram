@@ -1,0 +1,37 @@
+CELL 05-wloss-int-4d-90-long (target 90 min)
+exercises=25 days=[1, 3, 5, 7]
+cardioGate=PASS (zero cardio entries)
+  day 1: est=48 [UNDER by 32] groups=[Chest, Back, Shoulders, Arms]
+    Barbell Bench Press 4x10-12 @60.0kg rest=75 [Chest]
+    Pull-up (Bodyweight) 4x8-12 @0.0kg rest=75 [Back]
+    Cable Seated Row (close grip) 3x12-15 @50.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @8.0kg rest=60 [Shoulders]
+    Cable Face Pull 3x15-20 @20.0kg rest=60 [Shoulders]
+    Cable Tricep Pushdown (rope) 3x12-15 @22.5kg rest=60 [Arms]
+    Dumbbell Hammer Curl 3x12-15 @14.0kg rest=60 [Arms]
+  day 3: est=44 [UNDER by 36] groups=[Legs]
+    Barbell Back Squat 4x10-12 @70.0kg rest=90 [Legs]
+    Barbell Romanian Deadlift 4x6-8 @70.0kg rest=90 [Legs]
+    Leg Press 3x12-15 @100.0kg rest=75 [Legs]
+    Hip Thrust (Barbell) 3x15-20 @60.0kg rest=75 [Legs]
+    Dumbbell Walking Lunge 3x12-15 @16.0kg rest=75 [Legs]
+    Lying Leg Curl (Machine) 3x15-20 @30.0kg rest=60 [Legs]
+  day 5: est=43 [UNDER by 37] groups=[Shoulders, Back, Arms]
+    Barbell Overhead Press 4x10-12 @42.5kg rest=75 [Shoulders]
+    Cable Lat Pulldown (wide overhand) 4x12-15 @55.0kg rest=75 [Back]
+    Dumbbell Incline Row (chest-supported) 3x12-15 @22.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @8.0kg rest=60 [Shoulders]
+    Cable Rear Delt Fly (single arm) 3x15-20 @10.0kg rest=60 [Shoulders]
+    Cable Bicep Curl (EZ-bar attachment) 3x12-15 @25.0kg rest=60 [Arms]
+  day 7: est=47 [UNDER by 33] groups=[Legs, Core]
+    Barbell Front Squat 4x10-12 @50.0kg rest=90 [Legs]
+    Dumbbell Romanian Deadlift 3x10-12 @24.0kg rest=75 [Legs]
+    Bulgarian Split Squat (Dumbbell) 3x12-15 @16.0kg rest=75 [Legs]
+    Glute Bridge (Barbell) 3x15-20 @60.0kg rest=60 [Legs]
+    Cable Pull-Through 3x15-20 @25.0kg rest=60 [Legs]
+    Plank (Forearm) 3x30-45 @0.0kg rest=60 [Core]
+attempt1DaysInWindow=0/4
+p2FabricatedWeightsCoerced=23 of 23 positive-weight entries
+p5Adjacency=clean
+unclassifiedSlots=none
+rationale=Brand-new plan built around a Upper/Lower ×2 split with density-style supersets and short rest to maximise calorie burn while preserving muscle. All loads are set conservatively at RPE-guided starting points since there is no prior history.

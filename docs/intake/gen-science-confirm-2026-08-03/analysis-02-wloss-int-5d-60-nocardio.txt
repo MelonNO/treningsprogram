@@ -1,0 +1,39 @@
+CELL 02-wloss-int-5d-60-nocardio (target 60 min)
+exercises=26 days=[1, 2, 3, 5, 6]
+cardioGate=PASS (zero cardio entries)
+  day 1: est=38 [UNDER by 12] groups=[Chest, Back, Shoulders, Arms]
+    Barbell Bench Press 3x10-12 @60.0kg rest=75 [Chest]
+    Pull-Up 3x8-12 @0.0kg rest=75 [Back]
+    Cable Seated Row (Neutral Grip) 3x12-15 @45.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @8.0kg rest=60 [Shoulders]
+    Cable Face Pull (Rope, Pronated to External Rotation) 3x15-20 @20.0kg rest=60 [Shoulders]
+    Cable Tricep Pushdown (Straight Bar) 3x12-15 @25.0kg rest=60 [Arms]
+  day 2: est=35 [UNDER by 15] groups=[Legs]
+    Barbell Back Squat 4x10-12 @70.0kg rest=90 [Legs]
+    Barbell Romanian Deadlift 3x6-8 @80.0kg rest=90 [Legs]
+    Leg Press 3x12-15 @100.0kg rest=75 [Legs]
+    Hip Thrust (Barbell) 3x15-20 @60.0kg rest=60 [Legs]
+    Seated Leg Curl 3x15-20 @40.0kg rest=60 [Legs]
+  day 3: est=32 [UNDER by 18] groups=[Shoulders, Chest, Arms]
+    Barbell Overhead Press 3x10-12 @45.0kg rest=75 [Shoulders]
+    Dumbbell Incline Press 3x12-15 @22.0kg rest=75 [Chest]
+    Cable Lateral Raise (Single-Arm) 3x15-20 @7.5kg rest=60 [Shoulders]
+    Dumbbell Overhead Tricep Extension 3x12-15 @16.0kg rest=60 [Arms]
+    Dumbbell Front Raise (Alternating) 3x15-20 @8.0kg rest=60 [Shoulders]
+  day 5: est=33 [UNDER by 17] groups=[Back, Shoulders, Arms]
+    Barbell Bent-Over Row (Overhand) 4x10-12 @60.0kg rest=75 [Back]
+    Cable Lat Pulldown (Wide Overhand Grip) 3x12-15 @55.0kg rest=60 [Back]
+    Cable Rear Delt Fly (Rope, Bent-Over) 3x15-20 @15.0kg rest=60 [Shoulders]
+    Dumbbell Hammer Curl 3x12-15 @14.0kg rest=60 [Arms]
+    Barbell Curl 3x12-15 @30.0kg rest=60 [Arms]
+  day 6: est=35 [UNDER by 15] groups=[Legs, Shoulders, Core]
+    Barbell Front Squat 3x10-12 @50.0kg rest=75 [Legs]
+    Dumbbell Romanian Deadlift 3x10-12 @24.0kg rest=75 [Legs]
+    Dumbbell Single-Arm Overhead Press 3x12-15 @18.0kg rest=60 [Shoulders]
+    Dumbbell Farmer Carry 3x40 m per set @24.0kg rest=60 [Core]
+    Cable Pallof Press (Anti-Rotation Hold) 3x12-15 @20.0kg rest=60 [Core]
+attempt1DaysInWindow=0/5
+p2FabricatedWeightsCoerced=25 of 25 positive-weight entries
+p5Adjacency=Pull/hinge adjacency: pull day 1 adjacent to hinge day 2; pull day 5 adjacent to hinge day 6 — lats, spinal erectors and grip are loaded on consecutive days.
+unclassifiedSlots=none
+rationale=Brand-new plan built around your weight-loss goal: five density-focused sessions using supersets of non-competing muscles to keep heart rate elevated, with main compound lifts anchored conservatively as a baseline and short 60–75 s rest to maximise calorie cost while preserving muscle.

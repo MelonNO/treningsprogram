@@ -1,0 +1,34 @@
+CELL 01-endur-int-4d-60-nocardio (target 60 min)
+exercises=22 days=[1, 3, 5, 6]
+cardioGate=PASS (zero cardio entries)
+  day 1: est=39 [UNDER by 11] groups=[Chest, Back, Shoulders, Arms]
+    Barbell Bench Press 3x12-15 @0.0kg rest=75 [Chest]
+    Cable Lat Pulldown (Wide Grip) 3x12-15 @0.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=45 [Shoulders]
+    Cable Face Pull 3x15-20 @0.0kg rest=45 [Shoulders]
+    Cable Tricep Pushdown (Rope) 3x15-20 @0.0kg rest=45 [Arms]
+    Dumbbell Hammer Curl 3x15-20 @0.0kg rest=45 [Arms]
+  day 3: est=39 [UNDER by 11] groups=[Legs, Core]
+    Barbell Back Squat 3x12-15 @0.0kg rest=90 [Legs]
+    Barbell Romanian Deadlift 3x6-8 @0.0kg rest=90 [Legs]
+    Leg Press 3x15-20 @0.0kg rest=75 [Legs]
+    Barbell Hip Thrust 3x15-20 @0.0kg rest=60 [Legs]
+    Plank Hold 3x30-45 s @0.0kg rest=45 [Core]
+  day 5: est=39 [UNDER by 11] groups=[Shoulders, Back, Arms]
+    Dumbbell Shoulder Press 3x12-15 @0.0kg rest=75 [Shoulders]
+    Cable Seated Row (Neutral Grip) 3x12-15 @0.0kg rest=60 [Back]
+    Dumbbell Lateral Raise 3x15-20 @0.0kg rest=45 [Shoulders]
+    Cable Rear-Delt Fly (Low Pulley, Bent Over) 3x15-20 @0.0kg rest=45 [Shoulders]
+    Dumbbell Incline Curl 3x15-20 @0.0kg rest=45 [Arms]
+    Cable Overhead Tricep Extension 3x15-20 @0.0kg rest=45 [Arms]
+  day 6: est=38 [UNDER by 12] groups=[Legs, Core]
+    Goblet Squat 3x15-20 @0.0kg rest=75 [Legs]
+    Dumbbell Romanian Deadlift 3x10-12 @0.0kg rest=75 [Legs]
+    Cable Pull-Through 3x15-20 @0.0kg rest=60 [Legs]
+    Dumbbell Farmer's Carry 3x30-40 m @0.0kg rest=60 [Core]
+    Lying Leg Curl (Dumbbell or Machine) 3x15-20 @0.0kg rest=45 [Legs]
+attempt1DaysInWindow=0/4
+p2FabricatedWeightsCoerced=0 of 0 positive-weight entries
+p5Adjacency=clean
+unclassifiedSlots=none
+rationale=Brand-new plan built from scratch for a muscular-endurance goal: high reps, short rests, circuit/superset pacing, and an Upper/Lower ×2 split spread across Mon/Wed/Fri/Sat to maximise recovery between sessions.

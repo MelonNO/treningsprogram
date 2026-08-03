@@ -1,0 +1,16 @@
+# LIVE ANTHROPIC API CALL LEDGER — HARD MAX 6 TOTAL — gen-science-fixes confirmation 2026-08-03
+# User-authorized (up to 6, the whole remaining grant). One line appended BEFORE each call.
+# Model: claude-sonnet-4-6, max_tokens 24576, single attempt per cell, no validateProgram calls.
+# --- calls below this line ---
+1/6 | 2026-08-03T13:30:45.172465898+02:00[Europe/Oslo] | confirm-harness | confirm 01 endur-int-4d-60 cardio-free | sending
+1/6 | 2026-08-03T13:31:43.921655524+02:00[Europe/Oslo] | confirm-harness | confirm 01 endur-int-4d-60 cardio-free | result: ok (18825 bytes)
+2/6 | 2026-08-03T13:31:43.980865248+02:00[Europe/Oslo] | confirm-harness | confirm 02 wloss-int-5d-60 cardio-free | sending
+2/6 | 2026-08-03T13:32:51.771133918+02:00[Europe/Oslo] | confirm-harness | confirm 02 wloss-int-5d-60 cardio-free | result: ok (21732 bytes)
+3/6 | 2026-08-03T13:32:51.795980292+02:00[Europe/Oslo] | confirm-harness | confirm 03-crossweek-probe-a sun-chest→mon? | sending
+3/6 | 2026-08-03T13:33:40.359396010+02:00[Europe/Oslo] | confirm-harness | confirm 03-crossweek-probe-a sun-chest→mon? | result: ok (14088 bytes)
+4/6 | 2026-08-03T13:33:40.366378725+02:00[Europe/Oslo] | confirm-harness | confirm 04-crossweek-probe-b sun-chest→mon? | sending
+4/6 | 2026-08-03T13:34:30.440827761+02:00[Europe/Oslo] | confirm-harness | confirm 04-crossweek-probe-b sun-chest→mon? | result: ok (14163 bytes)
+5/6 | 2026-08-03T13:34:30.453978315+02:00[Europe/Oslo] | confirm-harness | confirm 05 wloss-int-4d-90 long-tightness | sending
+5/6 | 2026-08-03T13:35:35.727920794+02:00[Europe/Oslo] | confirm-harness | confirm 05 wloss-int-4d-90 long-tightness | result: ok (20805 bytes)
+6/6 | 2026-08-03T13:37:12.945079277+02:00[Europe/Oslo] | confirm-harness | confirm 06 endur attempt-2 ladder self-heal | sending
+6/6 | 2026-08-03T13:38:16.833965696+02:00[Europe/Oslo] | confirm-harness | confirm 06 endur attempt-2 ladder self-heal | result: ok (20667 bytes)
