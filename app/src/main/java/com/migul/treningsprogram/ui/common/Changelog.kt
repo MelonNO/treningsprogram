@@ -13,6 +13,13 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 76, versionName = "1.35.0",
+            highlights = listOf(
+                "Settings → Backup can now export your logged body weight and tape measurements as CSV spreadsheet files, alongside the existing full backup. You get a weight file and a measurements file, ready to open in any spreadsheet app",
+                "The measurements file includes the body-fat figure worked out from your profile — entries that cannot produce one are simply left blank rather than exported as zero",
+            ),
+        ),
+        Entry(
             versionCode = 75, versionName = "1.34.0",
             highlights = listOf(
                 "New Body tab on the Stats screen: charts for body weight, body fat, waist and neck over time (plus hip if your profile is set to woman). Logging stays tucked away in one line until you need it",
