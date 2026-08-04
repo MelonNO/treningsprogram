@@ -26,6 +26,7 @@ import com.migul.treningsprogram.data.backup.BackupScheduler
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.repository.autoGenWeekKey
 import com.migul.treningsprogram.data.repository.thisMonday
+import com.migul.treningsprogram.domain.BodyDataCsv
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -270,6 +271,34 @@ class SettingsViewModel @Inject constructor(
             runCatching { exportRepository.exportToJson() }
                 .onSuccess { block(it) }
                 .onFailure { _importResult.tryEmit("Export failed: ${it.message}") }
+        }
+    }
+
+    /**
+     * Builds the body-data CSV files and hands them to [block] to be written and shared.
+     *
+     * [block] is invoked ONLY when there is something to export; with no logged weight and no logged
+     * measurements the user gets a message instead of a share sheet full of empty files. Body fat is
+     * derived here from the CURRENT profile rather than stored — see [BodyDataCsv].
+     */
+    fun consumeBodyCsv(block: (List<BodyDataCsv.CsvFile>) -> Unit) {
+        viewModelScope.launch {
+            runCatching {
+                BodyDataCsv.build(
+                    measurements = bodyMeasurementDao.getAllOnce(),
+                    metrics = bodyMetricDao.getAllOnce(),
+                    sex = prefs.sex,
+                    heightCm = prefs.heightCm.takeIf { it > 0f }
+                )
+            }
+                .onSuccess { files ->
+                    if (files.isEmpty()) {
+                        _importResult.tryEmit("No body data to export yet — log a weight or a measurement first.")
+                    } else {
+                        block(files)
+                    }
+                }
+                .onFailure { _importResult.tryEmit("CSV export failed: ${it.message}") }
         }
     }
 

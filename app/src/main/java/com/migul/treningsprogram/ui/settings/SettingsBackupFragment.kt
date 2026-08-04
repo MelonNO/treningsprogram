@@ -99,6 +99,49 @@ class SettingsBackupFragment : Fragment() {
             importLauncher.launch(arrayOf("application/json", "*/*"))
         }
 
+        // CSV export of the body data. The ViewModel only calls back when there is something to
+        // export; "nothing logged yet" arrives on the importResult snackbar channel instead.
+        binding.btnExportBodyCsv.setOnClickListener {
+            viewModel.consumeBodyCsv { files ->
+                // The ViewModel is activity-scoped, so this callback can arrive after the view is
+                // gone (tap Export, navigate away). Without this, requireContext() would throw and
+                // the catch below would then NPE on binding.root.
+                if (_binding == null) return@consumeBodyCsv
+                try {
+                    val uris = ArrayList<Uri>(files.size)
+                    files.forEach { csv ->
+                        val file = File(requireContext().cacheDir, csv.fileName)
+                        file.writeText(csv.content)
+                        uris.add(
+                            FileProvider.getUriForFile(
+                                requireContext(),
+                                "${requireContext().packageName}.fileprovider",
+                                file
+                            )
+                        )
+                    }
+                    // A single file must go out as ACTION_SEND — plenty of receivers ignore
+                    // ACTION_SEND_MULTIPLE with one item, and a weight-only user gets one file.
+                    val shareIntent = if (uris.size == 1) {
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = CSV_MIME
+                            putExtra(Intent.EXTRA_STREAM, uris.first())
+                        }
+                    } else {
+                        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = CSV_MIME
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                        }
+                    }
+                    shareIntent.putExtra(Intent.EXTRA_SUBJECT, "Treningsprogram Body Data")
+                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    startActivity(Intent.createChooser(shareIntent, "Export CSV via…"))
+                } catch (e: Exception) {
+                    Snackbar.make(binding.root, "CSV export failed: ${e.message}", Snackbar.LENGTH_LONG).show()
+                }
+            }
+        }
+
         // ---- Cloud backup ----
         binding.btnCloudConnect.setOnClickListener {
             if (!viewModel.cloudConfigured) {
@@ -228,5 +271,10 @@ class SettingsBackupFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private companion object {
+        /** Registered CSV media type; the share sheet uses it to pick sensible targets. */
+        const val CSV_MIME = "text/csv"
     }
 }
