@@ -87,17 +87,18 @@ Then the same SDK, `local.properties`, and `build.sh` steps as above.
 
 ### Edit `build.sh`
 
-As shipped it hardcodes the Pi's paths:
+As shipped it hardcodes this machine's Arch x86_64 paths:
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 export ANDROID_HOME=/home/migul/android-sdk
-export QEMU_LD_PREFIX=/opt/x86_64-sysroot
 ```
 
-On x86_64: fix `JAVA_HOME` (the path ends `-amd64`, not `-arm64`), fix
-`ANDROID_HOME`, and **delete the `QEMU_LD_PREFIX` line entirely** — see below
-for why it existed.
+On another x86_64 distro: fix `ANDROID_HOME`, and fix `JAVA_HOME` to match that
+distro's layout (Debian/Ubuntu ends the path `-amd64`; Arch has no suffix).
+
+On aarch64: fix both of those **and add back `export
+QEMU_LD_PREFIX=/opt/x86_64-sysroot`** — see below for why it is needed there.
 
 ## aarch64 host (Raspberry Pi, Apple Silicon Linux, ARM server)
 
@@ -112,8 +113,8 @@ export QEMU_LD_PREFIX=/opt/x86_64-sysroot
 ```
 
 `binfmt_misc` (set up by `qemu-user-static`) then transparently routes the
-x86_64 binary through QEMU. That is the *only* reason `QEMU_LD_PREFIX` is in
-`build.sh`.
+x86_64 binary through QEMU. That was the *only* reason `QEMU_LD_PREFIX` was ever
+in `build.sh`, and why it is no longer there now that the host is x86_64.
 
 Alternative, if you'd rather not emulate: pin an `aapt2` from a source that
 publishes ARM64 builds and point AGP at it with
@@ -121,7 +122,7 @@ publishes ARM64 builds and point AGP at it with
 
 ## Gotchas carried over from the Pi
 
-- **`./build.sh`, not `./gradlew`.** The wrapper script sets the three env vars.
+- **`./build.sh`, not `./gradlew`.** The wrapper script sets the env vars.
   If you'd rather use `./gradlew` directly, export them from `~/.bashrc`.
 - **Piping masks exit codes.** `./build.sh assembleDebug | tail` reports success
   even when the build failed — `tail`'s status wins. Use

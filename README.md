@@ -79,7 +79,7 @@ Auto-generation runs once per ISO week on app launch (stored in `lastAutoGenerat
 
 ## Build & Run
 
-The build environment targets **Android SDK 34 / Java 21**. Use `./build.sh` — it sets `JAVA_HOME`, `ANDROID_HOME`, and `QEMU_LD_PREFIX` (needed for x86_64 `aapt2` under QEMU).
+The build environment targets **Android SDK 34 / Java 21**. Use `./build.sh` — it sets `JAVA_HOME` and `ANDROID_HOME`. On an ARM host it also needs `QEMU_LD_PREFIX` so the x86_64 `aapt2` can run under QEMU; on x86_64 that is unnecessary.
 
 ```bash
 # Debug APK
@@ -99,14 +99,13 @@ The build environment targets **Android SDK 34 / Java 21**. Use `./build.sh` —
 To use `./gradlew` directly, add these to your shell profile:
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 export ANDROID_HOME=/home/migul/android-sdk
-export QEMU_LD_PREFIX=/opt/x86_64-sysroot
 ```
 
 ### Setting up on a new machine
 
-The paths above are from the original Raspberry Pi 5 (aarch64) host. To bring the
+The paths above are from the current Arch Linux x86_64 host. To bring the
 project up elsewhere — including the full Claude Code CLI configuration (custom
 agents, memory, settings, plugins) — see **[`claude-env/README.md`](claude-env/README.md)**:
 

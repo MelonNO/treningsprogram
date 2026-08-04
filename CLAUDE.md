@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Native Android app (Kotlin) — an adaptive workout planner and logger that uses the Claude AI API to analyze previous sessions and automatically adjust future training programs (weights, reps, exercise selection, weekly volume).
 
-**Build environment is set up on this Pi.** Java 21, Android SDK 34, and x86_64 QEMU emulation (for `aapt2`) are all installed. Use `./build.sh` instead of `./gradlew` — it sets the required env vars automatically.
+**Build environment is set up on this Arch Linux x86_64 machine.** Java 21 and Android SDK 34 are installed; `aapt2` runs natively (no QEMU emulation needed). Use `./build.sh` instead of `./gradlew` — it sets the required env vars automatically.
 
 ## Build & Run
 
 ```bash
-# Build debug APK (use build.sh — it sets JAVA_HOME, ANDROID_HOME, QEMU_LD_PREFIX)
+# Build debug APK (use build.sh — it sets JAVA_HOME and ANDROID_HOME)
 ./build.sh assembleDebug
 # Output: app/build/outputs/apk/debug/app-debug.apk
 
@@ -25,11 +25,10 @@ Native Android app (Kotlin) — an adaptive workout planner and logger that uses
 ./build.sh lint
 ```
 
-If you add the three env vars to `~/.bashrc` you can use `./gradlew` directly:
+If you add the two env vars to `~/.bashrc` you can use `./gradlew` directly:
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 export ANDROID_HOME=/home/migul/android-sdk
-export QEMU_LD_PREFIX=/opt/x86_64-sysroot   # needed so QEMU can run x86_64 aapt2
 ```
 
 ## Architecture
