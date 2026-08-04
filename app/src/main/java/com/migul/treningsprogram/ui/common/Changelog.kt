@@ -13,6 +13,18 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 75, versionName = "1.34.0",
+            highlights = listOf(
+                "New Body tab on the Stats screen: charts for body weight, body fat, waist and neck over time (plus hip if your profile is set to woman). Logging stays tucked away in one line until you need it",
+                "Body fat is worked out for you — log a waist and neck measurement (plus hip for women) and the app averages the US Navy method and RFM. Add your height and sex in first-time setup or Settings \u2192 Training to switch it on; measurements you logged earlier get their body-fat figure the moment you do",
+                "Charts open on the last 3 months, switchable to 1 month, 6 months, 1 year, all time, or an exact date range you pick on a calendar",
+                "Body weight has moved off the Progress tab into the new Body tab \u2014 the Home screen quick-add is unchanged, and every weight you have ever logged is already there",
+                "Earlier entries of any kind can be deleted from the Body tab. Logged weight and measurements together and only one is wrong? You are asked which part to remove",
+                "The Progress tab no longer opens on empty charts: it picks one of your 15 most-logged exercises at random each time you open the app, and remembers whatever you switch to for the rest of the session",
+                "The messages shown while a program generates grew from 12 to 150 \u2014 training tips, facts about how the app actually works, encouragement and jokes \u2014 now shuffled, so the wait reads differently every time",
+            ),
+        ),
+        Entry(
             versionCode = 74, versionName = "1.33.0",
             highlights = listOf(
                 "Generated hypertrophy weeks (4+ training days) now guarantee every major muscle group at least two training days and a minimum of direct sets — no more single leg days that a missed session can zero, or 3-set shoulder weeks",
