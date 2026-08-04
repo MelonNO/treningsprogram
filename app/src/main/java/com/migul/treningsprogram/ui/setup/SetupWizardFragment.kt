@@ -19,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.databinding.FragmentSetupWizardBinding
+import com.migul.treningsprogram.domain.BodyComposition
 import com.migul.treningsprogram.domain.ManualRestTimes
 import com.migul.treningsprogram.domain.TrainingDaySelection
 import com.migul.treningsprogram.domain.model.OnboardingQuestion
@@ -209,10 +210,9 @@ class SetupWizardFragment : Fragment() {
                     viewModel.isGenerating.collectLatest { generating ->
                         binding.tvGeneratingTip.visibility = if (generating) View.VISIBLE else View.GONE
                         if (!generating) return@collectLatest
-                        var i = 0
+                        val tips = com.migul.treningsprogram.ui.common.GenerationTips.rotation()
                         while (true) {
-                            binding.tvGeneratingTip.text =
-                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            binding.tvGeneratingTip.text = tips.next()
                             kotlinx.coroutines.delay(4500)
                         }
                     }
@@ -509,6 +509,19 @@ class SetupWizardFragment : Fragment() {
                 viewModel.prefs.injurySeverity = if (injuries.isNotBlank()) currentWizardSeverity() else ""
                 viewModel.prefs.priorityMuscles = priorityList.joinToString(",")
                 viewModel.prefs.dislikedExercises = dislikes
+                // Body-progress batch 2026-08-04 (brief 02, decision 1): height + sex. BOTH
+                // OPTIONAL and never blocking — leaving them blank is the same "not set" state
+                // every existing install starts in (A5); the Body tab then shows measurements
+                // without a body-fat estimate until they are filled in here or in Settings.
+                // An implausible height is stored as 0f ("not set") rather than fed to the formulas.
+                val heightInput = binding.etWizardHeight.text?.toString()?.trim()?.toFloatOrNull()
+                viewModel.prefs.heightCm =
+                    if (heightInput != null && BodyComposition.isPlausibleHeight(heightInput)) heightInput else 0f
+                viewModel.prefs.sex = when {
+                    binding.chipWizardSexFemale.isChecked -> BodyComposition.SEX_FEMALE
+                    binding.chipWizardSexMale.isChecked   -> BodyComposition.SEX_MALE
+                    else -> ""
+                }
                 nextStep()
             }
             4 -> {

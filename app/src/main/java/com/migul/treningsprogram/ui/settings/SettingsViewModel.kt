@@ -43,6 +43,7 @@ class SettingsViewModel @Inject constructor(
     private val gymPresetDao: GymPresetDao,
     private val plannedExerciseDao: PlannedExerciseDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
+    private val bodyMetricDao: com.migul.treningsprogram.data.db.dao.BodyMetricDao,
     private val exerciseDao: ExerciseDao,
     private val programDao: ProgramDao,
     private val weeklySummaryDao: WeeklySummaryDao,
@@ -294,6 +295,7 @@ class SettingsViewModel @Inject constructor(
             gymPresetDao.deleteAll()
             AppDatabase.seedPresets(gymPresetDao)
             bodyMeasurementDao.deleteAll()
+            bodyMetricDao.deleteAll()           // v9: girth entries must go too
             resolutionLog.clearMisses()
             // Clear all preferences (API key, onboarding status, profile, everything).
             prefs.clearAll()

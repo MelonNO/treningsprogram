@@ -36,6 +36,7 @@ class ExportRepository @Inject constructor(
     private val programDao: ProgramDao,
     private val liftGoalDao: LiftGoalDao,
     private val exerciseNoteDao: ExerciseNoteDao,
+    private val bodyMetricDao: com.migul.treningsprogram.data.db.dao.BodyMetricDao,
     private val gamificationRepository: GamificationRepository,
     private val prefs: PreferencesManager,
     private val corrections: com.migul.treningsprogram.data.ExerciseInfoCorrections,
@@ -62,7 +63,9 @@ class ExportRepository @Inject constructor(
             programs = programDao.getAllOnce(),
             goals = liftGoalDao.getAllOnce(),
             exerciseNotes = exerciseNoteDao.getAllOnce(),
-            preferences = snapshotPreferences()
+            preferences = snapshotPreferences(),
+            // v9 (body-progress 2026-08-04): tape measurements.
+            bodyMetrics = bodyMetricDao.getAllOnce()
         )
         return gson.toJson(envelope)
     }
@@ -92,7 +95,10 @@ class ExportRepository @Inject constructor(
         manualRestAccessorySeconds = prefs.manualRestAccessorySeconds,
         // v8 (QoL 2026-08 item 04): exercise-info correction maps.
         exerciseFlagsJson = corrections.exportFlagsJson(),
-        exerciseOverridesJson = corrections.exportOverridesJson()
+        exerciseOverridesJson = corrections.exportOverridesJson(),
+        // v9 (body-progress 2026-08-04): profile height/sex for the body-fat formulas.
+        heightCm = prefs.heightCm,
+        sex = prefs.sex
     )
 
     // ---- Import (MERGE) -------------------------------------------------------------------------
@@ -111,6 +117,7 @@ class ExportRepository @Inject constructor(
         val existingPrograms = programDao.getAllOnce()
         val existingGoals = liftGoalDao.getAllOnce()
         val existingNotes = exerciseNoteDao.getAllOnce()
+        val existingMetrics = bodyMetricDao.getAllOnce()
 
         // 2) Sessions + sets: id-collision-safe UNION (preserve session->sets linkage).
         val backupSetsBySession = backup.sets.groupBy { it.sessionId }
@@ -138,6 +145,9 @@ class ExportRepository @Inject constructor(
         val mergedGoals = BackupMerger.mergeGoals(existingGoals, backup.goals)
         val mergedNotes = BackupMerger.mergeExerciseNotes(existingNotes, backup.exerciseNotes)
 
+        // v9: girth entries — same UNION rule as body measurements.
+        val mergedMetrics = BackupMerger.mergeBodyMetrics(existingMetrics, backup.bodyMetrics)
+
         // 4) Persist merged workout history (replace whole table with the merged superset).
         //    Sets are deleted via session CASCADE; rebuild both from the merged result.
         workoutSessionDao.deleteAll()
@@ -146,6 +156,9 @@ class ExportRepository @Inject constructor(
 
         bodyMeasurementDao.deleteAll()
         bodyMeasurementDao.insertAll(mergedMeasurements)
+
+        bodyMetricDao.deleteAll()
+        bodyMetricDao.insertAll(mergedMetrics)
 
         achievementDao.insertAllReplace(mergedAchievements)
 
@@ -210,6 +223,9 @@ class ExportRepository @Inject constructor(
         // v8 (QoL 2026-08 item 04): correction maps live in their own prefs file, not
         // PreferencesManager — the merger already union-merged them.
         corrections.importJson(p.exerciseFlagsJson, p.exerciseOverridesJson)
+        // v9 (body-progress 2026-08-04): profile height/sex.
+        prefs.heightCm = p.heightCm
+        prefs.sex = p.sex
         // NOTE: apiKey is never written from a backup.
     }
 }

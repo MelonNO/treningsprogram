@@ -156,7 +156,7 @@ class MinifiedBackupCompatTest {
         for (key in listOf(
             "schema_version", "sessions", "sets", "achievements", "body_measurements",
             "planned_exercises", "exercises", "gym_presets", "programs", "goals",
-            "exercise_notes", "preferences"
+            "exercise_notes", "preferences", "body_metrics"
         )) {
             assertTrue("top-level key '$key' must be present in an export", json.contains("\"$key\""))
         }
@@ -179,6 +179,8 @@ class MinifiedBackupCompatTest {
         assertEquals("preferences", MinifiedBackupCompat.envelopeMapFor(6)["n"])
         assertEquals("preferences", MinifiedBackupCompat.envelopeMapFor(8)["n"])
         assertEquals("programs", MinifiedBackupCompat.envelopeMapFor(8)["k"])
+        // v9 added `body_metrics` AFTER `preferences`, so no existing letter may shift.
+        assertEquals("preferences", MinifiedBackupCompat.envelopeMapFor(9)["n"])
     }
 
     /** A minified v5-era backup: preferences under "l", no goals/notes lists; migrations fill in. */

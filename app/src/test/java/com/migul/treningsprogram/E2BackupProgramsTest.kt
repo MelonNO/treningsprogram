@@ -28,8 +28,8 @@ class E2BackupProgramsTest {
     // v6 (feature batch 2026-07-03) added the goals + exercise_notes tables;
     // v7 (QoL 2026-07-25, item 02) widened GymPreset with the nullable avoidExercisesJson field;
     // everything this file verifies about programs is unchanged. See BackupV4PrefsTest.
-    @Test fun version_isSeven() {
-        assertEquals(8, CURRENT_BACKUP_VERSION)  // v8: QoL 2026-08 item 04 correction maps
+    @Test fun version_isCurrent() {
+        assertEquals(9, CURRENT_BACKUP_VERSION)  // v9: body-progress girths + height/sex
     }
 
     @Test fun v3RoundTrip_preservesProgramsAndProgramId() {

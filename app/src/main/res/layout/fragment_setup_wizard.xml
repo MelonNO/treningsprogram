@@ -426,6 +426,47 @@
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:layout_marginBottom="28dp" />
 
+                <!-- Body-progress batch 2026-08-04 (brief 02, decision 1): height + sex become
+                     profile settings, asked here and editable later in Settings -> Training. BOTH
+                     ARE OPTIONAL — assumption A5 requires the app to work without them (every
+                     existing install has neither), so setup must never block on them. They only
+                     unlock the body-fat estimate on the Body tab. -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Auros.Eyebrow"
+                    android:text="Height and sex (optional)"
+                    android:layout_marginBottom="4dp" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Only used to estimate body fat from tape measurements on the Body tab. You can add or change these later in Settings."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginBottom="8dp" />
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:hint="Height (cm)"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_wizard_height"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chip_group_wizard_sex"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    app:singleSelection="true"
+                    app:selectionRequired="false">
+                    <com.google.android.material.chip.Chip android:id="@+id/chip_wizard_sex_male" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Man" />
+                    <com.google.android.material.chip.Chip android:id="@+id/chip_wizard_sex_female" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Woman" />
+                </com.google.android.material.chip.ChipGroup>
+
                 <!-- Injuries -->
                 <TextView
                     android:layout_width="match_parent"

@@ -143,6 +143,23 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v8 -> v9.
+     *
+     * v9 (body-progress 2026-08-04) adds the `body_metrics` top-level list AND widens the
+     * preferences object with heightCm / sex. Older backups have no girth measurements at all, so
+     * the step adds an empty array (the v5 -> v6 pattern); the two absent pref keys deserialize to
+     * their "not set" defaults (0f / ""), which is exactly assumption A5's starting state.
+     */
+    private val V8_TO_V9 = object : MigrationStep {
+        override val fromVersion = 8
+        override fun migrate(root: JsonObject): JsonObject {
+            if (!root.has("body_metrics")) root.add("body_metrics", com.google.gson.JsonArray())
+            root.addProperty("schema_version", 9)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
@@ -151,7 +168,8 @@ object BackupMigrations {
         V4_TO_V5,
         V5_TO_V6,
         V6_TO_V7,
-        V7_TO_V8
+        V7_TO_V8,
+        V8_TO_V9
     ).associateBy { it.fromVersion }
 
     /**

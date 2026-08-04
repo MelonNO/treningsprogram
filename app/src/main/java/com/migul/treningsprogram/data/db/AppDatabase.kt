@@ -22,9 +22,10 @@ import com.migul.treningsprogram.data.db.entity.*
         Program::class,
         XpEvent::class,
         LiftGoal::class,
-        ExerciseNote::class
+        ExerciseNote::class,
+        BodyMetric::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun xpEventDao(): XpEventDao
     abstract fun liftGoalDao(): LiftGoalDao
     abstract fun exerciseNoteDao(): ExerciseNoteDao
+    abstract fun bodyMetricDao(): BodyMetricDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -353,6 +355,28 @@ abstract class AppDatabase : RoomDatabase() {
                         arrayOf<Any?>(group, name)
                     )
                 }
+            }
+        }
+
+        // Body-progress batch 2026-08-04 (brief 02): the new `body_metrics` girth table. Purely
+        // ADDITIVE — one brand-new table, no existing table read or altered, so there is nothing to
+        // back-fill and nothing that can be lost. `body_measurements` (the body-WEIGHT series) is
+        // deliberately left exactly as it is; see the BodyMetric KDoc for why girths do not move in
+        // there. Column names/types/nullability match what Room generates for [BodyMetric] EXACTLY
+        // (nullable Kotlin Float? ⇒ REAL with no NOT NULL; Kotlin default values do NOT emit SQL
+        // DEFAULT clauses), or Room's open-time schema validation would crash on launch. Same shape
+        // as MIGRATION_18_19.
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `body_metrics` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `dateMs` INTEGER NOT NULL,
+                        `waistCm` REAL,
+                        `neckCm` REAL,
+                        `hipCm` REAL
+                    )
+                """.trimIndent())
             }
         }
 

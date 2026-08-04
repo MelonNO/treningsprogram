@@ -126,8 +126,17 @@ object MinifiedBackupCompat {
         "onboardingContext", "wizardEquipment", "hasCompletedOnboarding", "restTimerSeconds",
         "dailyChallengesJson", "selectedGymPresetId", "restDaysCsv", "autoRebalanceEnabled",
         "dayBoundaryHour", "manualRestEnabled", "manualRestHeavySeconds",
-        "manualRestAccessorySeconds", "exerciseFlagsJson", "exerciseOverridesJson"
+        "manualRestAccessorySeconds", "exerciseFlagsJson", "exerciseOverridesJson",
+        // v9 (body-progress 2026-08-04). Kept in declaration-order lockstep with
+        // [BackupPreferences]; no historical minified export can contain these letters, so this is
+        // future-proofing rather than a fix for existing files.
+        "heightCm", "sex"
     )
+
+    // v9's `body_metrics` envelope entry is deliberately ABSENT from every map above: the minified
+    // format predates the table, so no historical backup can carry it, and inventing a letter for
+    // it could only mis-bind some other key. The same reasoning applies to the BodyMetric entity —
+    // there is no letter map for it.
 
     /** Declaration-order canonical names → their R8 letters ("a", "b", … in field order). */
     private fun letters(vararg names: String): Map<String, String> =

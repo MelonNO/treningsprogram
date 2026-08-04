@@ -328,6 +328,22 @@ class PreferencesManager(context: Context) {
             prefs.edit().putString(KEY_MISSED_RECOVERY_HANDLED, value.joinToString("\n")).apply()
         }
 
+    // Body-progress batch 2026-08-04 (brief 02): the two PROFILE values the body-fat formulas need.
+    // Collected in first-time setup and editable in Settings → Training (user decision 1).
+    //
+    // Both are deliberately "unset-able": 0f / "" means the user has not provided it. Assumption A5
+    // requires that — every existing install has neither, and those users must still be able to log
+    // measurements and read the girth charts; only the body-fat number waits for the profile. Never
+    // substitute a "typical" height or sex, because that would silently fabricate a body-fat figure.
+    var heightCm: Float
+        get() = prefs.getFloat(KEY_HEIGHT_CM, 0f)
+        set(value) { prefs.edit().putFloat(KEY_HEIGHT_CM, value).apply() }
+
+    /** [BodyComposition.SEX_MALE] / [BodyComposition.SEX_FEMALE], or "" when not set. */
+    var sex: String
+        get() = prefs.getString(KEY_SEX, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_SEX, value).apply() }
+
     init {
         // Seed the process-wide holder from persisted prefs the moment this @Singleton is constructed
         // (early — MainActivity/repositories inject it at startup), so day derivations use the user's
@@ -389,5 +405,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_WRAPPED_SEEN_MONTH = "wrapped_seen_month_key"
         private const val KEY_NEVER_PERFORMED_KEPT = "never_performed_kept_names"
         private const val KEY_MISSED_RECOVERY_HANDLED = "missed_recovery_handled_key"
+        private const val KEY_HEIGHT_CM = "profile_height_cm"
+        private const val KEY_SEX = "profile_sex"
     }
 }

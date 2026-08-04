@@ -63,15 +63,21 @@ class HistoryProgressFragment : Fragment() {
             val screenEmpty = DataScreenEmptyState.isProgressEmpty(names.size)
             binding.tvProgressEmpty.isVisible = screenEmpty
             binding.cardExerciseSelector.isVisible = !screenEmpty
+
+            // Brief 03 (2026-08-04): open on an exercise instead of blank charts — a random one
+            // from the 15 most-logged on the first tab open of the launch, and whatever is already
+            // selected (default or the user's manual switch) on every later open in that session.
+            // `false` suppresses the dropdown that setText would otherwise pop open.
+            viewModel.resolveDefaultExercise(names)?.let { binding.acExercise.setText(it, false) }
         }
 
         binding.acExercise.setOnItemClickListener { _, _, _, _ ->
-            viewModel.selectedExercise.value = binding.acExercise.text.toString()
+            viewModel.selectExercise(binding.acExercise.text.toString())
         }
 
         // Also trigger on text commit
         binding.acExercise.setOnEditorActionListener { _, _, _ ->
-            viewModel.selectedExercise.value = binding.acExercise.text.toString()
+            viewModel.selectExercise(binding.acExercise.text.toString())
             false
         }
 
@@ -116,34 +122,11 @@ class HistoryProgressFragment : Fragment() {
             }
         }
 
-        // R3: body-weight chart — independent of the exercise selection; hidden until >= 2
-        // weigh-ins exist in the window. Raw weigh-ins + the smoothed WeightTrend overlay + the
-        // trend readout. QoL item 09: the chart (and its trend line/readout) now follows the same
-        // progressDateRange as the strength/reps charts (null = all-time, clearing restores it).
-        // The relative-strength card below DELIBERATELY keeps the unfiltered measurement stream —
-        // changing it was explicitly ruled out of scope by the brief.
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                kotlinx.coroutines.flow.combine(
-                    viewModel.bodyMeasurements, viewModel.progressDateRange
-                ) { measurements, range ->
-                    DateRangeFilter.filter(measurements, range) { it.dateMs }
-                }.collect { windowed ->
-                    val sorted = windowed.sortedBy { it.dateMs }
-                    val show = sorted.size >= 2
-                    binding.cardBodyWeight.isVisible = show
-                    if (!show) return@collect
-                    binding.chartBodyWeight.setData(
-                        sorted.map { BodyWeightChartView.Entry(it.dateMs, it.weightKg) },
-                        com.migul.treningsprogram.domain.WeightTrend.smoothedSeries(sorted)
-                            .map { (ms, kg) -> BodyWeightChartView.Entry(ms, kg) }
-                    )
-                    val line = com.migul.treningsprogram.domain.WeightTrend.homeLine(sorted)
-                    binding.tvBwTrend.isVisible = line != null
-                    binding.tvBwTrend.text = line ?: ""
-                }
-            }
-        }
+        // Body-progress batch 2026-08-04 (brief 02, decision 5): the R3 body-weight chart card that
+        // used to live here has MOVED to the new Body tab, which owns body weight alongside the
+        // girth and body-fat charts. Deliberately NOT removed with it: the relative-strength card
+        // below, which also reads viewModel.bodyMeasurements — it is a per-exercise card and stays
+        // on Progress.
 
         // Observe strength history — drives both the max-weight chart and the C1 PR timeline.
         // The history already excludes warm-up sets (WorkoutSetDao.getStrengthHistory filters

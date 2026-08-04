@@ -18,7 +18,9 @@ class HistoryViewModel @Inject constructor(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val backupScheduler: BackupScheduler,
     // N5: goal storage + reach/progress helpers for the Progress tab's goal management.
-    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository,
+    // Brief 03 (2026-08-04): process-scoped memory of the Progress tab's exercise selection.
+    private val progressSelection: ProgressSelectionStore
 ) : ViewModel() {
 
     // ── N5: lift goals ────────────────────────────────────────────────────────────────────
@@ -174,6 +176,38 @@ class HistoryViewModel @Inject constructor(
         com.migul.treningsprogram.domain.ExercisePickerSort.order(
             workoutRepository.getExerciseSessionCounts()
         )
+
+    /**
+     * Brief 03 (2026-08-04): the exercise the Progress tab should open on, given the picker's
+     * already-ordered [orderedNames] (most distinct sessions first — assumption A2).
+     *
+     * Called every time the tab's view is created. The FIRST call of the process rolls a random
+     * pick from the 15 most-logged exercises and remembers it in the process-scoped
+     * [ProgressSelectionStore]; every later call in the same launch returns whatever is stored —
+     * which is the default, or the user's manual choice if they switched (decision 11). The next
+     * launch starts with an empty store and re-rolls.
+     *
+     * Returns the name now selected, or null when nothing has ever been logged (in which case the
+     * caller keeps the existing empty state untouched).
+     */
+    fun resolveDefaultExercise(orderedNames: List<String>): String? {
+        val chosen = com.migul.treningsprogram.domain.ProgressDefaultExercise
+            .resolve(orderedNames, progressSelection.selected) ?: return null
+        progressSelection.selected = chosen
+        selectedExercise.value = chosen
+        return chosen
+    }
+
+    /**
+     * The single entry point for a MANUAL exercise switch on the Progress tab. Recording it in the
+     * store is what makes a manual choice stick for the rest of the session instead of being
+     * overwritten by the random default the next time the tab is opened.
+     */
+    fun selectExercise(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isNotBlank()) progressSelection.selected = trimmed
+        selectedExercise.value = name
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val strengthHistory: StateFlow<List<StrengthPoint>> =

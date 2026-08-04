@@ -153,10 +153,9 @@ class ProgramFragment : Fragment() {
                 launch {
                     viewModel.fullGenerating.collectLatest { generating ->
                         if (!generating) return@collectLatest
-                        var i = 0
+                        val tips = com.migul.treningsprogram.ui.common.GenerationTips.rotation()
                         while (true) {
-                            binding.tvFullGeneratingTip.text =
-                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            binding.tvFullGeneratingTip.text = tips.next()
                             kotlinx.coroutines.delay(4500)
                         }
                     }
@@ -210,10 +209,9 @@ class ProgramFragment : Fragment() {
                 launch {
                     viewModel.isDayGenerating.collectLatest { generating ->
                         if (!generating) return@collectLatest
-                        var i = 0
+                        val tips = com.migul.treningsprogram.ui.common.GenerationTips.rotation()
                         while (true) {
-                            binding.tvRegenTip.text =
-                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            binding.tvRegenTip.text = tips.next()
                             kotlinx.coroutines.delay(4500)
                         }
                     }

@@ -19,6 +19,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import com.migul.treningsprogram.R
 import com.migul.treningsprogram.databinding.FragmentSettingsTrainingBinding
+import com.migul.treningsprogram.domain.BodyComposition
 import com.migul.treningsprogram.domain.ManualRestTimes
 import com.migul.treningsprogram.domain.TrainingDaySelection
 import com.migul.treningsprogram.ui.onboarding.OnboardingBottomSheet
@@ -51,6 +52,8 @@ class SettingsTrainingFragment : Fragment() {
     private var initialManualRest = false
     private var initialRestHeavy = ""
     private var initialRestAccessory = ""
+    private var initialHeight = ""
+    private var initialSex = ""
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSettingsTrainingBinding.inflate(inflater, container, false)
@@ -79,6 +82,14 @@ class SettingsTrainingFragment : Fragment() {
         binding.switchSeparateCardio.isChecked = prefs.separateCardioDays
         binding.etInjuries.setText(prefs.injuries)
         binding.etDislikedExercises.setText(prefs.dislikedExercises)
+
+        // Body-progress batch 2026-08-04 (brief 02, decision 1): height + sex. Blank/0 means "not
+        // set" (A5) and must render as an EMPTY field with no chip checked — never as a guess.
+        binding.etProfileHeight.setText(
+            if (prefs.heightCm > 0f) formatHeight(prefs.heightCm) else ""
+        )
+        binding.chipProfileSexMale.isChecked = prefs.sex == BodyComposition.SEX_MALE
+        binding.chipProfileSexFemale.isChecked = prefs.sex == BodyComposition.SEX_FEMALE
 
         // Severity selector: reveal + pre-check only when injuries non-blank
         if (prefs.injuries.isNotBlank()) {
@@ -137,6 +148,8 @@ class SettingsTrainingFragment : Fragment() {
         binding.etDislikedExercises.addTextChangedListener(textWatcher)
         binding.etRestHeavy.addTextChangedListener(textWatcher)
         binding.etRestAccessory.addTextChangedListener(textWatcher)
+        binding.etProfileHeight.addTextChangedListener(textWatcher)
+        binding.chipGroupProfileSex.setOnCheckedStateChangeListener { _, _ -> updateSaveButton() }
         binding.switchManualRest.setOnCheckedChangeListener { _, _ ->
             updateManualRestUi(); updateSaveButton()
         }
@@ -218,7 +231,19 @@ class SettingsTrainingFragment : Fragment() {
         initialManualRest = binding.switchManualRest.isChecked
         initialRestHeavy = binding.etRestHeavy.text.toString()
         initialRestAccessory = binding.etRestAccessory.text.toString()
+        initialHeight    = binding.etProfileHeight.text.toString()
+        initialSex       = currentSex()
     }
+
+    /** "" when neither chip is checked — the A5 "not set" state. */
+    private fun currentSex(): String = when {
+        binding.chipProfileSexFemale.isChecked -> BodyComposition.SEX_FEMALE
+        binding.chipProfileSexMale.isChecked   -> BodyComposition.SEX_MALE
+        else -> ""
+    }
+
+    private fun formatHeight(cm: Float): String =
+        if (cm == cm.toInt().toFloat()) cm.toInt().toString() else cm.toString()
 
     // ── Item 4: manual rest-time mode ────────────────────────────────────────────────────────────
 
@@ -301,6 +326,8 @@ class SettingsTrainingFragment : Fragment() {
             || binding.switchManualRest.isChecked != initialManualRest
             || binding.etRestHeavy.text.toString() != initialRestHeavy
             || binding.etRestAccessory.text.toString() != initialRestAccessory
+            || binding.etProfileHeight.text.toString() != initialHeight
+            || currentSex() != initialSex
     }
 
     private fun updateSaveButton() {
@@ -347,6 +374,15 @@ class SettingsTrainingFragment : Fragment() {
         val injurySeverity = if (injuries.isNotBlank()) currentSeverity() else ""
         val disliked = binding.etDislikedExercises.text.toString().trim()
         val priorityMuscles = currentMuscleString()
+
+        // Body-progress batch 2026-08-04: height/sex are written straight to prefs (they are not
+        // part of viewModel.save's generation-relevant profile). A blank or implausible height
+        // stores 0f = "not set" rather than a bogus value the body-fat formulas would then use.
+        val heightInput = binding.etProfileHeight.text.toString().trim().toFloatOrNull()
+        prefs.heightCm =
+            if (heightInput != null && BodyComposition.isPlausibleHeight(heightInput)) heightInput else 0f
+        prefs.sex = currentSex()
+        binding.etProfileHeight.setText(if (prefs.heightCm > 0f) formatHeight(prefs.heightCm) else "")
 
         val changed = hasChanges()
 

@@ -140,6 +140,34 @@ object BackupMerger {
     private fun bodyContentKey(m: BodyMeasurement): String = "${m.dateMs}|${m.weightKg}"
 
     // ---------------------------------------------------------------------------------------------
+    // BodyMetric (v9, body-progress 2026-08-04): girth entries. IDENTICAL rule to
+    // mergeBodyMeasurements — UNION, content-key dedupe, id-collision re-key — because the two
+    // series have the same shape (standalone dated rows with no children to relink).
+    // ---------------------------------------------------------------------------------------------
+
+    fun mergeBodyMetrics(
+        existing: List<com.migul.treningsprogram.data.db.entity.BodyMetric>,
+        backup: List<com.migul.treningsprogram.data.db.entity.BodyMetric>
+    ): List<com.migul.treningsprogram.data.db.entity.BodyMetric> {
+        val result = existing.toMutableList()
+        val existingById = existing.associateBy { it.id }
+        val seenContent = existing.map { metricContentKey(it) }.toMutableSet()
+        var nextId = ((existing.maxOfOrNull { it.id } ?: 0L) + 1L)
+
+        for (m in backup) {
+            if (!seenContent.add(metricContentKey(m))) continue // value duplicate -> skip
+            val collides = existingById[m.id] != null || result.any { it.id == m.id }
+            val finalRow = if (m.id != 0L && !collides) m else m.copy(id = nextId++)
+            result.add(finalRow)
+        }
+        return result
+    }
+
+    private fun metricContentKey(
+        m: com.migul.treningsprogram.data.db.entity.BodyMetric
+    ): String = "${m.dateMs}|${m.waistCm}|${m.neckCm}|${m.hipCm}"
+
+    // ---------------------------------------------------------------------------------------------
     // Achievement: UNION by String id. unlocked-wins; earliest unlockedAtMs wins.
     // ---------------------------------------------------------------------------------------------
 

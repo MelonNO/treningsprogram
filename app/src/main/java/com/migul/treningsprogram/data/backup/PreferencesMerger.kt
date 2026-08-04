@@ -64,7 +64,12 @@ object PreferencesMerger {
             exerciseFlagsJson = com.migul.treningsprogram.data.ExerciseInfoCorrections.Codec
                 .union(current.exerciseFlagsJson, backup.exerciseFlagsJson),
             exerciseOverridesJson = com.migul.treningsprogram.data.ExerciseInfoCorrections.Codec
-                .union(current.exerciseOverridesJson, backup.exerciseOverridesJson)
+                .union(current.exerciseOverridesJson, backup.exerciseOverridesJson),
+            // v9 (body-progress 2026-08-04): profile height/sex — standard phone-wins-if-set. The
+            // defaults ARE the "not set" sentinels, so a phone that has never filled them in
+            // correctly inherits them from the backup.
+            heightCm = pick(current.heightCm, backup.heightCm, d.heightCm),
+            sex = pick(current.sex, backup.sex, d.sex)
         )
     }
 

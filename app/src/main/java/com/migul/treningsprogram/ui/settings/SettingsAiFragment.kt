@@ -108,10 +108,9 @@ class SettingsAiFragment : Fragment() {
                 launch {
                     viewModel.isGenerating.collectLatest { loading ->
                         if (!loading) return@collectLatest
-                        var i = 0
+                        val tips = com.migul.treningsprogram.ui.common.GenerationTips.rotation()
                         while (true) {
-                            binding.tvGenerateTip.text =
-                                com.migul.treningsprogram.ui.common.GenerationTips.tip(i++)
+                            binding.tvGenerateTip.text = tips.next()
                             kotlinx.coroutines.delay(4500)
                         }
                     }

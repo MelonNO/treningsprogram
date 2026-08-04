@@ -3,6 +3,7 @@ package com.migul.treningsprogram.data.backup
 import com.google.gson.annotations.SerializedName
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
+import com.migul.treningsprogram.data.db.entity.BodyMetric
 import com.migul.treningsprogram.data.db.entity.Exercise
 import com.migul.treningsprogram.data.db.entity.ExerciseNote
 import com.migul.treningsprogram.data.db.entity.GymPreset
@@ -38,11 +39,18 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  *      and re-match overrides, serialized by ExerciseInfoCorrections.Codec). Absent keys in older
  *      backups deserialize to "" (no corrections); restore union-merges per key (device wins).
  *
+ * v9 — body-progress batch 2026-08-04 (brief 02): adds the `body_metrics` table (waist / neck /
+ *      hip girths) as a new top-level list, and widens the preferences object with the two new
+ *      profile values the body-fat formulas need (heightCm / sex). Older backups have neither; the
+ *      migration step adds an empty array and the absent pref keys fall back to "unset" (0f / "").
+ *      Body fat itself is NOT stored or backed up — it is derived from the girths plus the profile
+ *      (see [com.migul.treningsprogram.domain.BodyComposition]), so a restore recomputes it.
+ *
  * To add a future version, bump [CURRENT_BACKUP_VERSION] and register a step in
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 8
+const val CURRENT_BACKUP_VERSION = 9
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.
@@ -78,7 +86,12 @@ data class BackupPreferences(
     // v8 (QoL 2026-08 item 04): exercise-info mismatch flags + re-match overrides
     // (ExerciseInfoCorrections.Codec JSON maps; "" = none). Union-merged on restore.
     @SerializedName("exerciseFlagsJson") val exerciseFlagsJson: String = DEFAULT_STRING,
-    @SerializedName("exerciseOverridesJson") val exerciseOverridesJson: String = DEFAULT_STRING
+    @SerializedName("exerciseOverridesJson") val exerciseOverridesJson: String = DEFAULT_STRING,
+    // v9 (body-progress 2026-08-04): the profile values the body-fat formulas need. The defaults
+    // are the "not set" sentinels (A5) — restoring a backup taken before the user filled them in
+    // must NOT invent a height or a sex.
+    @SerializedName("heightCm") val heightCm: Float = DEFAULT_HEIGHT_CM,
+    @SerializedName("sex") val sex: String = DEFAULT_STRING
 ) {
     companion object {
         const val DEFAULT_DAYS_PER_WEEK = 4
@@ -94,6 +107,7 @@ data class BackupPreferences(
         const val DEFAULT_GYM_PRESET_ID = -1L
         const val DEFAULT_MANUAL_REST_HEAVY = 180      // = ManualRestTimes.DEFAULT_HEAVY_SECONDS
         const val DEFAULT_MANUAL_REST_ACCESSORY = 90   // = ManualRestTimes.DEFAULT_ACCESSORY_SECONDS
+        const val DEFAULT_HEIGHT_CM = 0f               // 0 = not set (PreferencesManager.heightCm)
     }
 }
 
@@ -117,5 +131,9 @@ data class BackupEnvelope(
     @SerializedName("goals") val goals: List<LiftGoal> = emptyList(),
     // v6 (N7): per-exercise setup notes. Empty for pre-v6 backups.
     @SerializedName("exercise_notes") val exerciseNotes: List<ExerciseNote> = emptyList(),
-    @SerializedName("preferences") val preferences: BackupPreferences = BackupPreferences()
+    @SerializedName("preferences") val preferences: BackupPreferences = BackupPreferences(),
+    // v9 (body-progress 2026-08-04): tape measurements (waist / neck / hip). Appended AFTER
+    // `preferences` on purpose — [MinifiedBackupCompat]'s envelope letter maps are keyed off
+    // declaration order, so inserting anywhere earlier would shift `preferences` again.
+    @SerializedName("body_metrics") val bodyMetrics: List<BodyMetric> = emptyList()
 )

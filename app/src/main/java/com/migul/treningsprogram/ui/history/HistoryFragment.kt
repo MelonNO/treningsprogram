@@ -34,6 +34,7 @@ class HistoryFragment : Fragment() {
                 0 -> "Recap"
                 1 -> "Stats"
                 2 -> "Progress"
+                3 -> "Body"
                 else -> "History"
             }
         }.attach()
