@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.migul.treningsprogram.data.db.AppDatabase
 import com.migul.treningsprogram.data.db.dao.BodyMeasurementDao
 import com.migul.treningsprogram.data.db.dao.BodyMetricDao
+import com.migul.treningsprogram.data.db.dao.ExerciseFeedbackDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -41,7 +42,8 @@ object DatabaseModule {
                 AppDatabase.MIGRATION_18_19,
                 AppDatabase.MIGRATION_19_20,
                 AppDatabase.MIGRATION_20_21,
-                AppDatabase.MIGRATION_21_22
+                AppDatabase.MIGRATION_21_22,
+                AppDatabase.MIGRATION_22_23
             )
             .build()
 
@@ -59,4 +61,5 @@ object DatabaseModule {
     @Provides fun provideLiftGoalDao(db: AppDatabase) = db.liftGoalDao()
     @Provides fun provideExerciseNoteDao(db: AppDatabase) = db.exerciseNoteDao()
     @Provides fun provideBodyMetricDao(db: AppDatabase): BodyMetricDao = db.bodyMetricDao()
+    @Provides fun provideExerciseFeedbackDao(db: AppDatabase): ExerciseFeedbackDao = db.exerciseFeedbackDao()
 }

@@ -5,6 +5,7 @@ import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.BodyMetric
 import com.migul.treningsprogram.data.db.entity.Exercise
+import com.migul.treningsprogram.data.db.entity.ExerciseFeedback
 import com.migul.treningsprogram.data.db.entity.ExerciseNote
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.LiftGoal
@@ -46,11 +47,16 @@ import com.migul.treningsprogram.data.db.entity.WorkoutSet
  *      Body fat itself is NOT stored or backed up — it is derived from the girths plus the profile
  *      (see [com.migul.treningsprogram.domain.BodyComposition]), so a restore recomputes it.
  *
+ * v10 — item 05 (2026-08-06): adds the `exercise_feedback` table (per-exercise user feedback that
+ *      steers the generator) as a new top-level list. Older backups have none; the migration step
+ *      adds an empty array, so a pre-v10 backup restores to "no feedback given yet", which is
+ *      exactly the correct starting state.
+ *
  * To add a future version, bump [CURRENT_BACKUP_VERSION] and register a step in
  * [BackupMigrations.STEPS]. Each step migrates the raw JSON tree from version N to N+1, so the
  * chain is composable and an arbitrarily old backup migrates cleanly into the current shape.
  */
-const val CURRENT_BACKUP_VERSION = 9
+const val CURRENT_BACKUP_VERSION = 10
 
 /**
  * Backup-eligible preferences. The Anthropic API key is intentionally NEVER serialized here.
@@ -135,5 +141,9 @@ data class BackupEnvelope(
     // v9 (body-progress 2026-08-04): tape measurements (waist / neck / hip). Appended AFTER
     // `preferences` on purpose — [MinifiedBackupCompat]'s envelope letter maps are keyed off
     // declaration order, so inserting anywhere earlier would shift `preferences` again.
-    @SerializedName("body_metrics") val bodyMetrics: List<BodyMetric> = emptyList()
+    @SerializedName("body_metrics") val bodyMetrics: List<BodyMetric> = emptyList(),
+    // v10 (item 05, 2026-08-06): per-exercise user feedback. Appended at the very END for the same
+    // reason `body_metrics` was — [MinifiedBackupCompat]'s envelope letter maps are keyed off
+    // DECLARATION ORDER, so inserting anywhere earlier would shift the letters of later fields.
+    @SerializedName("exercise_feedback") val exerciseFeedback: List<ExerciseFeedback> = emptyList()
 )

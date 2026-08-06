@@ -142,7 +142,21 @@
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
+        <!-- Item 05 (2026-08-06), decision D2: the review-and-undo home for per-exercise feedback,
+             sitting beside "Exercises to exclude" so everything steering the AI is in one place. -->
+        <action android:id="@+id/action_settings_training_to_exercise_feedback"
+            app:destination="@id/settingsExerciseFeedbackFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     </fragment>
+
+    <fragment
+        android:id="@+id/settingsExerciseFeedbackFragment"
+        android:name="com.migul.treningsprogram.ui.settings.SettingsExerciseFeedbackFragment"
+        android:label="Exercise Feedback"
+        tools:layout="@layout/fragment_settings_exercise_feedback" />
 
     <fragment
         android:id="@+id/settingsAiFragment"

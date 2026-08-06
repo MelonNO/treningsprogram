@@ -23,9 +23,10 @@ import com.migul.treningsprogram.data.db.entity.*
         XpEvent::class,
         LiftGoal::class,
         ExerciseNote::class,
-        BodyMetric::class
+        BodyMetric::class,
+        ExerciseFeedback::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun liftGoalDao(): LiftGoalDao
     abstract fun exerciseNoteDao(): ExerciseNoteDao
     abstract fun bodyMetricDao(): BodyMetricDao
+    abstract fun exerciseFeedbackDao(): ExerciseFeedbackDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -375,6 +377,26 @@ abstract class AppDatabase : RoomDatabase() {
                         `waistCm` REAL,
                         `neckCm` REAL,
                         `hipCm` REAL
+                    )
+                """.trimIndent())
+            }
+        }
+
+        /**
+         * Item 05 (2026-08-06) — per-exercise user feedback. Purely ADDITIVE: it creates
+         * `exercise_feedback` with the exact column shape Room generates for [ExerciseFeedback]
+         * and touches no existing table, so an upgrade cannot disturb any existing data. Mirrors
+         * the `exercise_notes` table shape (name TEXT primary key + updatedAtMs).
+         */
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_feedback` (
+                        `exerciseName` TEXT NOT NULL,
+                        `reasonKey` TEXT NOT NULL,
+                        `note` TEXT NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`exerciseName`)
                     )
                 """.trimIndent())
             }

@@ -39,7 +39,9 @@ class WorkoutRepository @Inject constructor(
     // Stage-3 item 14: read-only, for attributing achievement unlocks to sessions in the recap.
     private val achievementDao: AchievementDao,
     // QoL item 03: read-only, for the per-session body-weight term of the calorie estimate.
-    private val bodyMeasurementDao: BodyMeasurementDao
+    private val bodyMeasurementDao: BodyMeasurementDao,
+    // Item 05 (2026-08-06): per-exercise feedback shown back in Settings and handed to the generator.
+    private val exerciseFeedbackDao: ExerciseFeedbackDao
 ) {
 
     companion object {
@@ -322,6 +324,41 @@ class WorkoutRepository @Inject constructor(
         if (trimmed.isNotEmpty()) {
             exerciseNoteDao.upsert(ExerciseNote(key, trimmed, System.currentTimeMillis()))
         }
+        backupScheduler.requestBackup()
+    }
+
+    // ── Item 05 (2026-08-06): per-exercise feedback that shapes the next generated program ───────
+
+    /** The feedback for [name] (case-insensitive name identity), or null when none was given. */
+    suspend fun getExerciseFeedback(name: String): ExerciseFeedback? =
+        exerciseFeedbackDao.getForExercise(name.trim())
+
+    /** Every piece of feedback, newest first — drives the Settings review-and-undo screen. */
+    fun observeExerciseFeedback(): Flow<List<ExerciseFeedback>> =
+        exerciseFeedbackDao.observeAll()
+
+    suspend fun getAllExerciseFeedbackOnce(): List<ExerciseFeedback> =
+        exerciseFeedbackDao.getAllOnce()
+
+    /**
+     * Saves feedback for [name], REPLACING any previous entry for that exercise (assumption A2 —
+     * one piece of feedback per exercise, not an accumulating log). The NOCASE delete first
+     * prevents two rows for the same exercise in different casing, exactly as [saveExerciseNote]
+     * does. Feedback is user data → backed up (it rides in backup v10).
+     */
+    suspend fun saveExerciseFeedback(name: String, reasonKey: String, note: String) {
+        val key = name.trim()
+        if (key.isEmpty() || reasonKey.isBlank()) return
+        exerciseFeedbackDao.deleteForExercise(key)
+        exerciseFeedbackDao.upsert(
+            ExerciseFeedback(key, reasonKey, note.trim(), System.currentTimeMillis())
+        )
+        backupScheduler.requestBackup()
+    }
+
+    /** Improvement D: the user can take any piece of feedback back. */
+    suspend fun deleteExerciseFeedback(name: String) {
+        exerciseFeedbackDao.deleteForExercise(name.trim())
         backupScheduler.requestBackup()
     }
 

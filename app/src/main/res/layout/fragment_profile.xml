@@ -3,22 +3,25 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:padding="16dp">
+    android:layout_height="match_parent">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Auros hero band -->
+        <!-- Auros hero band — item 03 (2026-08): FULL-BLEED, identical markup on all four tabs.
+             The band spans the whole screen width with its own 16dp horizontal padding, so the
+             wash reaches both screen edges while the text stays indented. The scroll container
+             carries NO padding; the content wrapper below re-applies the 16dp inset. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="8dp"
             android:layout_marginBottom="22dp"
-            android:paddingTop="6dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="16dp"
             android:paddingBottom="12dp"
             android:background="@drawable/bg_hero_wash">
 
@@ -50,6 +53,16 @@
                 android:layout_marginTop="14dp"
                 android:background="@drawable/bg_gradient_accent" />
         </LinearLayout>
+
+        <!-- Item 03: content wrapper — carries the 16dp inset the scroll container used to apply,
+             so every card below keeps its exact previous indentation. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="16dp">
 
         <!-- Settings entry -->
         <com.google.android.material.card.MaterialCardView
@@ -288,6 +301,8 @@
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

@@ -37,6 +37,8 @@ class ExportRepository @Inject constructor(
     private val liftGoalDao: LiftGoalDao,
     private val exerciseNoteDao: ExerciseNoteDao,
     private val bodyMetricDao: com.migul.treningsprogram.data.db.dao.BodyMetricDao,
+    // Item 05 (v10): per-exercise feedback.
+    private val exerciseFeedbackDao: com.migul.treningsprogram.data.db.dao.ExerciseFeedbackDao,
     private val gamificationRepository: GamificationRepository,
     private val prefs: PreferencesManager,
     private val corrections: com.migul.treningsprogram.data.ExerciseInfoCorrections,
@@ -65,7 +67,9 @@ class ExportRepository @Inject constructor(
             exerciseNotes = exerciseNoteDao.getAllOnce(),
             preferences = snapshotPreferences(),
             // v9 (body-progress 2026-08-04): tape measurements.
-            bodyMetrics = bodyMetricDao.getAllOnce()
+            bodyMetrics = bodyMetricDao.getAllOnce(),
+            // v10 (item 05, 2026-08-06): per-exercise feedback.
+            exerciseFeedback = exerciseFeedbackDao.getAllOnce()
         )
         return gson.toJson(envelope)
     }
@@ -118,6 +122,7 @@ class ExportRepository @Inject constructor(
         val existingGoals = liftGoalDao.getAllOnce()
         val existingNotes = exerciseNoteDao.getAllOnce()
         val existingMetrics = bodyMetricDao.getAllOnce()
+        val existingFeedback = exerciseFeedbackDao.getAllOnce()
 
         // 2) Sessions + sets: id-collision-safe UNION (preserve session->sets linkage).
         val backupSetsBySession = backup.sets.groupBy { it.sessionId }
@@ -147,6 +152,9 @@ class ExportRepository @Inject constructor(
 
         // v9: girth entries — same UNION rule as body measurements.
         val mergedMetrics = BackupMerger.mergeBodyMetrics(existingMetrics, backup.bodyMetrics)
+
+        // v10: per-exercise feedback — one entry per exercise, most recently given wins.
+        val mergedFeedback = BackupMerger.mergeExerciseFeedback(existingFeedback, backup.exerciseFeedback)
 
         // 4) Persist merged workout history (replace whole table with the merged superset).
         //    Sets are deleted via session CASCADE; rebuild both from the merged result.
@@ -181,6 +189,10 @@ class ExportRepository @Inject constructor(
 
         exerciseNoteDao.deleteAll()
         exerciseNoteDao.insertAll(mergedNotes)
+
+        // v10: feedback (no children/remaps; whole-table replace with the merged superset).
+        exerciseFeedbackDao.deleteAll()
+        exerciseFeedbackDao.insertAll(mergedFeedback)
 
         // 5) Stats / streak / level / XP: RECOMPUTE from merged history (never copy from a side).
         //    The merged plan rows ride along so the R4 Perfect Week XP is replayed deterministically.

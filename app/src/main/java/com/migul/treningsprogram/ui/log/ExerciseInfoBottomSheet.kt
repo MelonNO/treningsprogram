@@ -12,12 +12,18 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.lifecycle.lifecycleScope
 import coil.load
 import coil.size.Scale
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.migul.treningsprogram.data.ExerciseCatalog
 import com.migul.treningsprogram.data.ExerciseInfoCorrections
+import com.migul.treningsprogram.data.db.entity.ExerciseFeedback
+import com.migul.treningsprogram.data.repository.WorkoutRepository
+import com.migul.treningsprogram.domain.ExerciseFeedbackCatalog
+import com.migul.treningsprogram.ui.common.ExerciseFeedbackDialog
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -25,6 +31,9 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
 
     /** QoL 2026-08 item 04: user mismatch flags + re-match overrides. */
     @Inject lateinit var corrections: ExerciseInfoCorrections
+
+    /** Item 05 (2026-08-06): reads/writes this exercise's feedback. */
+    @Inject lateinit var workoutRepository: WorkoutRepository
 
     companion object {
         /**
@@ -77,6 +86,54 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
 
     /** Item 01: the container holding every entry-sourced detail (metadata + instructions). */
     private var entrySection: LinearLayout? = null
+
+    // ── Item 05 (2026-08-06): per-exercise feedback ─────────────────────────────────────────────
+    /** The tappable "give feedback" line; null when the sheet has no exercise name. */
+    private var feedbackLink: TextView? = null
+    private var feedbackExerciseName: String = ""
+    /** The stored feedback for this exercise, loaded asynchronously after the view is built. */
+    private var feedbackState: ExerciseFeedback? = null
+
+    private fun renderFeedbackLink() {
+        val f = feedbackState
+        feedbackLink?.text = if (f == null) {
+            "Something to say about this exercise? Give feedback"
+        } else {
+            "Your feedback: ${ExerciseFeedbackCatalog.labelFor(f.reasonKey)} — tap to change or remove"
+        }
+    }
+
+    private fun openFeedbackDialog(name: String) {
+        if (!isAdded) return
+        ExerciseFeedbackDialog.show(
+            context = requireContext(),
+            exerciseName = name,
+            existing = feedbackState,
+            onSubmit = { reasonKey, noteText ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    workoutRepository.saveExerciseFeedback(name, reasonKey, noteText)
+                    feedbackState = workoutRepository.getExerciseFeedback(name)
+                    renderFeedbackLink()
+                }
+            },
+            onRemove = {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    workoutRepository.deleteExerciseFeedback(name)
+                    feedbackState = null
+                    renderFeedbackLink()
+                }
+            },
+        )
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        if (feedbackExerciseName.isBlank()) return
+        viewLifecycleOwner.lifecycleScope.launch {
+            feedbackState = workoutRepository.getExerciseFeedback(feedbackExerciseName)
+            renderFeedbackLink()
+        }
+    }
 
     /** Item 01: "info hidden because you flagged this match" explanation line. */
     private var hiddenNotice: TextView? = null
@@ -345,6 +402,24 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
         }
         layout.addView(hiddenNotice)
 
+        // Item 05 (2026-08-06): leave feedback on THIS exercise. Placed here because this sheet is
+        // the one surface reachable from BOTH places the user asked for — the workout logging
+        // screen (tap the exercise name) and the Program tab (tap the exercise card) — so the
+        // logging screen gains the affordance without a new menu and without anything extra to tap
+        // through while actually logging sets.
+        if (name.isNotBlank()) {
+            layout.addView(divider(density, medPad))
+            feedbackExerciseName = name
+            feedbackLink = TextView(requireContext()).apply {
+                textSize = 13f
+                setPadding(0, 0, 0, smallPad)
+                setTextColor(0xFF7FE9E1.toInt())
+                setOnClickListener { openFeedbackDialog(name) }
+            }
+            renderFeedbackLink()
+            layout.addView(feedbackLink)
+        }
+
         // QoL 2026-08 item 04: flag "this database info doesn't match this exercise" — available
         // from every entry point that opens this sheet. Flagging only records the pair (nothing
         // else changes); the list lives in Settings → About → Debug.
@@ -386,6 +461,7 @@ class ExerciseInfoBottomSheet : BottomSheetDialogFragment() {
         imageView = null
         entrySection = null
         hiddenNotice = null
+        feedbackLink = null
     }
 
     private fun metaLine(text: String, density: Float) = TextView(requireContext()).apply {

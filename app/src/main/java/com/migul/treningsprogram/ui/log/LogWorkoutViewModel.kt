@@ -39,13 +39,23 @@ class LogWorkoutViewModel @Inject constructor(
     private val restTimerFallbackSeconds = 90
 
     // F4: the plate-calculator profile of the ACTIVE gym preset (bar weight, plate set, loadable
-    // dumbbells). Starts at the app default (the 50 mm home setup) and resolves asynchronously;
-    // the keypad readout re-renders per keypress, so the brief default window is invisible.
-    val plateProfile = MutableStateFlow(PlateMath.PlateProfile.DEFAULT)
+    // dumbbells). Brief 02: null until the preset has ACTUALLY been read — it used to start at the
+    // app-wide default (the 50 mm home setup), which meant the per-side readout could describe a
+    // different gym's equipment in the first moments after the screen opened. Consumers hide the
+    // readout (and skip the plate-aware steps) while it is null, and re-render when it arrives.
+    private val _plateProfile = MutableStateFlow<PlateMath.PlateProfile?>(null)
+    val plateProfile: StateFlow<PlateMath.PlateProfile?> = _plateProfile.asStateFlow()
 
-    init {
+    init { refreshPlateProfile() }
+
+    /**
+     * Re-reads the ACTIVE gym preset. Called on every resume as well as at construction: the gym
+     * can be switched while this screen sits in the back stack, and both the readout and the
+     * weight +/− steps must follow the CURRENTLY selected gym, not the one selected at open time.
+     */
+    fun refreshPlateProfile() {
         viewModelScope.launch {
-            plateProfile.value = PlateMath.PlateProfile.from(
+            _plateProfile.value = PlateMath.PlateProfile.from(
                 gymPresetDao.getById(prefs.selectedGymPresetId)
             )
         }

@@ -37,6 +37,7 @@ import com.migul.treningsprogram.data.repository.WgerRepository
 import com.migul.treningsprogram.databinding.DialogWorkoutResultBinding
 import com.migul.treningsprogram.databinding.FragmentLogWorkoutBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.migul.treningsprogram.domain.WeightStep
 import com.migul.treningsprogram.domain.model.WorkoutResult
 import com.migul.treningsprogram.data.repository.currentDayOfWeek
 import com.migul.treningsprogram.ui.shared.SharedWorkoutResultViewModel
@@ -91,17 +92,11 @@ class LogWorkoutFragment : Fragment() {
             viewModel.resumeSession(dayOfWeek, moveFromDay)
         }
 
-        // +/- 2.5 kg quick-step buttons (separate from the Item 9 calculator pad — both stay).
-        binding.btnWeightMinus.setOnClickListener {
-            val cur = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
-            binding.etWeight.setText(formatWeight((cur - 2.5f).coerceAtLeast(0f)))
-            reseedWeightKeypadIfOpen()
-        }
-        binding.btnWeightPlus.setOnClickListener {
-            val cur = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
-            binding.etWeight.setText(formatWeight(cur + 2.5f))
-            reseedWeightKeypadIfOpen()
-        }
+        // Brief 01: the quick-step buttons step to the next weight that is both sensible for this
+        // lift and actually loadable at the ACTIVE gym (was a flat 2.5 kg for everything).
+        // Separate from the Item 9 calculator pad, whose own typed +/− arithmetic is untouched.
+        binding.btnWeightMinus.setOnClickListener { stepWeight(up = false) }
+        binding.btnWeightPlus.setOnClickListener { stepWeight(up = true) }
 
         // Item 9: calculator-style keypad for the weight field.
         setupWeightKeypad()
@@ -190,8 +185,22 @@ class LogWorkoutFragment : Fragment() {
             viewModel.currentExercise.value?.exerciseName?.let { rampDismissed.add(it) }
             binding.cardWarmupRamp.visibility = View.GONE
         }
+        // Brief 02: the weight field is the single trigger for everything derived from it — the
+        // per-side readout and the warm-up ramp. Whatever changed the number (the quick-step
+        // buttons, the calculator pad, typing, a prefill resolving asynchronously), the readout
+        // follows it in the same frame instead of waiting to be reseeded.
         binding.etWeight.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) { refreshWarmupRamp() }
+            override fun afterTextChanged(s: android.text.Editable?) {
+                updatePlateHint()
+                refreshWarmupRamp()
+            }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+        // Freestyle: the typed exercise name decides whether there IS a breakdown and which
+        // bar/handle it loads onto, so the readout has to follow it too.
+        binding.etFreestyleExercise.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { updatePlateHint() }
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
         })
@@ -308,6 +317,18 @@ class LogWorkoutFragment : Fragment() {
                 launch {
                     viewModel.currentExercise.collect { exercise ->
                         if (exercise != null && !freestyleMode) updateExerciseDisplay(exercise)
+                        // Brief 02: the breakdown belongs to the exercise as much as to the number.
+                        updatePlateHint()
+                    }
+                }
+
+                // Brief 02: the ACTIVE gym's profile arrives asynchronously (and is re-read on
+                // resume, in case the gym was switched). Anything derived from it re-renders the
+                // moment it lands, so nothing on screen is ever computed against another gym.
+                launch {
+                    viewModel.plateProfile.collect {
+                        updatePlateHint()
+                        refreshWarmupRamp()
                     }
                 }
 
@@ -449,24 +470,59 @@ class LogWorkoutFragment : Fragment() {
         binding.etWeight.setText(text)
         binding.etWeight.setSelection(text.length)
         binding.tvKpExpr.text = WeightCalculator.expr(calcState)
-        updatePlateHint()
+        updatePlateHint()   // belt and braces: the field's watcher already covers this
     }
 
-    /** F4: live "plates per side" readout for plate-loaded lifts while the pad is open. */
+    /**
+     * F4 / brief 02: the live "plates per side" readout. Rendered from the WEIGHT FIELD (the number
+     * the user can see) rather than from the calculator pad's own state, so it describes whatever
+     * is on screen no matter which path put it there — and from the ACTIVE gym's profile, which is
+     * null until genuinely resolved, so it can never show another gym's breakdown.
+     */
     private fun updatePlateHint() {
         if (_binding == null) return
-        val name = if (freestyleMode) binding.etFreestyleExercise.text?.toString().orEmpty()
-                   else viewModel.currentExercise.value?.exerciseName.orEmpty()
-        // Item 01 (2026-08): the resolved DB entry's equipment lets dumbbell-by-nature lifts
-        // without "dumbbell"/"DB" in the plan name (Zottman Curl, …) get the dumbbell readout.
-        val dbEquipment = if (freestyleMode) null
-            else viewModel.currentExercise.value?.exerciseDbId
-                ?.let { com.migul.treningsprogram.data.ExerciseCatalog.getDbEntry(it)?.equipment }
-        val hint = PlateMath.display(
-            WeightCalculator.value(calcState), name, viewModel.plateProfile.value, dbEquipment
+        val hint = PlateMath.displayForField(
+            binding.etWeight.text?.toString(),
+            currentExerciseName(),
+            viewModel.plateProfile.value,
+            currentDbEquipment(),
         )
         binding.tvKpPlates.visibility = if (hint == null) View.GONE else View.VISIBLE
         binding.tvKpPlates.text = hint.orEmpty()
+    }
+
+    private fun currentExerciseName(): String =
+        if (freestyleMode) binding.etFreestyleExercise.text?.toString().orEmpty()
+        else viewModel.currentExercise.value?.exerciseName.orEmpty()
+
+    /**
+     * The resolved exercise-DB entry's equipment string (item 01, 2026-08) — what lets
+     * dumbbell-by-nature lifts without "dumbbell"/"DB" in the plan name (Zottman Curl, Lateral
+     * Raise, …) get dumbbell treatment in both the readout and the weight steps.
+     */
+    private fun currentDbEquipment(): String? =
+        if (freestyleMode) null
+        else viewModel.currentExercise.value?.exerciseDbId
+            ?.let { ExerciseCatalog.getDbEntry(it)?.equipment }
+
+    /**
+     * Brief 01: one press of − / +. The new weight is the next sensible AND achievable one for this
+     * lift at this gym ([WeightStep]); writing it to the field is what refreshes the per-side
+     * readout and the warm-up ramp (brief 02), and the open calculator pad is reseeded from it so
+     * its own state can't drift from the number on screen.
+     */
+    private fun stepWeight(up: Boolean) {
+        if (_binding == null) return
+        val current = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
+        val next = WeightStep.next(
+            currentKg = current,
+            up = up,
+            exerciseName = currentExerciseName(),
+            profile = viewModel.plateProfile.value,
+            dbEquipment = currentDbEquipment(),
+        )
+        binding.etWeight.setText(formatWeight(next))
+        reseedWeightKeypadIfOpen()
     }
 
     private fun showWeightKeypad() {
@@ -739,7 +795,11 @@ class LogWorkoutFragment : Fragment() {
     private fun refreshWarmupRamp() {
         if (_binding == null) return
         val exercise = viewModel.currentExercise.value
-        if (freestyleMode || exercise == null ||
+        // Brief 02 (same class of bug, flagged in the brief): the ladder is plate-rounded, so it
+        // waits for the ACTIVE gym's profile rather than offering another gym's weights — the
+        // profile collector re-runs this the moment it resolves.
+        val profile = viewModel.plateProfile.value
+        if (freestyleMode || exercise == null || profile == null ||
             exercise.exerciseName in rampDismissed ||
             viewModel.setsForCurrentExercise.value.isNotEmpty()
         ) {
@@ -747,9 +807,7 @@ class LogWorkoutFragment : Fragment() {
             return
         }
         val workingWeight = binding.etWeight.text.toString().toFloatOrNull() ?: 0f
-        val steps = WarmupRamp.stepsFor(
-            exercise.exerciseName, workingWeight, viewModel.plateProfile.value
-        )
+        val steps = WarmupRamp.stepsFor(exercise.exerciseName, workingWeight, profile)
         currentRampSteps = steps
         if (steps.isEmpty()) {
             binding.cardWarmupRamp.visibility = View.GONE
@@ -1290,6 +1348,13 @@ class LogWorkoutFragment : Fragment() {
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
     private fun formatWeight(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
+
+    override fun onResume() {
+        super.onResume()
+        // Brief 01/02: the gym can be switched while this screen sits in the back stack — both the
+        // readout and the weight steps must follow the CURRENTLY selected gym.
+        viewModel.refreshPlateProfile()
+    }
 
     override fun onPause() {
         super.onPause()

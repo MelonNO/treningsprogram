@@ -160,6 +160,20 @@ object BackupMigrations {
         }
     }
 
+    /**
+     * v9 → v10 (item 05, 2026-08-06): adds the `exercise_feedback` list. Older backups predate the
+     * feature entirely, so an empty array is the correct and complete migration — same shape as the
+     * v5 → v6 and v8 → v9 steps.
+     */
+    private val V9_TO_V10 = object : MigrationStep {
+        override val fromVersion = 9
+        override fun migrate(root: JsonObject): JsonObject {
+            if (!root.has("exercise_feedback")) root.add("exercise_feedback", com.google.gson.JsonArray())
+            root.addProperty("schema_version", 10)
+            return root
+        }
+    }
+
     /** Registry of all steps, keyed by the version they migrate FROM. */
     private val STEPS: Map<Int, MigrationStep> = listOf(
         V1_TO_V2,
@@ -169,7 +183,8 @@ object BackupMigrations {
         V5_TO_V6,
         V6_TO_V7,
         V7_TO_V8,
-        V8_TO_V9
+        V8_TO_V9,
+        V9_TO_V10
     ).associateBy { it.fromVersion }
 
     /**

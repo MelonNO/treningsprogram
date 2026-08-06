@@ -187,6 +187,12 @@ class SettingsTrainingFragment : Fragment() {
                 findNavController().navigate(R.id.action_settings_training_to_gym_presets)
         }
 
+        // Item 05 (2026-08-06), improvement D: review-and-undo home for per-exercise feedback.
+        binding.tvExerciseFeedbackLink.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.settingsTrainingFragment)
+                findNavController().navigate(R.id.action_settings_training_to_exercise_feedback)
+        }
+
         setFragmentResultListener(OnboardingBottomSheet.RESULT_KEY) { _, bundle ->
             val onboardingContext = bundle.getString(OnboardingBottomSheet.RESULT_CONTEXT, "")
             viewModel.generateProgramWithOnboarding(

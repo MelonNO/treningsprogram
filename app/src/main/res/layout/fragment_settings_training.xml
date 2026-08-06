@@ -440,6 +440,28 @@
                             android:hint="None" />
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Item 05 (2026-08-06), decision D2: per-exercise feedback lives beside the
+                         exclude list so everything steering the AI is visible in one place — but as
+                         its OWN mechanism (D1), because the list above is a hard filter and feedback
+                         is a hint. -->
+                    <TextView
+                        android:id="@+id/tv_exercise_feedback_link"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="Exercise feedback →"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:textColor="?attr/colorPrimary"
+                        android:clickable="true"
+                        android:focusable="true" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Things you have told the app about specific exercises (“too hard — can't do it yet”, “love it”). A hint the AI weighs, never a ban. Review or remove any of it here."
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

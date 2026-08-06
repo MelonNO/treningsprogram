@@ -26,8 +26,9 @@ class BackupV4PrefsTest {
         // 6 → 7 by the QoL batch 2026-07-25 (item 02: per-gym avoidExercisesJson on GymPreset);
         // 7 → 8 by the QoL batch 2026-08-03 (item 04: exercise-info correction maps);
         // 8 → 9 by the body-progress batch 2026-08-04 (brief 02: body_metrics table + the
-        // heightCm/sex profile prefs the body-fat estimate needs).
-        assertEquals(9, CURRENT_BACKUP_VERSION)  // v9: body-progress girths + height/sex
+        // heightCm/sex profile prefs the body-fat estimate needs);
+        // 9 → 10 by item 05 (2026-08-06: the exercise_feedback table).
+        assertEquals(10, CURRENT_BACKUP_VERSION)  // v10: per-exercise feedback
     }
 
     @Test fun `v3 backup migrates to v4 with default new prefs`() {

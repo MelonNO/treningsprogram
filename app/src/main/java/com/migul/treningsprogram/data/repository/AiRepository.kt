@@ -1315,6 +1315,11 @@ $qa
         val neverPerformedNames = workoutRepository.neverPerformedPlannedExercises()
             .filter { it.trim().lowercase() !in preferencesManager.neverPerformedKeptNames }
         val neverPerformedNormalized = neverPerformedNames.map { it.trim().lowercase() }.toSet()
+        // Item 05 (2026-08-06): per-exercise user feedback, rendered as a HINT block. Deliberately
+        // NOT wired into any deterministic filter — unlike the per-gym avoid list, feedback must
+        // never remove an exercise from the saved plan (confirmed decision 5c).
+        val exerciseFeedbackBlock = com.migul.treningsprogram.domain.ExerciseFeedbackCatalog
+            .promptBlock(workoutRepository.getAllExerciseFeedbackOnce(), System.currentTimeMillis())
         val variationTheme = variationThemes.random()
         val splitSuggestion = splitSuggestions[daysPerWeek]?.random()
             ?: splitSuggestions.entries.minByOrNull { kotlin.math.abs(it.key - daysPerWeek) }?.value?.random() ?: ""
@@ -1398,7 +1403,7 @@ $qa
                 injuries, injurySeverity, priorityMuscles, dislikedExercises, gymAvoidExercises, onboardingContext,
                 previousPlan, previousPlanCtx.exerciseNames, recentExercises, variationTheme, splitSuggestion, mesocycle,
                 restDays, lockedExercises, manualRest, bodyWeightLine, crossWeekRecoveryBlock,
-                neverPerformedNames
+                neverPerformedNames, exerciseFeedbackBlock
             )
             // H1: generation-specific retry — a timed-out (SocketTimeout) generate call is NOT retried
             // (it would just time out again, burning a second callTimeout). Real transient blips (5xx/429,
@@ -1841,6 +1846,25 @@ OR
             }
         }
 
+        // STALLED-LIFT signal (B3). Detected locally via StallDetector on the full per-exercise
+        // strength history (warm-ups already excluded by getStrengthHistory): a lift is stalled only
+        // when it shows no progress — neither more weight nor more reps at the same weight — across
+        // the last StallDetector.STALL_WINDOW consecutive sessions, measured from a deliberate
+        // back-off rather than from the heavier session before it. Uses the same Epley helper as
+        // the rest of the app. Surfaced to the AI so the new program addresses each plateau with a
+        // deload / rep-scheme change / variation.
+        //
+        // Item 04 / improvement C (2026-08-06): computed BEFORE the trends block, because the trend
+        // label below now derives its PLATEAUED verdict from this exact set. The app previously
+        // carried two rival plateau definitions — this rep-aware one, and a weight-only label that
+        // called anything within ±2.5 kg of its starting weight "PLATEAUED" and could not see reps
+        // at all. They disagreed, so the AI could be told to plan around a plateau the user was not
+        // having and that the Progress screen was not showing. There is now ONE definition.
+        val stalledLifts = exerciseTrends.keys.filter { exercise ->
+            StallDetector.isStalled(workoutRepository.getStrengthHistory(exercise))
+        }
+        val stalledSet = stalledLifts.toSet()
+
         val trends = buildString {
             appendLine("EXERCISE TRENDS (for progressive overload decisions):")
             exerciseTrends.entries
@@ -1852,24 +1876,17 @@ OR
                     val first = sorted.first()
                     val last = sorted.last()
                     val weightDelta = last.maxWeight - first.maxWeight
-                    val trend = when {
-                        weightDelta > 2.5f -> "PROGRESSING (+${weightDelta}kg over ${sorted.size} sessions)"
-                        weightDelta < -2.5f -> "REGRESSING (${weightDelta}kg)"
-                        else -> "PLATEAUED (${sorted.size} sessions at ~${last.maxWeight}kg)"
-                    }
+                    // PLATEAUED comes from StallDetector and nowhere else, so this label and the
+                    // Stats → Progress "Plateau detected" card can never contradict each other.
+                    // The weight delta only chooses HOW a non-plateaued lift is described.
+                    val trend = com.migul.treningsprogram.domain.ExerciseTrendLabel.label(
+                        stalled = exercise in stalledSet,
+                        weightDeltaKg = weightDelta,
+                        sessions = sorted.size,
+                        lastWeightKg = last.maxWeight,
+                    )
                     appendLine("  $exercise: last ${last.maxWeight}kg — $trend")
                 }
-        }
-
-        // STALLED-LIFT signal (B3). Detected locally via StallDetector on the full per-exercise
-        // strength history (warm-ups already excluded by getStrengthHistory): a lift is stalled only
-        // when its estimated 1RM has not improved across the last StallDetector.STALL_WINDOW
-        // consecutive sessions. This is double-progression-aware — reps climbing at the same load
-        // raise e1RM and so do NOT flag — and uses the same Epley helper as the rest of the app.
-        // Surfaced to the AI so the new program addresses each plateau with a deload / rep-scheme
-        // change / variation.
-        val stalledLifts = exerciseTrends.keys.filter { exercise ->
-            StallDetector.isStalled(workoutRepository.getStrengthHistory(exercise))
         }
         val stallBlock = if (stalledLifts.isEmpty()) "" else buildString {
             appendLine()
@@ -1960,7 +1977,12 @@ OR
         // Item 03 (training-data 2026-08): planned-but-never-performed exercises (KEEP choices
         // already filtered out) — rendered as a replace-preserving-coverage instruction. Empty
         // keeps the prompt byte-identical for users who perform their planned exercises.
-        neverPerformedNames: List<String> = emptyList()
+        neverPerformedNames: List<String> = emptyList(),
+        // Item 05 (2026-08-06): per-exercise user feedback, already rendered by
+        // [ExerciseFeedbackCatalog.promptBlock]. A HINT, never a filter — nothing downstream strips
+        // an exercise because of it. "" for users who have given no feedback, which keeps their
+        // prompt byte-identical to before the feature existed.
+        exerciseFeedbackBlock: String = ""
     ): String {
         val goalLower = goal.lowercase()
         // Item 01 (training-data 2026-08): per-muscle weekly floor guidance — "" unless the floor is
@@ -2153,7 +2175,7 @@ ${if (injuries.isNotBlank()) "Injuries/limitations: $injuries" else ""}
 ${if (priorityMuscles.isNotBlank()) "Priority muscle groups: $priorityMuscles" else ""}
 ${if (dislikedExercises.isNotBlank()) "Exclude these exercises: $dislikedExercises" else ""}
 ${if (onboardingContext.isNotBlank()) "Additional context: $onboardingContext" else ""}
-${if (equipmentNotes.isNotBlank()) "Equipment notes: $equipmentNotes" else ""}
+${if (equipmentNotes.isNotBlank()) "Equipment notes: $equipmentNotes" else ""}$exerciseFeedbackBlock
 
 ══════════════════════════════════════════
 FORBIDDEN EXERCISES (equipment not available)
@@ -2470,6 +2492,11 @@ Rebalance the remaining days against this already-trained work: manage recovery 
 
         val equipStr = if (equipment.isEmpty()) "Bodyweight only — no equipment" else equipment.joinToString(", ")
 
+        // Item 05 (2026-08-06): the same per-exercise feedback hint the weekly generator gets, so a
+        // regenerated single day honours it too rather than reintroducing what the user just flagged.
+        val exerciseFeedbackBlock = com.migul.treningsprogram.domain.ExerciseFeedbackCatalog
+            .promptBlock(workoutRepository.getAllExerciseFeedbackOnce(), System.currentTimeMillis())
+
         // P3 (generation-quality overhaul 2026-07): WIDE goal bands (guidelines), goal-appropriate rest.
         val repRange = when {
             goal.lowercase().contains("strength") -> "primary compounds 1–6, accessories 5–8, isolation 8–12; LONG rest (3–5 min / up to ~300 s) on heavy compounds"
@@ -2540,6 +2567,10 @@ Rebalance the remaining days against this already-trained work: manage recovery 
             }
             com.migul.treningsprogram.domain.GymExclusions.promptLine(gymAvoidExercises).let {
                 if (it.isNotBlank()) { appendLine(it); appendLine() }
+            }
+            if (exerciseFeedbackBlock.isNotBlank()) {
+                appendLine(exerciseFeedbackBlock.trim())
+                appendLine()
             }
             appendLine("REST OF THE WEEK (already scheduled — avoid training the SAME primary muscle group on immediately adjacent days):")
             appendLine(weekContext)

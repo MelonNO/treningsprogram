@@ -162,6 +162,31 @@ object PlateMath {
         else "≈ $plates per side (${fmt(l.achievableTotal)} kg)$suffix"
     }
 
+    /**
+     * Brief 02 — the readout line for whatever is CURRENTLY in the weight field, or null when the
+     * line must be hidden. This is the single decision the screen renders, so "correct whenever
+     * visible" is a property of one pure function instead of a set of call sites that each have to
+     * remember to refresh:
+     *
+     *  - [profile] `null` means the ACTIVE gym preset hasn't been read yet. The line is hidden
+     *    rather than rendered against the app-wide default, which would briefly describe a
+     *    DIFFERENT gym's equipment.
+     *  - a blank / non-numeric field ("", "BW") has no breakdown to show → hidden.
+     *  - everything else defers to [display], which already hides lifts that aren't plate-loaded
+     *    under this profile (fixed dumbbells) and weights that don't reach the bar.
+     */
+    fun displayForField(
+        fieldText: String?,
+        exerciseName: String,
+        profile: PlateProfile?,
+        dbEquipment: String? = null,
+    ): String? {
+        val resolved = profile ?: return null
+        val weight = fieldText?.trim()?.toFloatOrNull() ?: return null
+        if (!weight.isFinite()) return null
+        return display(weight, exerciseName, resolved, dbEquipment)
+    }
+
     private fun fmt(w: Float): String =
         if (w == w.toInt().toFloat()) w.toInt().toString() else w.toString()
 }

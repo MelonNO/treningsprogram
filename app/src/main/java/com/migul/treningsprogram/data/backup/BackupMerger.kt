@@ -3,6 +3,7 @@ package com.migul.treningsprogram.data.backup
 import com.migul.treningsprogram.data.db.entity.Achievement
 import com.migul.treningsprogram.data.db.entity.BodyMeasurement
 import com.migul.treningsprogram.data.db.entity.Exercise
+import com.migul.treningsprogram.data.db.entity.ExerciseFeedback
 import com.migul.treningsprogram.data.db.entity.ExerciseNote
 import com.migul.treningsprogram.data.db.entity.GymPreset
 import com.migul.treningsprogram.data.db.entity.LiftGoal
@@ -376,6 +377,27 @@ object BackupMerger {
             val k = b.exerciseName.trim().lowercase()
             val cur = merged[k]
             // Most recently edited note wins; ties keep the existing (on-device) one.
+            if (cur == null || b.updatedAtMs > cur.updatedAtMs) merged[k] = b
+        }
+        return merged.values.toList()
+    }
+
+    /**
+     * Item 05 (v10): per-exercise feedback — per-name merge, most recently GIVEN wins, ties keep the
+     * existing (on-device) entry. Identical rule to [mergeExerciseNotes], and for the same reason:
+     * there is exactly one entry per exercise (assumption A2), so a union would be wrong — two
+     * devices with different feedback for the same lift must resolve to one, and "most recent" is
+     * the only defensible winner given the user can revise feedback at any time.
+     */
+    fun mergeExerciseFeedback(
+        existing: List<ExerciseFeedback>,
+        backup: List<ExerciseFeedback>
+    ): List<ExerciseFeedback> {
+        val merged = LinkedHashMap<String, ExerciseFeedback>()
+        for (f in existing) merged.putIfAbsent(f.exerciseName.trim().lowercase(), f)
+        for (b in backup) {
+            val k = b.exerciseName.trim().lowercase()
+            val cur = merged[k]
             if (cur == null || b.updatedAtMs > cur.updatedAtMs) merged[k] = b
         }
         return merged.values.toList()

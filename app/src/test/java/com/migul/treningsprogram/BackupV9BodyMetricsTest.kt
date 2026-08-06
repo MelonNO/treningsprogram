@@ -25,7 +25,9 @@ class BackupV9BodyMetricsTest {
     private val gson = Gson()
 
     @Test fun `v9 is the current version`() {
-        assertEquals(9, CURRENT_BACKUP_VERSION)
+        // Bumped to 10 by item 05 (2026-08-06: the exercise_feedback table). Everything this file
+        // verifies about the v9 girth data is unchanged — v9 backups still migrate up and import.
+        assertEquals(10, CURRENT_BACKUP_VERSION)
     }
 
     // ── Round trip ────────────────────────────────────────────────────────────────────────────

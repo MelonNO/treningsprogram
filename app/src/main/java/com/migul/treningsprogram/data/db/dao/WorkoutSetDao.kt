@@ -193,10 +193,35 @@ interface WorkoutSetDao {
     """)
     suspend fun getExerciseSessionCounts(): List<ExerciseSessionCount>
 
+    /**
+     * Per-session summary of an exercise's WEIGHTED working sets: the heaviest set of the session
+     * and the BEST rep count achieved at that heaviest weight. Feeds every e1RM surface in the app
+     * (Progress chart, 1RM trend, goals, relative strength) and the plateau rule in
+     * [com.migul.treningsprogram.domain.StallDetector].
+     *
+     * ── Why the sub-select (item 04, 2026-08-06) ──────────────────────────────────────────────
+     * This used to read `MAX(ws.weightKg) AS maxWeight, ws.reps AS bestReps` and lean on SQLite's
+     * bare-column rule ("with exactly one min/max aggregate, bare columns come from a row holding
+     * that extreme"). That rule is only well-defined when the extreme is UNIQUE: when several sets
+     * in a session share the top weight — the normal case, e.g. 26 kg × 8, 26 kg × 7, 26 kg × 6 —
+     * SQLite documents the source row as undefined and in practice returns the FIRST one inserted.
+     * So `bestReps` was "reps of the first set logged at the top weight", not the best, and rep
+     * progress at a constant weight could be invisible. Verified against a real SQLite engine:
+     * a session of 26×6, 26×8, 26×7 returned 6.
+     *
+     * The sub-select narrows each session's rows to those at its top weight FIRST, so `MAX(ws.reps)`
+     * is the best reps at that weight, and the bare `ws.weightKg` is unambiguous (every surviving
+     * row in the group carries the identical value). Warm-ups and 0 kg sets stay excluded, in both
+     * the outer query and the sub-select, exactly as before.
+     */
     @Query("""
-        SELECT s.dateMs AS dateMs, MAX(ws.weightKg) AS maxWeight, ws.reps AS bestReps
+        SELECT s.dateMs AS dateMs, ws.weightKg AS maxWeight, MAX(ws.reps) AS bestReps
         FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
         WHERE ws.exerciseName = :name AND s.isCompleted = 1 AND ws.weightKg > 0 AND ws.isWarmup = 0
+          AND ws.weightKg = (
+              SELECT MAX(w2.weightKg) FROM workout_sets w2
+              WHERE w2.sessionId = ws.sessionId AND w2.exerciseName = ws.exerciseName
+                AND w2.weightKg > 0 AND w2.isWarmup = 0)
         GROUP BY ws.sessionId ORDER BY s.dateMs ASC
     """)
     suspend fun getStrengthHistory(name: String): List<StrengthPoint>

@@ -7,64 +7,68 @@
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="16dp">
+        android:layout_height="match_parent">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule -->
-            <FrameLayout
+            <!-- Auros hero band: eyebrow beacon → tight display title → gradient rule.
+                 Item 03 (2026-08): FULL-BLEED. The band spans the whole screen width and carries
+                 its own 16dp horizontal padding, so the wash reaches both screen edges while the
+                 text stays indented — identical markup on Home / Program / Stats / Profile. The
+                 scroll container therefore carries NO padding; the content wrapper below does. -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:orientation="vertical"
                 android:layout_marginBottom="22dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="12dp"
                 android:background="@drawable/bg_hero_wash">
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="12dp">
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="10dp">
-
-                        <View
-                            android:layout_width="6dp"
-                            android:layout_height="6dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/bg_eyebrow_dot" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="OVERVIEW"
-                            android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
-                    </LinearLayout>
-
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+                    <View android:layout_width="6dp" android:layout_height="6dp"
+                        android:layout_marginEnd="8dp" android:background="@drawable/bg_eyebrow_dot" />
                     <TextView
-                        android:id="@+id/tv_home_hero_title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Today"
-                        android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                        android:textColor="@color/auros_snow" />
-
-                    <View
-                        android:layout_width="52dp"
-                        android:layout_height="3dp"
-                        android:layout_marginTop="14dp"
-                        android:background="@drawable/bg_gradient_accent" />
+                        android:text="OVERVIEW"
+                        android:textAppearance="@style/TextAppearance.Auros.Eyebrow" />
                 </LinearLayout>
-            </FrameLayout>
+
+                <TextView
+                    android:id="@+id/tv_home_hero_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Today"
+                    android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                    android:textColor="@color/auros_snow" />
+
+                <View
+                    android:layout_width="52dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_gradient_accent" />
+            </LinearLayout>
+
+            <!-- Item 03: content wrapper — carries the 16dp inset the scroll container used to
+                 apply, so every card below keeps its exact previous indentation. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="16dp">
 
             <!-- First-launch welcome card (hidden once onboarding done) -->
             <com.google.android.material.card.MaterialCardView
@@ -804,6 +808,8 @@
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
 
         </LinearLayout>
 
