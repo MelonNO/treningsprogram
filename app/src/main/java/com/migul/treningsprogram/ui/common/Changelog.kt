@@ -13,6 +13,20 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 77, versionName = "1.36.0",
+            highlights = listOf(
+                "The − and + buttons beside the weight field now step to the next weight you can actually load. The size of the step follows the size of the lift — a heavy squat moves in bigger jumps than an 8 kg lateral raise, and a bench press is never offered a half-kilo nudge just because your gym stocks 0.5 kg plates",
+                "Those buttons also respect the gym you are training at: for barbell and plate-loaded dumbbell work, every weight they produce is one your bar, handle and plates can genuinely make. Typed an odd number like 61 kg? A press lands on the nearest loadable weight instead of adding to it",
+                "The \"per side\" plate breakdown under the weight field now updates the instant the number changes, including while the calculator pad is open. It also waits for your selected gym to load rather than briefly showing another gym's equipment",
+                "Adding reps at a lower weight is no longer called a plateau. Backing off to a weight you can control and then building reps back up is the right thing to do, and the app was reporting it as being stuck — it now counts as the progress it is",
+                "Plateau detection also reads your reps correctly. Where a session had several sets at your top weight, it was using whichever set you happened to log first instead of your best one, so rep progress at a steady weight could go unnoticed across the app",
+                "The Stats screen and the program generator now agree on what a plateau is. The AI was being told a lift had stalled using a weight-only rule that could not see reps at all, and planned around plateaus you were not having",
+                "You can now leave feedback on a specific exercise — tap its name while logging, or tap it on the Program tab. Pick a reason (\"too hard — can't do it properly yet\", \"causes pain\", \"love it\") and add a note if you want. It is a hint to the AI, never a ban",
+                "Say an exercise is too hard and the next program keeps it and builds toward it — a regression or a supporting movement — rather than quietly dropping it. Everything you have said is listed under Settings → Training → Exercise feedback, where you can change or remove any of it",
+                "The coloured title band at the top of Home, Program, Stats and Profile now reaches both edges of the screen on all four tabs, and Stats has gained the teal accent bar the others already had",
+            ),
+        ),
+        Entry(
             versionCode = 76, versionName = "1.35.0",
             highlights = listOf(
                 "Settings → Backup can now export your logged body weight and tape measurements as CSV spreadsheet files, alongside the existing full backup. You get a weight file and a measurements file, ready to open in any spreadsheet app",
