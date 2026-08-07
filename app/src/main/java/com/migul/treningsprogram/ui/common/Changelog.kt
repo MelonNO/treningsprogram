@@ -13,6 +13,22 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            versionCode = 78, versionName = "1.37.0",
+            highlights = listOf(
+                "Your level now means strength. Instead of counting how often you showed up, each of Chest, Back, Shoulders, Arms, Legs and Core carries its own rating — Untrained, Beginner, Novice, Intermediate, Advanced or Elite — with a total built from them. Tap the level card on Profile for the full breakdown",
+                "Ratings compare you to people of your body weight and sex, using the best qualifying set you have logged in the last three months. They can go down as well as up: let three months pass without a qualifying lift and a rating fades, and gaining body weight can lower one even if your lifts have not changed. That is what strength relative to body weight means, and it is working as intended",
+                "Only lifts with a real population standard count — the classic barbell and bodyweight movements. Machines, cables and dumbbells still log, still show in history, stats and progress, and still earn XP; they just never move a rating, because 40 kg on one machine is not 40 kg on another, and a logged dumbbell weight is ambiguous between per-side and total. Pull-ups, chin-ups and dips do count, against your body weight plus anything on the belt",
+                "Every rated group tells you what would move it, in your own numbers — add this many kilos, or get this many more reps at the weight you already use, to reach the next tier",
+                "A group with nothing qualifying logged says so plainly and names the lift that would unlock it, rather than sitting blank. Missing body weight or sex is called out the same way — the app will not invent a rating it cannot honestly work out",
+                "The breakdown points out your weakest rated group next to your priority-muscles setting. It only tells you; choosing what to prioritise stays entirely yours",
+                "Within a group your main lift carries most of the rating and your accessories nudge it. Worth knowing: a qualifying accessory you are weak at can pull a group down a tier, because it is part of how strong that muscle is",
+                "XP is unchanged and still earns achievements and challenges, but it no longer produces a level, and the old Rookie-to-Apex titles have retired. The level-up celebration now fires when you reach a new strength tier — something you had to get stronger to earn",
+                "Every achievement you have already earned stays earned, including the ones that used to be tied to your XP level. Those now track your strength instead, at the same numbers",
+                "Fixed: finishing or abandoning a workout left the rest timer running, so it would vibrate, chime and announce \"Rest complete!\" after your session was over. Ending a session now ends the timer, silently — however you end it",
+                "Fixed: if Android shut the app down while a rest timer was running, the timer service could restart and immediately fire that same completion alert with no rest behind it",
+            ),
+        ),
+        Entry(
             versionCode = 77, versionName = "1.36.0",
             highlights = listOf(
                 "The − and + buttons beside the weight field now step to the next weight you can actually load. The size of the step follows the size of the lift — a heavy squat moves in bigger jumps than an 8 kg lateral raise, and a bench press is never offered a half-kilo nudge just because your gym stocks 0.5 kg plates",
