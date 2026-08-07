@@ -280,6 +280,23 @@
             app:popExitAnim="@anim/slide_out_right" />
     </fragment>
 
+    <!-- Brief 02 (2026-08-07): the strength breakdown behind the Profile level card. Six group
+         tiers plus the total, all as tier NAMES. Its one outward route is the priority-muscles
+         setting, which it navigates to and never writes. -->
+    <fragment
+        android:id="@+id/strengthBreakdownFragment"
+        android:name="com.migul.treningsprogram.ui.strength.StrengthBreakdownFragment"
+        android:label="Strength"
+        tools:layout="@layout/fragment_strength_breakdown">
+        <action
+            android:id="@+id/action_strength_to_settings_training"
+            app:destination="@id/settingsTrainingFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
     <fragment
         android:id="@+id/recapTrendsFragment"
         android:name="com.migul.treningsprogram.ui.history.RecapTrendsFragment"
