@@ -9,6 +9,23 @@ data class ExercisePr(val exerciseName: String, val maxWeight: Float)
 data class StrengthPoint(val dateMs: Long, val maxWeight: Float, val bestReps: Int)
 
 /**
+ * Brief 02 (2026-08-07): one raw working set, for the strength-rating engine.
+ *
+ * Deliberately un-aggregated. "Best qualifying set" is picked in Kotlin
+ * ([com.migul.treningsprogram.domain.strength.StrengthRating]) precisely because the SQL shape that
+ * would do it here — `MAX(weightKg)` alongside a bare `reps` — is the v1.36.0 bug that hid rep
+ * progress app-wide. It also is not the right question: the best set is the highest e1RM, not the
+ * heaviest, so 80 kg x 8 must beat 85 kg x 3 and no single SQL MAX expresses that.
+ */
+data class RatingSetRow(
+    val sessionId: Long,
+    val exerciseName: String,
+    val weightKg: Float,
+    val reps: Int,
+    val dateMs: Long,
+)
+
+/**
  * One exercise with the number of DISTINCT sessions it appears in (B03). Drives the
  * Progress-tab exercise picker's "most-trained first" ordering. Counts distinct sessions,
  * not total sets, so a session with many sets of the same exercise counts once.
@@ -239,6 +256,20 @@ interface WorkoutSetDao {
         GROUP BY ws.sessionId ORDER BY s.dateMs ASC
     """)
     suspend fun getSessionRepsHistory(name: String): List<StrengthPoint>
+
+    /**
+     * Brief 02: every completed working set since [sinceMs], one row per set, for strength ratings.
+     * Warm-ups are excluded here (decision D5 — they never contribute to a rating); everything
+     * else — machines, cables, isolation work — is returned and filtered by the rating engine,
+     * which owns the "does this lift have a population standard" question.
+     */
+    @Query("""
+        SELECT ws.sessionId AS sessionId, ws.exerciseName AS exerciseName,
+               ws.weightKg AS weightKg, ws.reps AS reps, s.dateMs AS dateMs
+        FROM workout_sets ws JOIN workout_sessions s ON ws.sessionId = s.id
+        WHERE s.isCompleted = 1 AND ws.isWarmup = 0 AND ws.reps > 0 AND s.dateMs >= :sinceMs
+    """)
+    suspend fun getRatingSets(sinceMs: Long): List<RatingSetRow>
 
     /**
      * Raw session timestamps of every completed working set (one row per set). The caller maps
