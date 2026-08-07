@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brief 02 (2026-08-07): one group's qualifying lifts inside the "Lifts that count" section.
+     The lift list determines what moves a rating, so the user has to be able to read it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginTop="12dp">
+
+    <TextView
+        android:id="@+id/tv_lift_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Widget.Auros.Eyebrow"
+        tools:text="Shoulders" />
+
+    <TextView
+        android:id="@+id/tv_lift_lines"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:lineSpacingExtra="3dp"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        tools:text="Overhead Press — main lift\nPush Press — accessory" />
+
+</LinearLayout>

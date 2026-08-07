@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brief 02 (2026-08-07): one rated muscle group. The same row shape serves the unrated case —
+     the tier pill reads "Not rated", the bar and best-set line hide, and the hint line carries the
+     sentence that would unlock it. Never a blank row. -->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    app:cardElevation="0dp"
+    app:cardCornerRadius="14dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="?attr/colorOutlineVariant">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_strength_group_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorOnSurface"
+                tools:text="Shoulders" />
+
+            <TextView
+                android:id="@+id/tv_strength_group_tier"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_strength_tier_pill"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="@color/auros_cyan"
+                tools:text="Intermediate" />
+
+        </LinearLayout>
+
+        <!-- Progress WITHIN the current tier (score − floor(score)). Deliberately unlabelled: the
+             tier name is the answer, the bar only shows how close the next one is. -->
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress_strength_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:max="100"
+            app:trackCornerRadius="3dp"
+            app:trackThickness="5dp"
+            app:trackColor="@color/auros_reef_dim" />
+
+        <TextView
+            android:id="@+id/tv_strength_group_best"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurface"
+            tools:text="Overhead Press · 5 reps × 55 kg" />
+
+        <TextView
+            android:id="@+id/tv_strength_group_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:lineSpacingExtra="3dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="@color/auros_fog"
+            tools:text="Overhead Press: add 5 kg, or get 2 more reps at 55 kg, to reach Advanced." />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>
