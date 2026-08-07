@@ -54,7 +54,7 @@ class AchievementCatalogTest {
         assertEquals(AchievementCatalog.Category.STREAKS, cat("best_14"))
         assertEquals(AchievementCatalog.Category.RECORDS, cat("pr_10"))
         assertEquals(AchievementCatalog.Category.RECORDS, cat("session_pr_3"))
-        assertEquals(AchievementCatalog.Category.LEVELS, cat("level_10"))
+        assertEquals(AchievementCatalog.Category.STRENGTH, cat("level_10"))
         assertEquals(AchievementCatalog.Category.XP, cat("xp_2500"))
         assertEquals(AchievementCatalog.Category.BIG_SESSIONS, cat("sets_15"))
         assertEquals(AchievementCatalog.Category.BIG_SESSIONS, cat("vol_1000"))
@@ -82,26 +82,33 @@ class AchievementCatalogTest {
         totalWorkouts = 43, totalPrs = 9
     )
 
+    /**
+     * Brief 02: the `level_` family now reads a 0-100 STRENGTH score rather than UserStats.level.
+     * The fixture keeps level = 4 deliberately, and this is set to something different, so a
+     * regression that reads the stored level again shows up as a wrong number rather than passing.
+     */
+    private val strengthScore = 4
+
     @Test fun lifetimeThresholdsShowLiveProgress() {
-        assertEquals(43 to 50, AchievementCatalog.progressFor("workouts_50", stats))
-        assertEquals(12 to 14, AchievementCatalog.progressFor("streak_14", stats))
-        assertEquals(9 to 10, AchievementCatalog.progressFor("pr_10", stats))
-        assertEquals(3_000 to 5_000, AchievementCatalog.progressFor("xp_5000", stats))
-        assertEquals(4 to 5, AchievementCatalog.progressFor("level_5", stats))
-        assertEquals(12 to 21, AchievementCatalog.progressFor("best_21", stats))
+        assertEquals(43 to 50, AchievementCatalog.progressFor("workouts_50", stats, strengthScore))
+        assertEquals(12 to 14, AchievementCatalog.progressFor("streak_14", stats, strengthScore))
+        assertEquals(9 to 10, AchievementCatalog.progressFor("pr_10", stats, strengthScore))
+        assertEquals(3_000 to 5_000, AchievementCatalog.progressFor("xp_5000", stats, strengthScore))
+        assertEquals(4 to 5, AchievementCatalog.progressFor("level_5", stats, strengthScore))
+        assertEquals(12 to 21, AchievementCatalog.progressFor("best_21", stats, strengthScore))
     }
 
     @Test fun progressNeverExceedsTheBar() {
         // Explicit AC: current is capped at the threshold before unlock.
-        assertEquals(14 to 14, AchievementCatalog.progressFor("streak_14", stats.copy(currentStreak = 99)))
+        assertEquals(14 to 14, AchievementCatalog.progressFor("streak_14", stats.copy(currentStreak = 99), strengthScore))
     }
 
     @Test fun sessionScopedAndCombosHaveNoLifetimeProgress() {
-        assertNull(AchievementCatalog.progressFor("sets_15", stats))
-        assertNull(AchievementCatalog.progressFor("vol_1000", stats))
-        assertNull(AchievementCatalog.progressFor("ex_variety_5", stats))
-        assertNull(AchievementCatalog.progressFor("session_pr_3", stats))
-        assertNull(AchievementCatalog.progressFor("combo_beast", stats))
+        assertNull(AchievementCatalog.progressFor("sets_15", stats, strengthScore))
+        assertNull(AchievementCatalog.progressFor("vol_1000", stats, strengthScore))
+        assertNull(AchievementCatalog.progressFor("ex_variety_5", stats, strengthScore))
+        assertNull(AchievementCatalog.progressFor("session_pr_3", stats, strengthScore))
+        assertNull(AchievementCatalog.progressFor("combo_beast", stats, strengthScore))
     }
 
     // ── next up ───────────────────────────────────────────────────────────────────────────────
@@ -118,19 +125,19 @@ class AchievementCatalogTest {
             ach("workouts_40", unlocked = true), // unlocked: excluded
             ach("combo_beast")             // no progress: excluded
         )
-        val next = AchievementCatalog.nextUp(achievements, stats, 3).map { it.id }
+        val next = AchievementCatalog.nextUp(achievements, stats, strengthScore, 3).map { it.id }
         assertEquals(listOf("pr_10", "workouts_50", "streak_14"), next)
     }
 
     @Test fun nextUpEmptyForFreshUser() {
         val fresh = UserStats()
         val achievements = listOf(ach("workouts_5"), ach("streak_3"))
-        assertTrue(AchievementCatalog.nextUp(achievements, fresh).isEmpty())
+        assertTrue(AchievementCatalog.nextUp(achievements, fresh, 0).isEmpty())
     }
 
     @Test fun nextUpUpdatesWithStats() {
         val achievements = listOf(ach("workouts_5"), ach("streak_3"))
-        val after = AchievementCatalog.nextUp(achievements, UserStats(totalWorkouts = 4, currentStreak = 1), 3)
+        val after = AchievementCatalog.nextUp(achievements, UserStats(totalWorkouts = 4, currentStreak = 1), 0, 3)
         assertNotNull(after)
         assertEquals("workouts_5", after.first().id) // 4/5 beats 1/3
     }

@@ -66,10 +66,22 @@ data class GroupRating(
     /** 0..5, continuous. Internal; the user only ever sees [tier]. */
     val score: Float,
     val drivingLift: String?,
+    /**
+     * The load logged for the best set. For a body-weight lift this is the **added** load, so it is
+     * legitimately 0 for an unweighted set — read it together with [isBodyWeightLift] or a display
+     * will honestly report "0 kg" for a pull-up.
+     */
     val bestWeightKg: Float?,
     val bestReps: Int?,
     val nextStep: NextStep?,
     val unratedReason: UnratedReason?,
+    /**
+     * Whether [drivingLift] carries body weight. Stated here rather than left for a caller to
+     * rediscover by looking [drivingLift] up by display name: that coupling would break silently
+     * the day a lift is renamed, and the failure would be a wrong number shown to the user
+     * ("0 kg") rather than a compile error or a red test. Mirrors [NextStep.isBodyWeightLift].
+     */
+    val isBodyWeightLift: Boolean = false,
 ) {
     val isRated: Boolean get() = tier != null
 }
@@ -256,6 +268,7 @@ object StrengthRating {
                 sex = sex,
             ),
             unratedReason = null,
+            isBodyWeightLift = driving.lift.bodyWeightFraction > 0f,
         )
     }
 

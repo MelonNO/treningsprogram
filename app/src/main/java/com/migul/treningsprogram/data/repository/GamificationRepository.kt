@@ -35,7 +35,10 @@ class GamificationRepository @Inject constructor(
     private val programDao: ProgramDao,
     private val xpEventDao: XpEventDao,
     private val dailyChallengeManager: DailyChallengeManager,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    // Brief 02: "level" now means strength. Ratings are derived from history on demand, so this is
+    // read at completion time rather than stored on UserStats.
+    private val strengthRepository: StrengthRepository
 ) {
     val userStats: Flow<UserStats?> = userStatsDao.observe()
 
@@ -110,8 +113,11 @@ class GamificationRepository @Inject constructor(
         val xpEarned = baseXp + setXp + prXp + bonusChallengeXp + perfectWeekXp
 
         val stats = userStatsDao.get() ?: UserStats()
-        val prevLevel = stats.level
         val newTotalXp = stats.totalXp + xpEarned
+        // UserStats.level is now VESTIGIAL: nothing in the app reads it, no surface shows it, and
+        // no achievement keys on it. It is still written because the column is load-bearing for
+        // backup compatibility — MinifiedBackupCompat maps R8-minified keys by POSITION, so
+        // removing the field would shift every later key and corrupt historical minified restores.
         val newLevel = xpToLevel(newTotalXp)
         val newTotalWorkouts = stats.totalWorkouts + 1
         val newTotalPrs = stats.totalPrs + prExercises.size
@@ -156,16 +162,27 @@ class GamificationRepository @Inject constructor(
             perfectWeekXp = perfectWeekXp
         ).forEach { xpEventDao.insert(it) }
 
-        val newAchievements = checkAchievements(updatedStats, workingSets.size, exerciseCount, totalVolumeKg, prExercises.size)
+        // Brief 02 / decision D3: the celebration now fires on a STRENGTH tier-up. Both sides are
+        // computed from one row set and one `now`, so the only difference between them is this
+        // session — the rolling three-month window cannot slide underneath the comparison and
+        // manufacture a tier-up that the user did not earn.
+        val (beforeSession, afterSession) = strengthRepository.profileAroundSession(sessionId)
+        val newAchievements = checkAchievements(
+            updatedStats, workingSets.size, exerciseCount, totalVolumeKg, prExercises.size,
+            strengthScore = afterSession.strengthScore
+        )
 
         return WorkoutResult(
             xpEarned = xpEarned,
             totalXp = newTotalXp,
-            level = newLevel,
-            levelProgress = levelProgress(newTotalXp),
-            xpToNextLevel = xpForLevel(newLevel + 1) - newTotalXp,
-            didLevelUp = newLevel > prevLevel,
-            previousLevel = prevLevel,
+            strengthTier = afterSession.totalTier,
+            previousStrengthTier = beforeSession.totalTier,
+            didTierUp = afterSession.totalTier != null &&
+                (beforeSession.totalTier == null ||
+                    afterSession.totalTier!!.ordinal > beforeSession.totalTier!!.ordinal),
+            strengthProgress = afterSession.totalScore - floor(afterSession.totalScore),
+            previousStrengthProgress = beforeSession.totalScore - floor(beforeSession.totalScore),
+            strengthScore = afterSession.strengthScore,
             currentStreak = newStreak,
             personalRecords = prExercises,
             newAchievements = newAchievements,
@@ -236,13 +253,22 @@ class GamificationRepository @Inject constructor(
         setCount: Int,
         exerciseCount: Int = 0,
         totalVolumeKg: Float = 0f,
-        sessionPrCount: Int = 0
+        sessionPrCount: Int = 0,
+        strengthScore: Int = 0
     ): List<Achievement> {
         val now = System.currentTimeMillis()
         val w  = stats.totalWorkouts
         val s  = stats.currentStreak
         val p  = stats.totalPrs
-        val l  = stats.level
+        // Brief 02: `l` was stats.level (XP). The ~27 `level_*` and named level achievements now
+        // read the 0-100 STRENGTH score, and their ids and thresholds are untouched — "level 60"
+        // simply became "strength score 60", i.e. Intermediate overall.
+        //
+        // Nothing already earned can be lost by this. checkAchievements only ever writes
+        // isUnlocked = true and skips rows that are already unlocked, so a threshold this user
+        // once cleared under the old meaning stays cleared for ever, even if their strength score
+        // is below it today. Achievements are a record of what happened, not a live status (D2).
+        val l  = strengthScore
         val xp = stats.totalXp
         val bs = stats.bestStreak
         val sc = setCount
@@ -518,48 +544,21 @@ class GamificationRepository @Inject constructor(
         fun currentDefinedIds(): Set<String> =
             AppDatabase.PREDEFINED_ACHIEVEMENTS.map { it.id }.toSet()
 
+        /**
+         * The old XP curve. Brief 02 (2026-08-07): this no longer produces anything the user sees.
+         * It survives for exactly one reason — it keeps the vestigial `UserStats.level` column
+         * populated on both the live and the merge path, and that column cannot simply be dropped
+         * because `MinifiedBackupCompat` maps R8-minified keys by POSITION: removing the field
+         * would shift every later key and corrupt restores of historical minified backups.
+         *
+         * Its two companions, `xpForLevel` and `levelProgress`, were deleted along with the
+         * Rookie→Apex titles: they existed only to fill a progress bar that now fills with
+         * progress through a STRENGTH tier instead.
+         */
         fun xpToLevel(xp: Int): Int = floor(sqrt(xp / 200.0)).toInt() + 1
 
-        fun xpForLevel(level: Int): Int = ((level - 1) * (level - 1)) * 200
-
-        fun levelProgress(xp: Int): Float {
-            val level = xpToLevel(xp)
-            val start = xpForLevel(level).toFloat()
-            val end = xpForLevel(level + 1).toFloat()
-            return ((xp - start) / (end - start)).coerceIn(0f, 1f)
-        }
-
-        // B11 (feature batch 2026-07-03): the ladder now continues past 20 — long-term users always
-        // have a next title to reach. Levels 1–19 are byte-identical to the pre-B11 ladder (users
-        // identify with their current title); 20–24 keeps "Transcendent" (what every 20+ user
-        // already shows today), and the new late-game rungs take over from 25. "Apex" at 100+ is
-        // the open-ended final title. Names under the standing creative-freedom grant (A-L1).
-        fun levelTitle(level: Int): String = when (level) {
-            1          -> "Rookie"
-            2          -> "Novice"
-            3          -> "Trainee"
-            4          -> "Athlete"
-            5          -> "Competitor"
-            6          -> "Warrior"
-            7          -> "Champion"
-            8          -> "Iron Man"
-            9          -> "Elite"
-            10         -> "Master"
-            11         -> "Expert"
-            12         -> "Veteran"
-            13         -> "Pro"
-            14         -> "Phenom"
-            in 15..19  -> "Legend"
-            in 20..24  -> "Transcendent"
-            in 25..29  -> "Juggernaut"
-            in 30..34  -> "Titan"
-            in 35..39  -> "Colossus"
-            in 40..44  -> "Immortal"
-            in 45..49  -> "Demigod"
-            in 50..59  -> "Ascendant"
-            in 60..74  -> "Mythic"
-            in 75..99  -> "Eternal"
-            else       -> "Apex"
-        }
+        // Brief 02 (2026-08-07): the Rookie -> Apex level ladder is GONE. It titled an XP level
+        // that measured showing up, not strength, and the user replaced it with strength tier
+        // names (Untrained ... Elite) that are computed in domain/strength, not named here.
     }
 }

@@ -35,10 +35,11 @@ class StrengthBreakdownCopyTest {
         bestWeightKg: Float = 100f,
         bestReps: Int = 5,
         nextStep: NextStep? = null,
+        isBodyWeightLift: Boolean = false,
     ) = GroupRating(
         group = group, tier = tier, score = score, drivingLift = drivingLift,
         bestWeightKg = bestWeightKg, bestReps = bestReps, nextStep = nextStep,
-        unratedReason = null,
+        unratedReason = null, isBodyWeightLift = isBodyWeightLift,
     )
 
     private fun unrated(group: String, reason: UnratedReason) = GroupRating(
@@ -183,7 +184,8 @@ class StrengthBreakdownCopyTest {
 
     @Test fun bestSet_bodyWeightLiftWithNoAddedLoad_neverReadsAsZeroKg() {
         val line = StrengthCopy.bestSetLine(
-            rated(group = "Back", drivingLift = "Pull-Up", bestWeightKg = 0f, bestReps = 8)
+            rated(group = "Back", drivingLift = "Pull-Up", bestWeightKg = 0f, bestReps = 8,
+                isBodyWeightLift = true)
         )
         assertEquals("Pull-Up · 8 reps at body weight", line)
         assertFalse("0 kg is the stored value, not the truth", line!!.contains("0 kg"))
@@ -193,7 +195,8 @@ class StrengthBreakdownCopyTest {
         assertEquals(
             "Chin-Up · 5 reps × body weight + 20 kg",
             StrengthCopy.bestSetLine(
-                rated(group = "Back", drivingLift = "Chin-Up", bestWeightKg = 20f, bestReps = 5)
+                rated(group = "Back", drivingLift = "Chin-Up", bestWeightKg = 20f, bestReps = 5,
+                    isBodyWeightLift = true)
             )
         )
     }

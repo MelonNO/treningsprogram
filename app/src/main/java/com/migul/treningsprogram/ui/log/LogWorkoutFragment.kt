@@ -1117,7 +1117,7 @@ class LogWorkoutFragment : Fragment() {
         // burst — scaled up for level-ups, PRs and Perfect Weeks; brief and never input-blocking.
         val intensity = when {
             // N5: a reached goal is the long-arc payoff — full celebration intensity.
-            result.perfectWeekXp > 0 || result.didLevelUp || result.reachedGoals.isNotEmpty() -> 1.5f
+            result.perfectWeekXp > 0 || result.didTierUp || result.reachedGoals.isNotEmpty() -> 1.5f
             result.personalRecords.isNotEmpty()           -> 1.25f
             else                                          -> 1f
         }

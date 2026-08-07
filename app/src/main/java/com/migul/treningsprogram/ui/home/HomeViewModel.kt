@@ -36,6 +36,7 @@ class HomeViewModel @Inject constructor(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val backupScheduler: BackupScheduler,
     private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository,
+    private val strengthRepository: com.migul.treningsprogram.data.repository.StrengthRepository,
     val prefs: PreferencesManager
 ) : ViewModel() {
 
@@ -43,6 +44,17 @@ class HomeViewModel @Inject constructor(
 
     val userStats: StateFlow<UserStats?> = gamificationRepository.userStats
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /**
+     * Brief 02: the strength rating shown where the XP level used to be.
+     *
+     * Recomputed whenever stats OR weigh-ins change — the second half matters, because a rating is
+     * relative to body weight, so logging a new weight moves it with no workout involved at all.
+     */
+    val strength: StateFlow<com.migul.treningsprogram.domain.strength.StrengthProfile?> =
+        combine(gamificationRepository.userStats, bodyMeasurementDao.getAll()) { _, _ -> Unit }
+            .map { strengthRepository.currentProfile() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val activeSession: StateFlow<WorkoutSession?> = workoutRepository.allSessions
         .map { it.firstOrNull { s -> !s.isCompleted } }

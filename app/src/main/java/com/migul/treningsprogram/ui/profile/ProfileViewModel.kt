@@ -16,7 +16,12 @@ import javax.inject.Inject
 
 data class ProfileUiState(
     val userStats: UserStats? = null,
-    val levelTitle: String = "Rookie",
+    /**
+     * Brief 02: replaced `levelTitle` (the retired Rookie→Apex XP ladder). Null until the first
+     * computation lands; an unrated profile is a non-null [com.migul.treningsprogram.domain.strength.StrengthProfile]
+     * carrying its reason, not a null.
+     */
+    val strength: com.migul.treningsprogram.domain.strength.StrengthProfile? = null,
     // Stage-3 item 4: only the PRs earned in the rolling last-7-logical-days window.
     val recentPrs: List<RecentPrs.RecentPr> = emptyList(),
     val achievements: List<Achievement> = emptyList(),
@@ -35,7 +40,8 @@ class ProfileViewModel @Inject constructor(
     private val gamificationRepository: GamificationRepository,
     private val workoutSetDao: WorkoutSetDao,
     private val achievementDao: AchievementDao,
-    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository,
+    private val strengthRepository: com.migul.treningsprogram.data.repository.StrengthRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -44,12 +50,8 @@ class ProfileViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             gamificationRepository.userStats.collect { stats ->
-                _state.update {
-                    it.copy(
-                        userStats = stats,
-                        levelTitle = GamificationRepository.levelTitle(stats?.level ?: 1)
-                    )
-                }
+                _state.update { it.copy(userStats = stats) }
+                refreshStrength()
                 // Recent PRs are derived from logged sets. Re-query them whenever stats
                 // change (a completed workout always bumps UserStats) so returning to
                 // Profile after a session shows fresh wins instead of the values captured
@@ -64,6 +66,7 @@ class ProfileViewModel @Inject constructor(
         }
         // Initial load so the PR section populates even before the first userStats emission.
         viewModelScope.launch { refreshRecentPrs() }
+        viewModelScope.launch { refreshStrength() }
         // N5: goals list — actives first (with live progress), then achieved history.
         viewModelScope.launch {
             goalRepository.observeAll().collect { all ->
@@ -81,6 +84,18 @@ class ProfileViewModel @Inject constructor(
                     }
                 _state.update { it.copy(goals = rows) }
             }
+        }
+    }
+
+    /**
+     * Brief 02: recompute the strength rating. Public because a rating is relative to body weight,
+     * so it can change with no workout involved — the fragment refreshes on resume so returning
+     * from a weigh-in shows the new rating rather than the one captured at construction.
+     */
+    fun refreshStrength() {
+        viewModelScope.launch {
+            val profile = strengthRepository.currentProfile()
+            _state.update { it.copy(strength = profile) }
         }
     }
 

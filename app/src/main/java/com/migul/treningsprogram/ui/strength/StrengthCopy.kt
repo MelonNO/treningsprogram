@@ -60,7 +60,7 @@ object StrengthCopy {
         val reps = group.bestReps ?: return null
         val repWord = if (reps == 1) "1 rep" else "$reps reps"
         return when {
-            !isBodyWeightLift(lift) -> "$lift · $repWord × ${kg(weight)} kg"
+            !group.isBodyWeightLift -> "$lift · $repWord × ${kg(weight)} kg"
             weight <= 0f -> "$lift · $repWord at body weight"
             else -> "$lift · $repWord × body weight + ${kg(weight)} kg"
         }
@@ -231,10 +231,6 @@ object StrengthCopy {
 
     /** The rating window in whole months, so the copy tracks the engine's constant. */
     private val WINDOW_MONTHS: Long get() = StrengthStandards.WINDOW_DAYS / 30
-
-    private fun isBodyWeightLift(displayName: String): Boolean =
-        StrengthStandards.LIFTS.firstOrNull { it.displayName == displayName }
-            ?.let { it.bodyWeightFraction > 0f } ?: false
 
     /** House weight format: integers bare, otherwise one decimal. */
     fun kg(v: Float): String =
