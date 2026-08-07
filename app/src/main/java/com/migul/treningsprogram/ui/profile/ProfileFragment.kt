@@ -38,6 +38,8 @@ class ProfileFragment : Fragment() {
     // categories are open. Categories start collapsed each screen open (B04 convention).
     private var galleryAchievements: List<Achievement> = emptyList()
     private var galleryStats: UserStats = UserStats()
+    /** Brief 02: the strength achievements read this instead of the retired UserStats.level. */
+    private var galleryStrengthScore: Int = 0
     private val expandedCategories = mutableSetOf<AchievementCatalog.Category>()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -51,8 +53,15 @@ class ProfileFragment : Fragment() {
             if (findNavController().currentDestination?.id == R.id.profileFragment)
                 findNavController().navigate(R.id.action_profile_to_settings)
         }
-        // U2: tap the XP bar/card to open the XP log. Guard against rapid double-tap (S8 convention).
+        // Brief 02 / decision D7: the level card is now the STRENGTH card, and tapping it opens the
+        // per-muscle-group breakdown. (S8 convention: guard against rapid double-tap.)
         binding.cardProfileXp.setOnClickListener {
+            if (findNavController().currentDestination?.id == R.id.profileFragment)
+                findNavController().navigate(R.id.strengthBreakdownFragment)
+        }
+        // U2's XP log keeps its entry point, moved onto the XP line itself now that the card as a
+        // whole belongs to the strength breakdown.
+        binding.tvProfileXpLabel.setOnClickListener {
             if (findNavController().currentDestination?.id == R.id.profileFragment)
                 findNavController().navigate(R.id.action_profile_to_xp_log)
         }
@@ -66,14 +75,20 @@ class ProfileFragment : Fragment() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.state.collect { state ->
                     val stats = state.userStats
-                    val level = stats?.level ?: 1
                     val xp = stats?.totalXp ?: 0
+                    val strength = state.strength
 
-                    binding.tvProfileLevelBadge.text = "L$level"
-                    binding.tvLevelTitle.text = state.levelTitle
-                    binding.progressProfileXp.progress = (GamificationRepository.levelProgress(xp) * 100).toInt()
-                    val xpToNext = GamificationRepository.xpForLevel(level + 1) - xp
-                    binding.tvProfileXpLabel.text = "$xp XP  •  $xpToNext to Level ${level + 1}"
+                    // Brief 02: this card used to read "L7 / Champion / 340 XP to Level 8". The XP
+                    // level and its Rookie→Apex titles are retired; the card now shows the strength
+                    // tier, the bar fills through that tier, and XP is just a total.
+                    val tier = strength?.totalTier
+                    binding.tvProfileLevelBadge.text = tier?.displayName?.take(3)?.uppercase() ?: "—"
+                    binding.tvLevelTitle.text = tier?.displayName ?: "Unrated"
+                    binding.progressProfileXp.progress =
+                        if (tier == null) 0
+                        else ((strength!!.totalScore - kotlin.math.floor(strength.totalScore)) * 100)
+                            .toInt().coerceIn(0, 100)
+                    binding.tvProfileXpLabel.text = "$xp XP  •  tap for XP log"
 
                     // Stage-3 item 4: only PRs earned in the last 7 days — a recent-wins surface.
                     binding.tvPrs.text = if (state.recentPrs.isEmpty())
@@ -89,6 +104,7 @@ class ProfileFragment : Fragment() {
                     binding.tvAchievementsHeader.text = "Achievements (${unlocked.size}/$total)"
                     galleryAchievements = state.achievements
                     galleryStats = stats ?: UserStats()
+                    galleryStrengthScore = strength?.strengthScore ?: 0
                     renderNextUp()
                     renderGallery()
 
@@ -97,6 +113,16 @@ class ProfileFragment : Fragment() {
                 }
             }
         }
+    }
+
+    /**
+     * Brief 02: a strength rating is relative to body weight, so it can change with no workout
+     * involved. Recompute on resume so coming back from a weigh-in shows the new rating rather
+     * than the one captured when this screen was first built.
+     */
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshStrength()
     }
 
     private fun formatWeight(w: Float): String =
@@ -178,7 +204,7 @@ class ProfileFragment : Fragment() {
     private fun renderNextUp() {
         if (_binding == null) return
         binding.layoutNextUp.removeAllViews()
-        val next = AchievementCatalog.nextUp(galleryAchievements, galleryStats, 3)
+        val next = AchievementCatalog.nextUp(galleryAchievements, galleryStats, galleryStrengthScore, 3)
         if (next.isEmpty()) return
         val caption = TextView(requireContext()).apply {
             text = "NEXT UP"
@@ -292,7 +318,7 @@ class ProfileFragment : Fragment() {
             item.alpha = 0.55f
             // Live progress for lifetime-threshold achievements; condition text (the description)
             // stands in for session-scoped families and combos.
-            val progress = AchievementCatalog.progressFor(a.id, galleryStats)
+            val progress = AchievementCatalog.progressFor(a.id, galleryStats, galleryStrengthScore)
             if (progress != null && progress.first > 0) {
                 progressRow.visibility = View.VISIBLE
                 progressBar.progress = (progress.first * 100 / progress.second).coerceIn(0, 100)

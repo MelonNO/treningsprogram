@@ -19,7 +19,7 @@ import kotlin.random.Random
  * (`GENERATION_OVERALL_DEADLINE_MS`), Epley (`domain.Epley`), the 3-session stall window
  * (`domain.StallDetector.STALL_WINDOW`), the 2-stall deload trigger (`domain.DeloadPolicy`), the
  * 48 h / 7-day recovery bands (`domain.MuscleRecovery`), the level curve
- * (`GamificationRepository.xpForLevel`), and so on. Do NOT add a "fact" you have not read in code.
+ * (`domain/strength/StrengthStandards`), and so on. Do NOT add a "fact" you have not read in code.
  *
  * ## Rotation
  * Screens no longer walk a fixed index — they take a [rotation] and call [Rotation.next] on their
@@ -97,7 +97,7 @@ object GenerationTips {
         "Your streak measures sticking to the plan: rest days neutral, missed days break it.",
         "Empty past days are auto-logged as rest or missed — today is never filled in for you.",
         "Rest and missed placeholder days never count as training anywhere in the app.",
-        "Levels follow a square curve: level N takes (N − 1)² × 200 XP.",
+        "Your level is strength: best qualifying set in 3 months, against your body weight and sex.",
         "A perfect week is worth 150 XP.",
         "Around 200 achievements are waiting, graded Common, Rare, Epic and Legendary.",
         "The weekly challenge is drawn from 26 templates and stays fixed for the whole week.",

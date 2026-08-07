@@ -17,11 +17,25 @@ data class PrDetail(
 data class WorkoutResult(
     val xpEarned: Int,
     val totalXp: Int,
-    val level: Int,
-    val levelProgress: Float,
-    val xpToNextLevel: Int,
-    val didLevelUp: Boolean,
-    val previousLevel: Int,
+    /**
+     * Brief 02 (2026-08-07) — the XP level is retired; "level" now means strength.
+     *
+     * XP itself is untouched ([xpEarned] / [totalXp] accrue exactly as before and still feed
+     * achievements and challenges), but it no longer produces a level, a progress-to-next-level
+     * figure, or a Rookie→Apex title. What replaced those five fields is the strength rating:
+     * null tier = unrated (no sex, no usable weigh-in, or nothing qualifying logged yet).
+     */
+    val strengthTier: com.migul.treningsprogram.domain.strength.StrengthTier?,
+    /** The tier as it stood BEFORE this session, so the celebration can say what was crossed. */
+    val previousStrengthTier: com.migul.treningsprogram.domain.strength.StrengthTier?,
+    /** Decision D3: the level-up celebration now fires on reaching a new strength tier. */
+    val didTierUp: Boolean,
+    /** 0..1 within the current tier — what the Home progress bar fills to. */
+    val strengthProgress: Float,
+    /** The same fraction BEFORE this session, so the bar animates from where it really was. */
+    val previousStrengthProgress: Float,
+    /** 0..100. Drives the re-based strength achievements. */
+    val strengthScore: Int,
     val currentStreak: Int,
     val personalRecords: List<String>,
     val newAchievements: List<Achievement>,

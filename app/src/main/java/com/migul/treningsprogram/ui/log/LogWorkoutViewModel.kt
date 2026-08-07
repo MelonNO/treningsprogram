@@ -33,8 +33,38 @@ class LogWorkoutViewModel @Inject constructor(
     private val gson: Gson,
     private val gymPresetDao: com.migul.treningsprogram.data.db.dao.GymPresetDao,
     // N5: reach detection on completion (no XP — celebration only).
-    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository
+    private val goalRepository: com.migul.treningsprogram.data.repository.GoalRepository,
+    // Brief 01 (2026-08-07): the rest timer is application-scoped, so it outlives this screen and
+    // must be told when the session it belongs to is over. See [endSession].
+    private val restTimerManager: RestTimerManager
 ) : ViewModel() {
+
+    /**
+     * Brief 01 — "a workout session ending ends the rest timer", held as one object rather than
+     * repeated at each exit. Every ending goes through [endSession]; see [SessionRestTimerRule].
+     */
+    private val sessionEndRule = SessionRestTimerRule { restTimerManager.stop() }
+
+    /**
+     * The single expression of "this workout session is over".
+     *
+     * Brief 01 (2026-08-07) — the user asked for the rest-timer stop to be a **general rule**
+     * rather than a patch on the Finish button, so that a new way of leaving a workout inherits it
+     * without a second fix. Every exit route calls this, and the [SessionEndRoute] argument is what
+     * forces a future route to declare itself here.
+     *
+     * The stop is silent and happens FIRST, before any database work: the countdown must leave the
+     * notification shade the moment the user ends the session, not after a slow write.
+     *
+     * The draft and per-exercise timer clears were already duplicated verbatim at all three exits;
+     * folding them in is what makes this the one place a session ending is defined, instead of a
+     * rest-timer special case bolted onto three near-identical blocks.
+     */
+    private fun endSession(route: SessionEndRoute, sessionId: Long) {
+        sessionEndRule.onSessionEnded(route)
+        clearDraft(sessionId)
+        prefs.exerciseTimerState = ""   // Item 5: the ended session's timer state is dead
+    }
 
     private val restTimerFallbackSeconds = 90
 
@@ -708,20 +738,18 @@ class LogWorkoutViewModel @Inject constructor(
         val sid = _sessionId.value ?: return
         viewModelScope.launch {
             if (sets.value.none { !it.isWarmup }) {
+                endSession(SessionEndRoute.DISCARDED_EMPTY, sid)
                 workoutRepository.deleteSession(sid)
-                clearDraft(sid)
-                prefs.exerciseTimerState = ""   // Item 5
                 moveFromDay = 0   // P2: abandoned (no working sets) → week left unchanged
                 _sessionAbandoned.value = true
                 return@launch
             }
+            endSession(SessionEndRoute.COMPLETED, sid)
             val durationMs = System.currentTimeMillis() - _sessionStartMs.value
             // Item 10: on an appended session, add this segment's minutes to what was already logged.
             val totalDurationMin = appendBaseDurationMin + (durationMs / 60_000).toInt()
             workoutRepository.completeSession(sid, totalDurationMin)
             isReopenedAppend = false
-            clearDraft(sid)
-            prefs.exerciseTimerState = ""   // Item 5: the finished session's timer state is dead
             // Mark planned exercises done so week progress bar is accurate
             val loggedNames = sets.value.filter { !it.isWarmup }.map { it.exerciseName }.toSet()
             // Item 10: a workout can only be performed TODAY (Item 7 day boundary). Determine the
@@ -764,6 +792,7 @@ class LogWorkoutViewModel @Inject constructor(
     fun abandonSession() {
         val sid = _sessionId.value ?: return
         viewModelScope.launch {
+            endSession(SessionEndRoute.ABANDONED, sid)
             if (isReopenedAppend) {
                 // Item 10: this session is today's already-logged workout, reopened only to append.
                 // NEVER delete it (that would destroy the original workout) — restore it to completed.
@@ -772,8 +801,6 @@ class LogWorkoutViewModel @Inject constructor(
             } else {
                 workoutRepository.deleteSession(sid)
             }
-            clearDraft(sid)
-            prefs.exerciseTimerState = ""   // Item 5: the abandoned session's timer state is dead
             moveFromDay = 0   // P2: abandoning leaves the week unchanged
             _sessionAbandoned.value = true
         }

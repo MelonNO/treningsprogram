@@ -124,6 +124,11 @@ class MainActivity : AppCompatActivity() {
             // map; the Profile tab lost its highlight when navigating into the library.
             R.id.exerciseLibraryFragment     to R.id.profileFragment,
             R.id.exerciseDetailFragment      to R.id.profileFragment,
+            // Brief 02 (2026-08-07): the strength breakdown, reached from the Profile level card.
+            // Registered explicitly for the same reason as the S8 fix above — arriving from Profile
+            // happens to leave the right tab checked, but a restore straight onto this destination
+            // has no prior checked state to inherit and would show no tab selected at all.
+            R.id.strengthBreakdownFragment   to R.id.profileFragment,
             R.id.recapTrendsFragment         to R.id.historyFragment,
         )
 

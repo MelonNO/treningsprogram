@@ -39,22 +39,47 @@ class RestTimerService : Service() {
             startForeground(NOTIF_ID, initial)
         }
         scope.launch {
-            var wasRunning = true
+            // Brief 01 (2026-08-07): the alert decision moved into the pure [RestTimerAlertPolicy]
+            // so it is unit-testable. It replaces the old `var wasRunning = true` seed, which was
+            // the bug: on a START_STICKY restart after a process kill, onCreate ran against a FRESH
+            // singleton manager (remainingMs = 0, isRunning = false) and that seed made the very
+            // first emission look like a completed rest — vibrate, chime and "Rest complete!" with
+            // no rest ever having run.
+            var alertFired = false
             timerManager.remainingMs.collect { ms ->
                 val running = timerManager.isRunning.value
+                if (running) alertFired = false   // a fresh rest re-arms this instance
                 val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                if (ms <= 0L && !running && wasRunning) {
-                    wasRunning = false
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                    vibrate()
-                    playCompletionSound()
-                    mgr.notify(NOTIF_DONE_ID, buildDoneNotification())
-                    delay(2500)
-                    mgr.cancel(NOTIF_DONE_ID)
-                    stopSelf()
-                } else if (ms > 0L) {
-                    mgr.notify(NOTIF_ID, buildTimerNotification(ms))
+                val armed = timerManager.completionArmed.value && !alertFired
+                when (RestTimerAlertPolicy.decide(ms, running, armed)) {
+                    RestTimerAlertPolicy.Action.UPDATE_COUNTDOWN ->
+                        mgr.notify(NOTIF_ID, buildTimerNotification(ms))
+
+                    RestTimerAlertPolicy.Action.FIRE_COMPLETION_ALERT -> {
+                        alertFired = true
+                        @Suppress("DEPRECATION")
+                        stopForeground(true)
+                        vibrate()
+                        playCompletionSound()
+                        mgr.notify(NOTIF_DONE_ID, buildDoneNotification())
+                        delay(2500)
+                        mgr.cancel(NOTIF_DONE_ID)
+                        stopSelf()
+                    }
+
+                    // Nothing running and nothing armed — an orphaned service. Suppressing the
+                    // false alert is only half the fix: the old code reached stopSelf() THROUGH
+                    // that alert, so simply staying quiet would strand an undismissable "Starting…"
+                    // countdown in the shade forever. Take the service down instead.
+                    RestTimerAlertPolicy.Action.STOP_IDLE_SERVICE -> {
+                        @Suppress("DEPRECATION")
+                        stopForeground(true)
+                        stopSelf()
+                    }
+
+                    // Stopped early (Skip, or the session ended). Silent by contract: no alert, and
+                    // no countdown refresh either — stopService() tears the notification down.
+                    RestTimerAlertPolicy.Action.DO_NOTHING -> Unit
                 }
             }
         }

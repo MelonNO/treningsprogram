@@ -482,8 +482,8 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("streak_14",      "Unstoppable",          "14-day workout streak",                 "⚡"),
             Achievement("first_pr",       "PR Crusher",           "Set your first personal record",        "💥"),
             Achievement("pr_5",           "Record Breaker",       "Set 5 personal records",                "🥇"),
-            Achievement("level_5",        "Intermediate",         "Reach Level 5",                         "⭐"),
-            Achievement("level_10",       "Advanced",             "Reach Level 10",                        "🌟"),
+            Achievement("level_5",        "Measured Up",          "Reach a strength score of 5",                         "⭐"),
+            Achievement("level_10",       "Double Digits",        "Reach a strength score of 10",                        "🌟"),
             Achievement("volume_beast",   "Volume Beast",         "Log 20+ sets in one workout",           "📊"),
 
             // --- workout count milestones (16 new) ---
@@ -531,23 +531,26 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("pr_75",          "PR Addict",            "Set 75 personal records",               "🔥"),
             Achievement("pr_100",         "Beyond Limits",        "Set 100 personal records",              "👑"),
 
-            // --- level milestones (16 new) ---
-            Achievement("level_2",        "Leveled Up",           "Reach Level 2",                         "⭐"),
-            Achievement("level_3",        "Getting Started",      "Reach Level 3",                         "⭐"),
-            Achievement("level_4",        "Climbing",             "Reach Level 4",                         "⭐"),
-            Achievement("level_6",        "On the Rise",          "Reach Level 6",                         "🌟"),
-            Achievement("level_7",        "Week Seven",           "Reach Level 7",                         "🌟"),
-            Achievement("level_8",        "Momentum",             "Reach Level 8",                         "🌟"),
-            Achievement("level_12",       "Skilled",              "Reach Level 12",                        "💫"),
-            Achievement("level_15",       "Pro",                  "Reach Level 15",                        "🏅"),
-            Achievement("level_20",       "Seasoned",             "Reach Level 20",                        "🥇"),
-            Achievement("level_25",       "Grandmaster",          "Reach Level 25",                        "👑"),
-            Achievement("level_30",       "Legendary",            "Reach Level 30",                        "🏆"),
-            Achievement("level_35",       "Mythic",               "Reach Level 35",                        "⚡"),
-            Achievement("level_40",       "Immortal",             "Reach Level 40",                        "🔱"),
-            Achievement("level_50",       "Godlike",              "Reach Level 50",                        "👑"),
-            Achievement("level_75",       "Beyond Human",         "Reach Level 75",                        "🌌"),
-            Achievement("level_100",      "Ascended",             "Reach Level 100",                       "🌠"),
+            // --- strength milestones (16). Brief 02 (2026-08-07): these were XP-level
+            //     achievements. The ids are FROZEN — ensureAchievementsSeeded hard-deletes any
+            //     row whose id leaves this list, which would destroy a user's earned unlock.
+            //     Only the wording moved; the thresholds now read the 0-100 strength score. ---
+            Achievement("level_2",        "Off the Floor",        "Reach a strength score of 2",                         "⭐"),
+            Achievement("level_3",        "Getting Started",      "Reach a strength score of 3",                         "⭐"),
+            Achievement("level_4",        "Climbing",             "Reach a strength score of 4",                         "⭐"),
+            Achievement("level_6",        "On the Rise",          "Reach a strength score of 6",                         "🌟"),
+            Achievement("level_7",        "Seven Strong",         "Reach a strength score of 7",                         "🌟"),
+            Achievement("level_8",        "Momentum",             "Reach a strength score of 8",                         "🌟"),
+            Achievement("level_12",       "Skilled",              "Reach a strength score of 12",                        "💫"),
+            Achievement("level_15",       "Pro",                  "Reach a strength score of 15",                        "🏅"),
+            Achievement("level_20",       "Seasoned",             "Reach a strength score of 20 — Beginner overall",                        "🥇"),
+            Achievement("level_25",       "Grandmaster",          "Reach a strength score of 25",                        "👑"),
+            Achievement("level_30",       "Legendary",            "Reach a strength score of 30",                        "🏆"),
+            Achievement("level_35",       "Mythic",               "Reach a strength score of 35",                        "⚡"),
+            Achievement("level_40",       "Immortal",             "Reach a strength score of 40 — Novice overall",                        "🔱"),
+            Achievement("level_50",       "Godlike",              "Reach a strength score of 50",                        "👑"),
+            Achievement("level_75",       "Beyond Human",         "Reach a strength score of 75",                        "🌌"),
+            Achievement("level_100",      "Ascended",             "Reach a strength score of 100 — Elite in every rated group",                       "🌠"),
 
             // --- sets in one session (9 new) ---
             Achievement("sets_3",         "Three's Company",      "Log 3 sets in one workout",             "💪"),
@@ -682,16 +685,16 @@ abstract class AppDatabase : RoomDatabase() {
             Achievement("two_hundred_recs",  "Two Hundred Records",  "Set 200 personal records",                        "👑"),
             Achievement("quarter_k_prs",     "Quarter K PRs",        "Set 250 personal records",                        "🌠"),
 
-            // --- level milestones: titles that feel earned (9) ---
-            Achievement("nine_lives",        "Nine Lives",           "Reach Level 9",                                   "🐱"),
-            Achievement("one_for_eleven",    "One for Eleven",       "Reach Level 11",                                  "🌟"),
-            Achievement("battle_hardened",   "Battle Hardened",      "Reach Level 14",                                  "⚔️"),
-            Achievement("seventeen_up",      "Seventeen Up",         "Reach Level 17",                                  "🚀"),
-            Achievement("over_the_line",     "Over the Line",        "Reach Level 22",                                  "🎯"),
-            Achievement("forty_five_lives",  "Forty-Five Lives",     "Reach Level 45",                                  "💪"),
-            Achievement("diamond_level",     "Diamond Rank",         "Reach Level 60",                                  "💎"),
-            Achievement("the_overlord",      "The Overlord",         "Reach Level 80",                                  "🔱"),
-            Achievement("the_transcendent",  "The Transcendent",     "Reach Level 90",                                  "✨"),
+            // --- strength milestones: titles that feel earned (9). Ids frozen, see above. ---
+            Achievement("nine_lives",        "Nine Lives",           "Reach a strength score of 9",                                   "🐱"),
+            Achievement("one_for_eleven",    "One for Eleven",       "Reach a strength score of 11",                                  "🌟"),
+            Achievement("battle_hardened",   "Battle Hardened",      "Reach a strength score of 14",                                  "⚔️"),
+            Achievement("seventeen_up",      "Seventeen Up",         "Reach a strength score of 17",                                  "🚀"),
+            Achievement("over_the_line",     "Over the Line",        "Reach a strength score of 22",                                  "🎯"),
+            Achievement("forty_five_lives",  "Forty-Five Lives",     "Reach a strength score of 45",                                  "💪"),
+            Achievement("diamond_level",     "Diamond Rank",         "Reach a strength score of 60 — Intermediate overall",                                  "💎"),
+            Achievement("the_overlord",      "The Overlord",         "Reach a strength score of 80 — Advanced overall",                                  "🔱"),
+            Achievement("the_transcendent",  "The Transcendent",     "Reach a strength score of 90",                                  "✨"),
 
             // --- XP milestones: evocative names (10) ---
             Achievement("lucky_xp",          "Lucky Seven-Fifty",    "Earn 750 total XP",                               "🍀"),

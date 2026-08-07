@@ -251,16 +251,19 @@ class HomeFragment : Fragment() {
                         }
                 }
                 launch {
-                    viewModel.userStats.collect { stats ->
+                    // Brief 02: this strip used to read "Rookie • 340 XP • 60 to next" off the XP
+                    // level. The level is now the STRENGTH rating; XP survives as a plain total
+                    // with no level and no title derived from it.
+                    combine(viewModel.userStats, viewModel.strength) { stats, strength ->
+                        stats to strength
+                    }.collect { (stats, strength) ->
                         if (stats != null) {
-                            binding.tvLevelBadge.text = "L${stats.level}"
+                            binding.tvLevelBadge.text = tierBadge(strength?.totalTier)
                             if (!xpAnimating) {
-                                val progress = (GamificationRepository.levelProgress(stats.totalXp) * 100).toInt()
-                                binding.progressXp.progress = progress
+                                binding.progressXp.progress = tierProgressPercent(strength)
                             }
-                            val xpNext = GamificationRepository.xpForLevel(stats.level + 1) - stats.totalXp
-                            val title = GamificationRepository.levelTitle(stats.level)
-                            binding.tvXpLabel.text = "$title  •  ${stats.totalXp} XP  •  $xpNext to next"
+                            val tierLabel = strength?.totalTier?.displayName ?: "Unrated"
+                            binding.tvXpLabel.text = "$tierLabel  •  ${stats.totalXp} XP"
                             val streakEmoji = when {
                                 stats.currentStreak >= 7 -> "🔥🔥"
                                 stats.currentStreak >= 3 -> "🔥"
@@ -268,8 +271,8 @@ class HomeFragment : Fragment() {
                             }
                             binding.tvStreak.text = "$streakEmoji ${stats.currentStreak}"
                         } else {
-                            binding.tvLevelBadge.text = "L1"
-                            binding.tvXpLabel.text = "0 XP"
+                            binding.tvLevelBadge.text = tierBadge(null)
+                            binding.tvXpLabel.text = "Unrated  •  0 XP"
                             binding.tvStreak.text = "📅 0"
                         }
                     }
@@ -417,21 +420,37 @@ class HomeFragment : Fragment() {
         return out
     }
 
+    /**
+     * Brief 02: the badge is the only place a tier has to survive in a small circle, so it shows a
+     * three-letter form of the NAME. Still a name, never a number — the user chose names.
+     */
+    private fun tierBadge(tier: com.migul.treningsprogram.domain.strength.StrengthTier?): String =
+        tier?.displayName?.take(3)?.uppercase() ?: "—"
+
+    /** How far through the current tier the total sits, as a 0..100 bar value. */
+    private fun tierProgressPercent(
+        strength: com.migul.treningsprogram.domain.strength.StrengthProfile?
+    ): Int {
+        if (strength?.totalTier == null) return 0
+        val within = strength.totalScore - kotlin.math.floor(strength.totalScore)
+        return (within * 100).toInt().coerceIn(0, 100)
+    }
+
     override fun onResume() {
         super.onResume()
         val result = sharedResultVm.consumeForHome() ?: return
-        // Set XP bar to pre-workout position, then animate
-        val beforeXp = result.totalXp - result.xpEarned
-        val startProgress = (GamificationRepository.levelProgress(beforeXp) * 100).toInt()
+        // Set the bar to its pre-workout position, then animate. Brief 02: this is now progress
+        // through the current STRENGTH tier, not progress toward the next XP level.
+        val startProgress = (result.previousStrengthProgress * 100).toInt().coerceIn(0, 100)
         binding.progressXp.progress = startProgress
         xpAnimating = true
         binding.root.post { playXpAnimation(result, startProgress) }
     }
 
     private fun playXpAnimation(result: WorkoutResult, startProgress: Int) {
-        val endProgress = (result.levelProgress * 100).toInt()
+        val endProgress = (result.strengthProgress * 100).toInt().coerceIn(0, 100)
 
-        if (result.didLevelUp) {
+        if (result.didTierUp) {
             // 1. Fill bar to 100%
             ObjectAnimator.ofInt(binding.progressXp, "progress", startProgress, 100).apply {
                 duration = ((100 - startProgress) * 8L).coerceAtLeast(400)
@@ -439,9 +458,9 @@ class HomeFragment : Fragment() {
                 addListener(object : AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: Animator) {
                         if (_binding == null) return
-                        // 2. Show level-up overlay
-                        showLevelUpOverlay(result) {
-                            if (_binding == null) return@showLevelUpOverlay
+                        // 2. Show the tier-up celebration
+                        showTierUpOverlay(result) {
+                            if (_binding == null) return@showTierUpOverlay
                             // 3. Reset bar, animate to new level progress
                             binding.progressXp.progress = 0
                             ObjectAnimator.ofInt(binding.progressXp, "progress", 0, endProgress).apply {
@@ -475,11 +494,17 @@ class HomeFragment : Fragment() {
         }
     }
 
-    private fun showLevelUpOverlay(result: WorkoutResult, onDismiss: () -> Unit) {
+    /**
+     * Decision D3: the celebration that used to fire on an XP level-up now fires on reaching a new
+     * STRENGTH tier — a thing the user actually had to get stronger to earn, rather than a
+     * by-product of showing up.
+     */
+    private fun showTierUpOverlay(result: WorkoutResult, onDismiss: () -> Unit) {
         val overlay = binding.layoutLevelUpOverlay
-        val title = GamificationRepository.levelTitle(result.level)
-        binding.tvLevelUpNewLevel.text = "Level ${result.level}"
-        binding.tvLevelUpTitle.text = title
+        binding.tvLevelUpNewLevel.text = result.strengthTier?.displayName ?: ""
+        binding.tvLevelUpTitle.text = result.previousStrengthTier
+            ?.let { "up from ${it.displayName}" }
+            ?: "your first strength rating"
 
         // Scale in
         overlay.alpha = 0f
